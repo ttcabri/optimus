@@ -12,5 +12,5 @@ async def handle_text(message: Message, state: FSMContext) -> None:
     if await state.get_state() is not None:
         return
 
-    reply = await claude.get_response(message.from_user.id, message.text)
+    reply = await claude.get_ai_response(message.from_user.id, message.text)
     await message.answer(reply)

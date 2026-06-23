@@ -26,5 +26,5 @@ async def handle_voice(message: Message, bot: Bot) -> None:
         await message.answer("Недоступен, напиши позже.")
         return
 
-    reply = await claude.get_response(message.from_user.id, text)
+    reply = await claude.get_ai_response(message.from_user.id, text)
     await message.answer(reply)
