@@ -33,7 +33,8 @@ button{cursor:pointer}
 .reward .lbl{flex:1;min-width:0;font-weight:800;font-size:14px}
 .leaf{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:var(--panel);color:var(--dim);flex-shrink:0}
 .leaf.open,.leaf.gold{background:#2f4a3b;color:var(--okl)}.leaf.broken{color:#c97b62}
-.rqs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.rqs{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:6px}
+.rq.pen{border-color:#6b3a2a;color:#c97b62}.rq.pen.on{background:#2f4a3b;border-color:#3c6b52;color:var(--okl)}
 .playbtn.quiet{background:transparent;color:var(--muted);border:1px solid var(--line2)}
 .rq{display:flex;align-items:center;justify-content:center;gap:4px;height:26px;min-width:0;overflow:hidden;border-radius:8px;border:1px solid var(--line2);font-size:12px;font-weight:700;color:var(--dim);white-space:nowrap}
 .rq.on{background:#2f4a3b;border-color:#3c6b52;color:var(--okl)}
@@ -239,6 +240,7 @@ const VIDEO_STEPS=[
 const QUESTS=[
   {id:"wake",name:"Подъём, вода, улица",sub:"10 минут дневного света",dur:20,xp:20,minor:1,until:"12:00"},
   {id:"bfast",name:"Завтрак",sub:"Разогреть заготовку",dur:20,xp:15,minor:1,until:"12:00"},
+  {id:"fine",name:"Штраф: €5 в safemoney",sub:"Перевод в Trading 212 за вчерашний провал",botSub:"За вчерашний провал. Скрин перевода в Trading 212 в бот",dur:5,xp:0,proof:1,req:1,penalty:1},
   {id:"cbr",name:"Теория на права",sub:"TheorieExamen.nl: урок и тест",botSub:"TheorieExamen.nl. Скрин результата в бот",dur:45,xp:40,req:1,proof:1},
   {id:"video",name:"Видео",kind:"video",dur:110,req:1},
   {id:"lunch",name:"Обед",sub:"Разогреть заготовку",dur:30,xp:15,minor:1,until:"16:00"},
@@ -303,7 +305,9 @@ function queue(k){
   for(const q of QUESTS){
     if(q.days&&!q.days.includes(dow(k)))continue;
     if(q.id==="_custom"){for(const c of d.custom)out.push({id:c.id,name:c.name,dur:c.dur||30,fixed:c.at||null,xp:15,custom:1});continue}
-    if(q.id==="vid2"&&!bossDone(d))continue;
+    const debt=debtOf(k);
+    if(q.id==="fine"&&!debt)continue;
+    if(q.id==="vid2"){if(debt){out.push({...q,name:"Долг: второе видео",sub:"За вчера. Без него награды и Доты нет",botSub:"За вчера. Ссылку кинь боту",opt:0,penalty:1});continue}if(!bossDone(d))continue}
     if(d.skip.includes(q.id))continue;
     if(q.until&&k===key()&&nowMin()>toMin(q.until)&&!has(d,q.id))continue; // утро прошло: не тащим завтрак в вечер
     out.push(q);
@@ -346,13 +350,21 @@ function plan(k,extraGame){
   return {items:out,over};
 }
 
+/* ---------- провал и наказания ---------- */
+// Провал = день без видео. Считаем только дни, когда приложением уже пользовались.
+function failedDay(k){if(k>=key())return false;const d=peek(k);if(bossDone(d))return false;
+  return Object.keys(state.days).some(x=>x<=k&&((peek(x).done||[]).length||peek(x).firstSmoke))}
+const debtOf=k=>failedDay(shift(k,-1));
+const debtClosed=d=>has(d,"vid2")&&has(d,"fine");
+
 /* ---------- награда дня, XP ---------- */
 // Главная награда (трава) открывается, когда закрыты 4 главных дела. Одна за день.
-const REQ_NAMES={video:"Видео",train:"Тренировка",cbr:"Теория",eng:"Duolingo"};
+const REQ_NAMES={video:"Видео",train:"Тренировка",cbr:"Теория",eng:"Duolingo",debt:"Долг",fine:"€5"};
 function reqs(k){const d=peek(k)||{},at=d.at||{},tr=trainOf(k);
   const r=[{id:"video",t:at.b5},{id:"cbr",t:at.cbr},{id:"eng",t:at.eng}];
   if(tr)r.splice(1,0,{id:"train",tr,t:at[tr]});
-  if(d.skip)for(const x of r)if(x.id!=="video"&&d.skip.includes(x.id==="train"?x.tr:x.id))x.t=x.t||"skip"; // убранное сегодня не блокирует награду, видео убрать нельзя
+  if(debtOf(k)){r.push({id:"debt",t:at.vid2,pen:1},{id:"fine",t:at.fine,pen:1})}
+  if(d.skip)for(const x of r)if(x.id!=="video"&&!x.pen&&d.skip.includes(x.id==="train"?x.tr:x.id))x.t=x.t||"skip"; // убранное сегодня не блокирует награду, видео убрать нельзя
   return r}
 // pending: копим · open: награда открыта · gold: взял после всех дел · base: раньше, но тренировка была чистой · broken: раньше тренировки
 function rewardState(k){
@@ -371,14 +383,14 @@ function cleanStreak(){let n=0,k=key();if(!isClean(k))k=shift(k,-1);
 const cleanRank=n=>{let r=CLEAN_RANKS[0];for(const x of CLEAN_RANKS)if(n>=x[0])r=x;return r};
 const nextClean=n=>CLEAN_RANKS.find(x=>x[0]>n);
 const gamesUsed=d=>Math.max(d.games||0,(d.gl||[]).length);
-const missedYesterday=k=>{const p=peek(shift(k,-1));return !!p&&(p.done||[]).length>0&&!bossDone(p)};
 function dayXP(k){const d=peek(k);if(!d)return 0;let x=0;
   for(const q of QUESTS)if(q.xp&&has(d,q.id))x+=q.xp;
   for(const c of d.custom||[])if(has(d,c.id))x+=15;
   for(const b of BOSS_IDS)if(has(d,b))x+=10;
-  if(bossDone(d))x+=(missedYesterday(k)?300:150)-50;
+  if(bossDone(d))x+=100;
+  if(failedDay(k))x-=100;
   const c=rewardState(k);if(c==="base")x+=30;if(c==="gold"||c==="open")x+=60;return x}
-const totalXP=()=>Object.keys(state.days).reduce((a,k)=>a+dayXP(k),0);
+const totalXP=()=>Math.max(0,Object.keys(state.days).reduce((a,k)=>a+dayXP(k),0)); // ниже нуля не падаем, уровень минимум 1
 const vids=()=>Object.values(state.days).reduce((a,d)=>a+(bossDone(d)?1:0)+(has(d,"vid2")?1:0),0);
 function videoStreak(){let n=0,k=key();if(!bossDone(peek(k)))k=shift(k,-1);while(bossDone(peek(k))){n++;k=shift(k,-1)}return n}
 const countQ=(ids,days)=>{let n=0;const keys=days?Array.from({length:days},(_,i)=>shift(key(),-i)):Object.keys(state.days);for(const k of keys){const d=peek(k);if(d&&ids.some(id=>has(d,id)))n++}return n};
@@ -429,8 +441,8 @@ const nextStep=d=>VIDEO_STEPS.find(s=>!has(d,s.id));
 /* ---------- отрисовка ---------- */
 function renderReward(){
   const k=key(),d=dayOf(k),R=reqs(k),st=rewardState(k),n=R.filter(x=>x.t).length;
-  const L={pending:`Награда дня: ${n} из ${R.length}`,open:"Награда открыта",gold:"Награда взята. Заслужил",base:"Раньше времени, но тренировка чистая",broken:"Награда сгорела. Завтра заново"}[st];
-  const chips=R.map(x=>`<span class="rq${x.t?" on":""}">${x.t?IC.check:""}${x.id==="train"?(x.tr==="fight"?"Бой":"Зал"):REQ_NAMES[x.id]}</span>`).join("");
+  const L={pending:`${debtOf(k)?"Штрафной день":"Награда дня"}: ${n} из ${R.length}`,open:"Награда открыта",gold:"Награда взята. Заслужил",base:"Раньше времени, но тренировка чистая",broken:"Награда сгорела. Завтра заново"}[st];
+  const chips=R.map(x=>`<span class="rq${x.pen?" pen":""}${x.t?" on":""}">${x.t?IC.check:""}${x.id==="train"?(x.tr==="fight"?"Бой":"Зал"):REQ_NAMES[x.id]}</span>`).join("");
   $("reward").innerHTML=`<div class="rtop"><span class="leaf ${st}">${IC.leaf}</span><span class="lbl">${L}</span><button type="button" class="playbtn${st==="open"?"":" quiet"}" id="smoke">Покурил</button></div><div class="rqs">${chips}</div>`;
   if(!confirmPlay){$("confirm").innerHTML="";return}
   const a=plan(k),b=plan(k,true),nextReal=b.items.find(x=>x.q&&!x.started),newly=b.over.filter(o=>!a.over.some(x=>x.q.id===o.q.id));
@@ -441,7 +453,7 @@ function renderReward(){
   $("nogame").onclick=()=>{confirmPlay=false;render()};
   $("gogame").onclick=()=>{confirmPlay=false;mutate(()=>{d.gl.push(hhmm());d.games=gamesUsed(d)});toast("GL HF. Катка 45 минут.")};
 }
-function askGame(){if(!bossDone(dayOf(key()))){toast("Дота после видео. Сначала босс.");return}confirmPlay=true;render();window.scrollTo(0,0)}
+function askGame(){const d=dayOf(key());if(!bossDone(d)){toast("Дота после видео. Сначала босс.");return}if(debtOf(key())&&!has(d,"vid2")){toast("Сначала долг: второе видео.");return}confirmPlay=true;render();window.scrollTo(0,0)}
 function renderHead(){
   const xp=totalXP(),lvl=Math.floor(xp/300)+1;
   $("day").textContent=new Date().toLocaleDateString("ru-RU",{weekday:"long"});
@@ -497,7 +509,7 @@ function overCard(p){
   return `<section class="over"><h3>Не влезает до ${DAY_END}</h3>
     ${p.over.map(o=>`<div class="it"><b>${esc(o.q.name)} · ${durTxt(o.dur)}</b>
       ${o.dur>=30?`<button type="button" class="chip" data-cut="${esc(o.q.id)}">Вдвое</button>`:""}
-      <button type="button" class="chip" data-skip="${esc(o.q.id)}">${o.q.custom?"На завтра":"Убрать"}</button></div>`).join("")}</section>`;
+      ${o.q.penalty?"":`<button type="button" class="chip" data-skip="${esc(o.q.id)}">${o.q.custom?"На завтра":"Убрать"}</button>`}</div>`).join("")}</section>`;
 }
 function addForm(kind){
   return `<form class="add" data-add="${kind}"><div class="r"><input name="t" maxlength="80" placeholder="${kind==="today"?"Своё дело на сегодня":"Дело на завтра"}" aria-label="Название дела" autocomplete="off"></div>

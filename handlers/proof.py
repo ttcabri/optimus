@@ -123,7 +123,7 @@ async def proof_photo(message: Message, bot: Bot) -> None:
 
     kind = result.get("quest")
     comment = result.get("comment", "").strip()
-    if not result.get("ok") or kind not in ("cbr", "eng", "training", "video"):
+    if not result.get("ok") or kind not in ("cbr", "eng", "fine", "training", "video"):
         await message.answer("❌ Не засчитано.\n" + (comment or "Не понял, что это за пруф. Подпиши фото."))
         return
 
@@ -134,6 +134,11 @@ async def proof_photo(message: Message, bot: Bot) -> None:
         ids, title = ["cbr"], "Теория на права"
     elif kind == "eng":
         ids, title = ["eng"], "Duolingo"
+    elif kind == "fine":
+        if not day.get("_debt"):
+            await message.answer("Штрафа сегодня нет. Но перевод в safemoney засчитываю как красавчик 💪")
+            return
+        ids, title = ["fine"], "Штраф €5"
     elif not quest.boss_done(day):
         ids, title = quest.BOSS_IDS, "Видео"
     else:

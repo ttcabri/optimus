@@ -85,6 +85,7 @@ HINTS = {
     "fight": "До тренировки без травы. Фото сюда.",
     "eng": "Duolingo, урок или два. Скрин сюда.",
     "vid2": "Ссылку на второе видео сюда.",
+    "fine": "Переведи €5 в safemoney и кинь скрин Trading 212.",
 }
 _sent: set[str] = set()
 
@@ -136,6 +137,7 @@ async def send_quest_night(bot: Bot) -> None:
         day = await quest.get_day(TELEGRAM_USER_ID)
         text = (
             "🌙 <b>22:30. Итог дня</b>\n\n" + quest.day_summary(day)
+            + ("" if quest.boss_done(day) else "\n\n⚠️ Видео сегодня не вышло. Завтра штрафной день: два видео и €5 в safemoney. Минус 100 XP уже списано.")
             + "\n\nЧто завтра, кроме основы? Напиши так:\n<code>завтра: отвезти Audi; письмо в UWV</code>"
             + "\n\nЭкран выкл, 15 минут повтор теории и спать в 23:30."
         )

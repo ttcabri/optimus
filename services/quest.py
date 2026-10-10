@@ -15,7 +15,7 @@ from config import TIMEZONE
 
 BOSS_IDS = ["b1", "b2", "b3", "b4", "b5"]
 # Закрываются только пруфом через бота
-PROOF_IDS = {"cbr", "gym", "fight", "eng", "b5", "vid2"}
+PROOF_IDS = {"cbr", "gym", "fight", "eng", "b5", "vid2", "fine"}
 
 QUEST_NAMES = {
     "cbr": "TheorieExamen",
@@ -62,7 +62,23 @@ def boss_done(day: dict | None) -> bool:
     return bool(day) and all(b in day.get("done", []) for b in BOSS_IDS)
 
 
-REQ_NAMES = {"video": "Видео", "train": "Тренировка", "cbr": "Теория", "eng": "Duolingo"}
+REQ_NAMES = {"video": "Видео", "train": "Тренировка", "cbr": "Теория", "eng": "Duolingo", "debt": "Долг: 2-е видео", "fine": "Штраф €5"}
+
+
+# --- Провал и наказания: провал = день без видео. Долг не копится: максимум одно лишнее видео и €5.
+
+def failed_day(state: dict, key: str) -> bool:
+    if key >= today_key():
+        return False
+    if boss_done(state.get("days", {}).get(key)):
+        return False
+    return any(k <= key and (d.get("done") or d.get("firstSmoke")) for k, d in state.get("days", {}).items())
+
+
+def has_debt(state: dict, key: str | None = None) -> bool:
+    key = key or today_key()
+    prev = (datetime.strptime(key, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
+    return failed_day(state, prev)
 
 
 def reqs(day: dict, weekday: int | None = None) -> list[dict]:
@@ -75,6 +91,9 @@ def reqs(day: dict, weekday: int | None = None) -> list[dict]:
         r.append({"id": "train", "tr": tr, "t": at.get(tr) or ("skip" if tr in skip else None)})
     r.append({"id": "cbr", "t": at.get("cbr") or ("skip" if "cbr" in skip else None)})
     r.append({"id": "eng", "t": at.get("eng") or ("skip" if "eng" in skip else None)})
+    if day.get("_debt"):
+        r.append({"id": "debt", "t": at.get("vid2")})
+        r.append({"id": "fine", "t": at.get("fine")})
     return r
 
 
@@ -103,7 +122,7 @@ def reward_line(day: dict, weekday: int | None = None) -> str:
     st = reward_state(day, weekday)
     marks = " · ".join(("✅ " if x["t"] else "▫️ ") + (("Бой" if x.get("tr") == "fight" else "Зал") if x["id"] == "train" else REQ_NAMES[x["id"]]) for x in r)
     head = {
-        "pending": f"🌿 Награда дня: {n} из {len(r)}",
+        "pending": f"🌿 {'Штрафной день' if day.get('_debt') else 'Награда дня'}: {n} из {len(r)}",
         "open": "🌿 Награда открыта. Заслужил.",
         "gold": "🌿 Награда взята по-честному.",
         "base": "🌿 Раньше времени, но тренировка была чистой.",
@@ -114,7 +133,9 @@ def reward_line(day: dict, weekday: int | None = None) -> str:
 
 async def get_day(telegram_id: int) -> dict:
     state = await database.get_quest_state(telegram_id)
-    return _day(state, today_key())
+    day = _day(state, today_key())
+    day["_debt"] = has_debt(state)
+    return day
 
 
 async def mark_done(telegram_id: int, ids: list[str]) -> dict:
@@ -126,6 +147,7 @@ async def mark_done(telegram_id: int, ids: list[str]) -> dict:
             day["done"].append(i)
             day["at"][i] = t
     await database.save_quest_state(telegram_id, state)
+    day["_debt"] = has_debt(state)
     return day
 
 
@@ -136,6 +158,7 @@ async def add_smoke(telegram_id: int) -> dict:
         day["firstSmoke"] = hhmm()
     day["smokes"] = day.get("smokes", 0) + 1
     await database.save_quest_state(telegram_id, state)
+    day["_debt"] = has_debt(state)
     return day
 
 
@@ -239,7 +262,11 @@ def day_summary(day: dict) -> str:
     w = now().weekday()
     lines = ["Видео: " + ("вышло ✅" if boss_done(day) else f"{sum(b in done for b in BOSS_IDS)} из 5 шагов ❌")]
     if "vid2" in done:
-        lines.append("Второе видео: вышло 🔥")
+        lines.append("Второе видео: вышло 🔥" + (" Долг закрыт." if day.get("_debt") else ""))
+    elif day.get("_debt"):
+        lines.append("Долг за вчера: второе видео не вышло ❌")
+    if day.get("_debt"):
+        lines.append("Штраф €5: " + ("переведён ✅" if "fine" in done else "не переведён ❌"))
     tr = training_id(w)
     if tr:
         lines.append("Тренировка: " + ("да ✅" if tr in done else "нет ❌"))
@@ -266,6 +293,7 @@ DAY_END = "22:45"
 PLAN_QUESTS = [
     ("wake", "Подъём, вода, улица", 20, None, None, True),
     ("bfast", "Завтрак", 20, None, None, True),
+    ("fine", "Штраф: €5 в safemoney", 5, None, None, False),
     ("cbr", "Теория на права", 45, None, None, False),
     ("video", "Видео", 110, None, None, False),
     ("lunch", "Обед", 30, None, None, True),
@@ -322,8 +350,12 @@ def build_plan(day: dict, now_min: int | None = None, wd: int | None = None) -> 
             for c in day.get("custom", []):
                 queue.append({"id": c["id"], "name": c["name"], "dur": c.get("dur", 30), "fixed": c.get("at"), "minor": False})
             continue
-        if qid == "vid2" and not boss_done(day):
+        if qid == "fine" and not day.get("_debt"):
             continue
+        if qid == "vid2" and not boss_done(day) and not day.get("_debt"):
+            continue
+        if qid == "vid2" and day.get("_debt"):
+            name = "Долг: второе видео"
         if qid in skip:
             continue
         if qid in UNTIL and now_m > to_min(UNTIL[qid]) and qid not in done:
