@@ -632,9 +632,9 @@ function giftsCard(){
 async function findGifts(){
   if(!state.prefs){openPrefs();return}
   if(!BOT||typeof fetchGifts!=="function"){toast("Подбор реальных подарков работает в боте в Телеграме.");return}
-  giftBusy=true;giftIdeas=null;render();
+  giftBusy=true;giftIdeas=null;render();toast("Ищу реальные варианты, это до минуты…");
   try{giftIdeas=await fetchGifts(lvlOf()+1);if(!giftIdeas.length)toast("Не нашёл. Попробуй ещё раз.")}
-  catch(e){toast("Не получилось найти. Попробуй позже.")}
+  catch(e){toast(String(e&&e.message)==="too_often"?"Подожди 10 секунд и жми снова.":"Не получилось найти. Попробуй ещё раз через минуту.")}
   giftBusy=false;render();
 }
 function render(){

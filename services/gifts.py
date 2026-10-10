@@ -36,7 +36,7 @@ PROMPT = """Ты подбираешь реальную награду челов
 
 async def suggest_gifts(telegram_id: int, prefs: dict, level: int) -> list[dict]:
     now = time.time()
-    if now - _last_call.get(telegram_id, 0) < 30:
+    if now - _last_call.get(telegram_id, 0) < 10:
         raise RuntimeError("too_often")
     _last_call[telegram_id] = now
 
@@ -55,23 +55,54 @@ async def suggest_gifts(telegram_id: int, prefs: dict, level: int) -> list[dict]
         "messages": [{"role": "user", "content": prompt}],
     }
     headers = {"x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json"}
-    async with httpx.AsyncClient(timeout=90) as client:
-        r = await client.post(API_URL, headers=headers, json=body)
-    if r.status_code != 200:
-        logger.error(f"Gift search error {r.status_code}: {r.text[:300]}")
-        raise RuntimeError("api_error")
-    return parse_ideas(r.json())
+    async with httpx.AsyncClient(timeout=120) as client:
+        data = {}
+        for _ in range(3):  # web search может вернуть pause_turn: тогда продолжаем
+            r = await client.post(API_URL, headers=headers, json=body)
+            if r.status_code != 200:
+                logger.error(f"Gift search error {r.status_code}: {r.text[:500]}")
+                _last_call.pop(telegram_id, None)
+                raise RuntimeError("api_error")
+            data = r.json()
+            if data.get("stop_reason") != "pause_turn":
+                break
+            body["messages"] = body["messages"] + [{"role": "assistant", "content": data.get("content", [])}]
+        ideas = parse_ideas(data)
+        if ideas:
+            return ideas
+        # запасной шаг: найденное превращаем в JSON без поиска
+        text = _text(data)
+        logger.warning(f"Gift parse failed, stop={data.get('stop_reason')}, text={text[:600]!r}")
+        if text.strip():
+            fix = {"model": MODEL, "max_tokens": 1200, "messages": [{"role": "user", "content":
+                   "Преобразуй варианты подарков из текста ниже в JSON-массив из 3 объектов с ключами "
+                   "title, what, where, price, link. Ответь только JSON.\n\n" + text[:6000]}]}
+            r = await client.post(API_URL, headers=headers, json=fix)
+            if r.status_code == 200:
+                ideas = parse_ideas(r.json())
+    if not ideas:
+        _last_call.pop(telegram_id, None)  # неудача не блокирует повтор
+    return ideas
+
+
+def _text(data: dict) -> str:
+    return "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
 
 
 def parse_ideas(data: dict) -> list[dict]:
-    """Склеивает текстовые блоки ответа и достаёт JSON-массив."""
-    text = "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
-    m = re.search(r"\[.*\]", text, re.S)
-    if not m:
-        return []
-    try:
-        raw = json.loads(m.group(0))
-    except ValueError:
+    """Достаёт JSON-массив из текста ответа. Пропускает сноски вроде [1] и мусор вокруг."""
+    text = _text(data)
+    raw = None
+    dec = json.JSONDecoder()
+    for m in re.finditer(r"\[", text):
+        try:
+            val, _ = dec.raw_decode(text[m.start():])
+        except ValueError:
+            continue
+        if isinstance(val, list) and val and all(isinstance(x, dict) for x in val):
+            raw = val
+            break
+    if raw is None:
         return []
     out = []
     for g in raw[:3]:
