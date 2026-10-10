@@ -106,6 +106,9 @@ async def log_subs(message: Message) -> None:
     goals = dict(state.get("goals") or {})
     goals["subs"] = n
     state["goals"] = goals
+    today = quest.today_key()
+    log = [x for x in (state.get("chanLog") or []) if x.get("d") != today]
+    state["chanLog"] = (log + [{"d": today, "subs": n, "views": goals.get("maxViews", 0)}])[-60:]
     await database.save_quest_state(message.from_user.id, state)
     left = next((t - n for t in (100, 1000) if t > n), None)
     await message.answer(f"📈 Записал: {n} подписчиков." + (f" До следующей цели {left}." if left else " Обе цели по подписчикам взяты."))

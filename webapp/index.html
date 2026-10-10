@@ -36,7 +36,7 @@ button{cursor:pointer}
 .pill{display:flex;align-items:center;gap:6px;height:38px;white-space:nowrap;flex-shrink:0;padding:0 12px;border-radius:19px;background:var(--panel);border:1px solid var(--line2);font-family:var(--display);font-size:16px;color:var(--fg)}
 .pill svg{width:18px;height:18px}
 .pill.fire{color:#ff8a5c}.pill.fire.zero{color:var(--dim)}
-.pill.navplus{min-width:64px;display:grid;place-items:center;background:none;border:none;padding:0}
+.pill.navplus{min-width:58px;display:grid;place-items:center;background:none;border:none;padding:0}
 .navplus span{width:54px;height:54px;margin-top:-22px;border-radius:50%;background:var(--gold);color:var(--ink);display:grid;place-items:center;box-shadow:0 6px 18px rgba(224,164,86,.3);border:4px solid #1c1511}
 .rqlist{display:flex;flex-direction:column;gap:6px}
 .rqlist div{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:var(--panel);font-weight:700}
@@ -143,6 +143,8 @@ button{cursor:pointer}
 .hl2{display:flex;align-items:center;gap:12px;min-width:0}
 .hl2 .flame{width:52px;height:52px;border-radius:16px;background:#3a1d14;color:#ff8a5c;display:grid;place-items:center;flex-shrink:0}
 .hl2 .flame svg{width:30px;height:30px}
+.hl2 .flame.yt{background:#3a1616;color:#ff5b4f}
+.delta{color:var(--okl)}
 .hl2 b{display:block;font-family:var(--display);font-weight:400;font-size:40px;line-height:1}
 .hl2 small{display:block;font-size:13px;font-weight:700;color:var(--muted)}
 .hl2 small.dim{color:var(--dim);font-weight:600}
@@ -193,7 +195,7 @@ button{cursor:pointer}
 
 nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:6;display:flex;justify-content:center;background:#1c1511;border-top:1px solid #33261f;padding:8px 4px calc(10px + env(safe-area-inset-bottom,0px))}
 nav.tabs .in{display:flex;justify-content:space-around;width:100%;max-width:520px}
-nav.tabs button{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:64px;min-height:48px;background:none;border:none;color:var(--dim);font-size:12px;font-weight:700}
+nav.tabs button{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:52px;min-height:48px;background:none;border:none;color:var(--dim);font-size:11.5px;font-weight:700;padding:0 2px}
 nav.tabs button[aria-selected="true"]{color:var(--gold);font-weight:800}
 
 .focus{position:fixed;inset:0;z-index:20;background:#120d0b;display:flex;flex-direction:column;padding:calc(16px + env(safe-area-inset-top,0px)) 16px calc(24px + env(safe-area-inset-bottom,0px));overflow-y:auto}
@@ -232,6 +234,7 @@ nav.tabs button[aria-selected="true"]{color:var(--gold);font-weight:800}
 <nav class="tabs" aria-label="Разделы"><div class="in" role="tablist">
   <button type="button" role="tab" data-tab="today" aria-selected="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l3 6 6 1-4.5 4.5L18 20l-6-3-6 3 1.5-6.5L3 9l6-1z"/></svg>Сегодня</button>
   <button type="button" role="tab" data-tab="day" aria-selected="false"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>День</button>
+  <button type="button" role="tab" data-tab="chan" aria-selected="false"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="4"/><path d="M10 9.5v5l4.5-2.5z" fill="currentColor"/></svg>Канал</button>
   <button type="button" class="navplus" id="plus" aria-label="Добавить"><span><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span></button>
   <button type="button" role="tab" data-tab="gym" aria-selected="false"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 5v14M18 5v14M6 12h12M3 8v8M21 8v8"/></svg>Зал</button>
   <button type="button" role="tab" data-tab="prog" aria-selected="false"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Прогресс</button>
@@ -470,7 +473,7 @@ const nextStep=d=>VIDEO_STEPS.find(s=>!has(d,s.id));
 
 /* ---------- отрисовка ---------- */
 const FIRE='<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 22c4.4 0 7.5-3 7.5-7.2 0-4.1-2.8-6.3-4.2-10.3-1.9 1.7-3 3.6-3.1 5.8-.9-1-1.6-2.2-1.8-3.9C7.4 8.4 4.5 11.3 4.5 14.8 4.5 19 7.6 22 12 22z"/></svg>';
-const TITLES={today:"Сегодня",day:"План дня",gym:"Зал",prog:"Прогресс"};
+const TITLES={today:"Сегодня",day:"План дня",chan:"Канал",gym:"Зал",prog:"Прогресс"};
 function renderReward(){
   const k=key(),d=dayOf(k),R=reqs(k),st=rewardState(k),n=R.filter(x=>x.t).length,vs=videoStreak();
   const sub=tab==="today"?new Date().toLocaleDateString("ru-RU",{weekday:"long",day:"numeric",month:"long"}):"";
@@ -584,7 +587,7 @@ function viewGym(){
   const body=state.body.slice(-6);
   const dl=body.length>1?Math.round((body[body.length-1].kg-body[0].kg)*10)/10:null;
   const dd=x=>String(x).slice(5).split("-").reverse().join(".");
-  const goal=prof().goalKg,cur=body.length?body[body.length-1].kg:null;
+  const goal=goalsSt().goalKg||prof().goalKg,cur=body.length?body[body.length-1].kg:null;
   const bodyCard=body.length?`${goal?`<span style="font-size:13px;font-weight:700;color:var(--muted)">Цель ${goal} кг · осталось ${Math.abs(Math.round((goal-cur)*10)/10)} кг</span>`:""}<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span class="big">${body[body.length-1].kg} кг</span>${dl!==null?`<span style="font-size:13px;font-weight:700;color:var(--muted)">${dl>0?"+":""}${dl} кг с ${dd(body[0].d)}</span>`:""}</div>
     <div class="mini">${body.slice().reverse().map(b=>`<div><span>${dd(b.d)}</span><b>${b.kg} кг</b></div>`).join("")}</div>`:'<p class="empty">Взвешивайся раз в неделю, в понедельник утром до завтрака.</p>';
   const exs=[...new Set(state.lifts.filter(l=>l.ex).map(l=>l.ex))];
@@ -597,7 +600,7 @@ function viewGym(){
   const cleanW=state.lifts.filter(l=>l.ex&&l.clean).length,allW=state.lifts.filter(l=>l.ex).length;
   return `<div class="card"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><b>Сегодня</b><span style="font-size:13px;font-weight:700;color:var(--muted)">${tr?(tr==="gym"?"Зал":"Единоборства"):"День отдыха"}</span></div>
       <div class="mini"><div><span>Тренировка</span><b>${tr?(has(d,tr)?"сделана":"ещё нет"):"не нужна"}</b></div><div><span>Награда дня</span><b>${{pending:"копим",open:"открыта",base:"тренировка чистая",gold:"заслужил",broken:"сгорела"}[rewardState(k)]}</b></div><div><span>Тренировок за 7 дней</span><b>${countQ(["gym","fight"],7)}</b></div></div></div>
-    <div class="sec"><h3>Вес тела</h3></div><div class="card">${bodyCard}</div>
+    <div class="sec"><h3>Вес тела</h3><button type="button" data-goalkg="1">${goal?"цель "+goal+" кг":"задать цель"}</button></div><div class="card">${bodyCard}</div>
     <form class="add" data-add="weight"><div class="r"><input name="t" inputmode="decimal" placeholder="Вес, кг (например 82.5)" aria-label="Вес в кг" autocomplete="off"><button type="submit">Записать</button></div></form>
     <div class="sec"><h3>Рабочие веса</h3><span>${allW?`чистых подходов ${cleanW} из ${allW}`:""}</span></div>
     <form class="add" data-add="lift"><div class="r"><input name="ex" list="exlist" placeholder="Упражнение" aria-label="Упражнение" autocomplete="off"></div>
@@ -605,6 +608,25 @@ function viewGym(){
       <div class="r"><input name="kg" inputmode="decimal" placeholder="Вес, кг" aria-label="Вес, кг" style="flex:1"><input name="reps" inputmode="numeric" placeholder="Повторы" aria-label="Повторы" style="flex:1"></div>
       <button type="submit">Записать подход</button></form>
     ${exCards||'<p class="empty" style="padding:10px 20px 0">Записывай лучший рабочий подход по каждому упражнению. Приложение покажет рекорды и рост.</p>'}`;
+}
+function viewChan(){
+  const k=key(),d=dayOf(k),G=goalsSt(),log=state.chanLog||[],subs=G.subs||0;
+  const dd=x=>String(x).slice(5).split("-").reverse().join(".");
+  const nxt=[100,1000,10000,100000].find(t=>subs<t);
+  const ago=log.filter(x=>x.d<=shift(k,-6)).pop(),dS=ago&&log.length?subs-ago.subs:null;
+  const vidsIn=n=>Array.from({length:n},(_,i)=>shift(k,-i)).filter(x=>bossDone(peek(x))).length;
+  const done=bossDone(d),step=nextStep(d),si=step?VIDEO_STEPS.indexOf(step):VIDEO_STEPS.length;
+  const goals=GOALS.filter(r=>r.grp==="Канал");
+  return `<section class="hero"><div class="hl2"><span class="flame yt"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg></span><div><b>${subs.toLocaleString("ru-RU")}</b><small>подписчиков</small>${dS?`<small class="delta">${dS>0?"+":""}${dS} за неделю</small>`:""}<small class="dim">${log.length?"обновлено "+dd(log[log.length-1].d):"цифры ещё не внесены"}</small></div></div>
+      ${nxt?ring(Math.min(1,subs/nxt),(nxt-subs).toLocaleString("ru-RU"),"до "+nxt.toLocaleString("ru-RU")):""}</section>
+    <div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><b>Видео сегодня</b><span style="font-size:13px;font-weight:700;color:${done?"var(--okl)":"var(--muted)"}">${done?"вышло":`шаг ${si+1} из ${VIDEO_STEPS.length}`}</span></div>
+      ${done?(has(d,"vid2")?`<p class="empty">Два видео за день. Мощно.</p>`:`<p class="empty">Готово. Следующее завтра, серия ${videoStreak()} ${videoStreak()===1?"день":"дн."}</p>`):`<p class="empty">Дальше: ${esc(step.name)}</p><button type="button" class="goldbtn" data-focus="1" style="height:52px;display:flex;align-items:center;justify-content:center;gap:8px">${IC.play}Делать видео</button>`}</div>
+    <div class="tiles"><div class="tile"><b>${vidsIn(7)}/7</b><span>видео за неделю</span></div><div class="tile"><b>${vidsIn(30)}</b><span>видео за 30 дней</span></div>
+      <div class="tile"><b>${vids()}</b><span>видео всего</span></div><div class="tile"><b>${(G.maxViews||0).toLocaleString("ru-RU")}</b><span>лучшее видео, просмотров</span></div></div>
+    <div class="sec"><h3>Цели канала</h3><span>подарки за результат</span></div>
+    <div class="list">${goals.map(rungRow).join("")}</div>
+    <div class="segfoot"><button type="button" class="line" data-chan="1">Обновить цифры канала</button></div>
+    ${log.length>1?`<div class="sec"><h3>История</h3></div><div class="card"><div class="mini">${log.slice(-6).reverse().map(x=>`<div><span>${dd(x.d)}</span><b>${x.subs.toLocaleString("ru-RU")} подп.${x.views?" · "+x.views.toLocaleString("ru-RU"):""}</b></div>`).join("")}</div></div>`:""}`;
 }
 let progSeg="streak";
 function rungState(r){const open=rungOpen(r),claimed=rungClaimed(r);
@@ -630,16 +652,16 @@ function viewProg(){
       <div class="fh"><span class="rb">${focus.n?focus.n:IC.star}</span><div><b>${esc(focus.t)}</b><small>до €${focus.budget}${isOpen?"":focus.n?` · ещё ${focus.n-st} ${focus.n-st===1?"видео":"видео подряд"}`:""}</small></div></div>
       <p>${g?esc(g):"Подарок ещё не выбран. Выбери сейчас: когда знаешь, ради чего, тянуть серию легче."}</p>
       <div class="btns">${isOpen?`<button type="button" class="pri" data-claim="${focus.id}">Забрал</button>`:""}<button type="button" class="${isOpen?"":"pri"}" data-gift="${focus.id}">${g?"Сменить подарок":"Выбрать подарок"}</button></div></section>`}
-  const segs=[["streak","Серия"],["chan","Канал"],["life","Жизнь"]];
-  const list=progSeg==="streak"?RUNGS:GOALS.filter(r=>r.grp===(progSeg==="chan"?"Канал":"Жизнь"));
+  const segs=[["streak","Серия"],["life","Жизнь"]];if(progSeg!=="life")progSeg="streak";
+  const list=progSeg==="streak"?RUNGS:GOALS.filter(r=>r.grp==="Жизнь");
   const doneN=list.filter(r=>rungState(r)==="got").length;
   return `<section class="hero"><div class="hl2"><span class="flame">${FIRE}</span><div><b>${st}</b><small>${st===1?"день":st>1&&st<5?"дня":"дней"} подряд с видео</small><small class="dim">лучшая серия ${bestStreak()}</small></div></div>
       ${nx?ring(st/nx.n,`${nx.n-st}`,"до подарка"):ring(1,"30+","максимум")}</section>
     <div class="wins" style="margin:10px 16px 0">${wins}</div>
     ${fcard}
-    <div class="segc" role="tablist">${segs.map(([id,t])=>`<button type="button" role="tab" data-seg="${id}" aria-selected="${progSeg===id}">${t}</button>`).join("")}</div>
+    <div class="segc" role="tablist" style="grid-template-columns:repeat(2,minmax(0,1fr))">${segs.map(([id,t])=>`<button type="button" role="tab" data-seg="${id}" aria-selected="${progSeg===id}">${t}</button>`).join("")}</div>
     <div class="list">${list.map(rungRow).join("")}</div>
-    <div class="segfoot">${progSeg==="chan"?`<button type="button" class="line" data-chan="1">Обновить цифры канала</button>`:progSeg==="streak"?`<span class="empty">Подарки внутри одной серии. Пропуск дня обнуляет серию и открывает лестницу заново.</span>`:`<span class="empty">Разовые большие подарки за реальный результат. Отметь цель внутри карточки, когда достиг.</span>`}</div>
+    <div class="segfoot">${progSeg==="streak"?`<span class="empty">Подарки внутри одной серии. Пропуск дня обнуляет серию и открывает лестницу заново.</span>`:`<span class="empty">Разовые большие подарки за реальный результат. Отметь цель внутри карточки, когда достиг.</span>`}</div>
     <div class="sec"><h3>Неделя в цифрах</h3><button type="button" data-prefs="1">мои вкусы</button></div>
     <div class="tiles" style="margin-top:0"><div class="tile"><b>${vids()}</b><span>видео всего</span></div><div class="tile"><b>${countQ(["gym"],7)}</b><span>тренировок за 7 дней</span></div>
       <div class="tile"><b>${countQ(["cbr"],7)}/7</b><span>теория</span></div><div class="tile"><b>${countQ(["eng"],7)}/7</b><span>Duolingo</span></div></div>`;
@@ -656,7 +678,7 @@ async function findGifts(id){
 }
 function render(){
   renderReward();renderHead();
-  $("view").innerHTML={today:viewToday,day:viewDay,gym:viewGym,prog:viewProg}[tab]();
+  $("view").innerHTML={today:viewToday,day:viewDay,chan:viewChan,gym:viewGym,prog:viewProg}[tab]();
   document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-selected",String(b.dataset.tab===tab)));
   if(!$("focus").hidden)renderFocus();
 }
@@ -678,6 +700,7 @@ document.addEventListener("click",e=>{
   if(t.dataset.claim){const r=findRung(t.dataset.claim);mutate(()=>{state.claims=Object.assign({},state.claims||{},{[claimKey(r)]:key()})});toast("Кайфуй. Ты это заработал.");return}
   if(t.dataset.flag){const f=t.dataset.flag;mutate(()=>{state.goals=Object.assign({},goalsSt(),{[f]:true})});return}
   if(t.dataset.chan){openChan();return}
+  if(t.dataset.goalkg){W={step:"goalkg"};renderSheet();return}
   if(t.dataset.proof){toast("Открой чат с ботом и кинь пруф туда.");try{window.Telegram&&Telegram.WebApp.close()}catch(_){}return}
   const d=dayOf(key());
   if(t.dataset.cut){const q=findQ(t.dataset.cut);mutate(()=>{d.dur[t.dataset.cut]=Math.max(15,Math.round(durOf(d,q)/2))});toast("Сократил вдвое");return}
@@ -749,12 +772,12 @@ function renderSheet(){
   if(W.step==="pmore")body=`<h2>Что ещё любишь?</h2><p class="q">Бренды, хобби, о чём мечтаешь. Можно пропустить.</p><form data-wf="p"><input name="v" maxlength="120" value="${esc(PR.more)}" placeholder="Например: Nike, картинг, Lexus, Dota" autocomplete="off" aria-label="Что ещё любишь"></form><button type="button" class="goldbtn" data-w="psave">Сохранить</button>`;
   if(W.step==="gift"){const r=findRung(W.rung),g=(state.gifts||{})[r.id]||"";
     const ideas=giftBusy?'<p class="empty">Ищу…</p>':giftIdeas?giftIdeas.map((x,i)=>`<div class="card" style="margin:0;gap:6px;background:var(--panel)"><b>${esc(x.title)}</b><span class="empty" style="color:var(--muted)">${esc(x.what||"")}</span><div class="mini"><div><span>${esc(x.where||"")}</span><b>${esc(x.price||"")}</b></div></div><div class="btns">${x.link&&/^https?:\/\//.test(x.link)?`<a class="chip" style="flex:1;display:grid;place-items:center;text-decoration:none;color:var(--fg)" href="${esc(x.link)}" target="_blank" rel="noopener">Открыть</a>`:""}<button type="button" class="pri" data-w="gpick:${i}">Беру</button></div></div>`).join(""):"";
-    const rs=rungState(r),extra=(rs==="open"?`<button type="button" class="goldbtn" data-w="claim">Забрал подарок</button>`:"")+(r.flag&&rs==="locked"?`<button type="button" class="line" data-w="flag">Цель достигнута, отметить</button>`:"")+(r.grp==="Канал"&&!r.flag&&rs==="locked"?`<button type="button" class="line" data-w="tochan">Обновить цифры канала</button>`:"");
+    const rs=rungState(r),extra=(rs==="open"?`<button type="button" class="goldbtn" data-w="claim">Забрал подарок</button>`:"")+(r.flag&&rs==="locked"?`<button type="button" class="line" data-w="flag">Цель достигнута, отметить</button>`:"")+(r.grp==="Канал"&&!r.flag&&rs==="locked"?`<button type="button" class="line" data-w="tochan">Обновить цифры канала</button>`:"")+(r.id==="g_weight"&&rs==="locked"?`<button type="button" class="line" data-w="togoal">${goalsSt().goalKg?"Сменить цель по весу":"Задать цель по весу"}</button>`:"");
     body=`<h2>${esc(r.t)}</h2><p class="q">Бюджет до €${r.budget} · ${esc(rungSub(r))}</p>${extra}<form data-wf="g"><input name="v" maxlength="80" value="${esc(g)}" placeholder="Впиши сам, что купишь" autocomplete="off" aria-label="Подарок"></form>
       <div class="btns"><button type="button" data-w="gfind">Подобрать реальный</button><button type="button" class="pri" data-w="gsave">Сохранить</button></div>${ideas}`}
-  if(W.step==="chan"){const G=goalsSt();body=`<h2>Цифры канала</h2><p class="q">Обновляй раз в неделю из YouTube Studio.</p><form data-wf="c" style="display:flex;flex-direction:column;gap:8px">
-      <input name="subs" inputmode="numeric" value="${G.subs||""}" placeholder="Подписчиков" aria-label="Подписчиков"><input name="views" inputmode="numeric" value="${G.maxViews||""}" placeholder="Просмотров у лучшего видео" aria-label="Просмотров у лучшего видео">
-      <input name="goal" inputmode="decimal" value="${G.goalKg||""}" placeholder="Цель по весу, кг" aria-label="Цель по весу"></form><button type="button" class="goldbtn" data-w="csave">Сохранить</button>`}
+  if(W.step==="chan"){const G=goalsSt();body=`<h2>Цифры канала</h2><p class="q">Раз в неделю из YouTube Studio. Или напиши боту: подписчики 120.</p><form data-wf="c" style="display:flex;flex-direction:column;gap:8px">
+      <input name="subs" inputmode="numeric" value="${G.subs||""}" placeholder="Подписчиков" aria-label="Подписчиков"><input name="views" inputmode="numeric" value="${G.maxViews||""}" placeholder="Просмотров у лучшего видео" aria-label="Просмотров у лучшего видео"></form><button type="button" class="goldbtn" data-w="csave">Сохранить</button>`}
+  if(W.step==="goalkg"){const G=goalsSt();body=`<h2>Цель по весу</h2><p class="q">${curKg()!=null?"Сейчас "+curKg()+" кг. ":""}Когда дойдёшь, откроется подарок до €50.</p><form data-wf="gk"><input name="v" inputmode="decimal" value="${G.goalKg||""}" placeholder="Например 78" aria-label="Цель, кг" autocomplete="off"></form><button type="button" class="goldbtn" data-w="gksave">Сохранить</button>`}
   if(W.step==="reward"){const k=key(),R=reqs(k),st=rewardState(k),open=st==="open";
     const nm=x=>x.id==="train"?"Зал":REQ_NAMES[x.id]==="€5"?"Штраф €5 в safemoney":x.id==="debt"?"Долг: второе видео":REQ_NAMES[x.id];
     const T={pending:"Закрой всё из списка, и награда твоя.",open:"Всё закрыто. Заслужил.",gold:"Сегодня награда уже взята по-честному.",base:"Взял раньше времени, но после тренировки.",broken:"Взял раньше тренировки. Сегодня награда сгорела."}[st];
@@ -791,8 +814,12 @@ $("sheet").addEventListener("click",e=>{
   if(a==="tochan"){W={step:"chan"};return renderSheet()}
   if(a==="take"){const d=dayOf(key());closeSheet();mutate(()=>{if(!d.smokes)d.firstSmoke=hhmm();d.smokes=(d.smokes||0)+1});return}
   if(a.startsWith("gpick:")){const x=giftIdeas[+a.slice(6)],id=W.rung;closeSheet();giftIdeas=null;mutate(()=>{state.gifts=Object.assign({},state.gifts||{},{[id]:(x.title+(x.where?" · "+x.where:"")).slice(0,80)})});toast("Подарок записан: "+x.title);return}
-  if(a==="csave"){const f=$("sheet").querySelector("form"),n=x=>parseInt(String(x).replace(/\D/g,""),10)||0,g=parseFloat(f.goal.value.replace(",","."));
-    closeSheet();mutate(()=>{const G=Object.assign({},goalsSt(),{subs:n(f.subs.value),maxViews:n(f.views.value)});if(g>30&&g<250){if(G.goalKg!==g)G.startKg=curKg();G.goalKg=g}state.goals=G});toast("Сохранил");return}
+  if(a==="csave"){const f=$("sheet").querySelector("form"),n=x=>parseInt(String(x).replace(/\D/g,""),10)||0,subs=n(f.subs.value),views=n(f.views.value);
+    closeSheet();mutate(()=>{state.goals=Object.assign({},goalsSt(),{subs,maxViews:Math.max(views,goalsSt().maxViews||0)});
+      state.chanLog=(state.chanLog||[]).filter(x=>x.d!==key()).concat([{d:key(),subs,views}]).slice(-60)});toast("Цифры канала записаны");return}
+  if(a==="gksave"){const g=parseFloat($("sheet").querySelector("input[name=v]").value.replace(",","."));if(!(g>30&&g<250)){toast("Напиши цель числом, например 78");return}
+    closeSheet();mutate(()=>{const G=Object.assign({},goalsSt());if(G.goalKg!==g)G.startKg=curKg();G.goalKg=g;state.goals=G});toast("Цель по весу: "+g+" кг");return}
+  if(a==="togoal"){W={step:"goalkg"};return renderSheet()}
   if(a.startsWith("pb:")){W.prefs.budget=+a.slice(3);W.step="plikes";return renderSheet()}
   if(a.startsWith("pl:")||a.startsWith("pf:")){const arr=a.startsWith("pl:")?W.prefs.likes:W.prefs.foods,v=a.slice(3),k=arr.indexOf(v);if(k>=0)arr.splice(k,1);else arr.push(v);return renderSheet()}
   if(a==="next")return wNext();

@@ -280,6 +280,16 @@ def merge_incoming(server: dict, incoming: dict) -> dict:
             incoming["body"].append(b)
     incoming["body"].sort(key=lambda b: b.get("d", ""))
 
+    # цифры канала: история из бота и из приложения, по дате
+    if server.get("chanLog") or incoming.get("chanLog"):
+        byd = {x.get("d"): x for x in server.get("chanLog") or []}
+        byd.update({x.get("d"): x for x in incoming.get("chanLog") or []})
+        incoming["chanLog"] = [byd[k] for k in sorted(byd) if k][-60:]
+        if incoming["chanLog"]:
+            goals = dict(incoming.get("goals") or {})
+            goals["subs"] = incoming["chanLog"][-1].get("subs", goals.get("subs", 0))
+            incoming["goals"] = goals
+
     # пруф-квесты нельзя отметить из приложения вручную
     for key, iday in incoming["days"].items():
         sdone = s_days.get(key, {}).get("done", [])
