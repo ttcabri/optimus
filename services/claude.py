@@ -165,3 +165,55 @@ async def get_evening_reminder(telegram_id: int) -> str:
         ],
     )
     return response.content[0].text
+
+
+PROOF_PROMPT = """Ты проверяешь пруф выполнения задачи для Андрея. Он прислал фото.
+Подпись к фото: "{caption}"
+Сегодня по плану тренировка: {training}.
+
+Определи, что на фото:
+- "cbr" — скрин результата теста/урока по теории на права (CBR, TheorieExamen, theorie, verkeersborden, вопросы ПДД Нидерландов). Засчитывай, если видно результат или пройденный урок.
+- "training" — Андрей в зале или на тренировке (селфи в спортзале, тренажёры, ринг, мешок, перчатки) или скрин трекера тренировки.
+- "video" — скрин загрузки/публикации видео в YouTube Studio или опубликованное видео на канале.
+- "none" — всё остальное, или пруф явно старый/фейковый/не относится к задаче.
+
+Ответь ТОЛЬКО JSON без markdown:
+{{"quest": "cbr|training|video|none", "ok": true/false, "comment": "1-2 коротких предложения по-русски, жёстко и по делу, как ментор. Если это CBR и виден результат, оцени его: проходной 44 из 50 (88%)."}}"""
+
+
+async def check_proof(image_bytes: bytes, caption: str, training: str) -> dict:
+    """Проверяет фото-пруф через Claude. Возвращает {"quest", "ok", "comment"}."""
+    import base64
+    import json
+    import re
+
+    training_name = "единоборства" if training == "fight" else "зал"
+    try:
+        response = await client.messages.create(
+            model="claude-haiku-4-5",
+            max_tokens=300,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "image/jpeg",
+                            "data": base64.b64encode(image_bytes).decode(),
+                        },
+                    },
+                    {"type": "text", "text": PROOF_PROMPT.format(caption=caption[:300], training=training_name)},
+                ],
+            }],
+        )
+        text = response.content[0].text
+        match = re.search(r"\{.*\}", text, re.S)
+        data = json.loads(match.group(0)) if match else {}
+        return {
+            "quest": str(data.get("quest", "none")),
+            "ok": bool(data.get("ok")),
+            "comment": str(data.get("comment", "")),
+        }
+    except Exception:
+        return {"quest": "none", "ok": False, "comment": "Не смог проверить фото. Скинь ещё раз."}

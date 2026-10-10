@@ -43,6 +43,12 @@ CREATE TABLE IF NOT EXISTS conversation_memory (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS quest_state (
+    telegram_id INTEGER PRIMARY KEY,
+    state TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS weekly_commitments (
     id INTEGER PRIMARY KEY,
     telegram_id INTEGER,
@@ -264,3 +270,33 @@ async def get_commitments(telegram_id: int, week: str) -> list[aiosqlite.Row]:
             (telegram_id, week),
         )
         return await cursor.fetchall()
+
+
+# --- quest_state (Квест дня, Mini App) ---
+
+async def get_quest_state(telegram_id: int) -> dict:
+    import json
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        cursor = await db.execute(
+            "SELECT state FROM quest_state WHERE telegram_id = ?", (telegram_id,)
+        )
+        row = await cursor.fetchone()
+    if row and row[0]:
+        try:
+            data = json.loads(row[0])
+            if isinstance(data, dict) and isinstance(data.get("days"), dict):
+                return data
+        except ValueError:
+            pass
+    return {"days": {}}
+
+
+async def save_quest_state(telegram_id: int, state: dict) -> None:
+    import json
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute(
+            "INSERT INTO quest_state (telegram_id, state, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) "
+            "ON CONFLICT(telegram_id) DO UPDATE SET state = excluded.state, updated_at = CURRENT_TIMESTAMP",
+            (telegram_id, json.dumps(state, ensure_ascii=False)),
+        )
+        await db.commit()

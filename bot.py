@@ -9,8 +9,11 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import TelegramObject
 
 import database
-from config import TELEGRAM_BOT_TOKEN, TELEGRAM_USER_ID
-from handlers import commands, text, voice
+from aiogram.types import MenuButtonWebApp, WebAppInfo
+
+from config import TELEGRAM_BOT_TOKEN, TELEGRAM_USER_ID, WEBAPP_URL
+from handlers import commands, proof, text, voice
+from webserver import start_web
 from services.scheduler import setup_scheduler
 
 
@@ -41,11 +44,22 @@ async def main() -> None:
     dispatcher.message.middleware(AllowedUserMiddleware())
 
     dispatcher.include_router(commands.router)
+    dispatcher.include_router(proof.router)
     dispatcher.include_router(voice.router)
     dispatcher.include_router(text.router)
 
     scheduler = setup_scheduler(bot)
     scheduler.start()
+
+    await start_web()
+    if WEBAPP_URL:
+        try:
+            await bot.set_chat_menu_button(
+                chat_id=TELEGRAM_USER_ID,
+                menu_button=MenuButtonWebApp(text="Квест", web_app=WebAppInfo(url=WEBAPP_URL)),
+            )
+        except Exception as e:
+            logging.error(f"Menu button error: {e}")
 
     await bot.delete_webhook(drop_pending_updates=True)
     await dispatcher.start_polling(bot)

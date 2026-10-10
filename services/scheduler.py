@@ -7,6 +7,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 import database
 from config import TELEGRAM_USER_ID, TIMEZONE
+from services import quest
 from services.claude import get_checkin_opener, get_evening_reminder, get_morning_push
 
 logger = logging.getLogger(__name__)
@@ -75,6 +76,41 @@ async def send_monday_focus(bot: Bot) -> None:
         logger.error(f"Monday focus error: {e}")
 
 
+# --- Квест дня: напоминания приходят только если квест ещё не закрыт ---
+
+QUEST_REMINDERS = [
+    # (час, минута, дни недели или None, проверка "уже сделано", текст)
+    (8, 50, None, lambda d: "cbr" in d["done"], "📘 08:50. Теория CBR, 45 минут. Скрин результата сюда."),
+    (9, 30, None, lambda d: quest.boss_done(d), "🎬 09:30. Босс дня. Блок 1: история, сценарий, озвучка."),
+    (12, 45, None, lambda d: quest.boss_done(d), "🎬 12:45. Блок 2: монтаж, превью, загрузка. Ссылку на видео сюда."),
+    (15, 0, None, lambda d: quest.boss_done(d), "⏰ 15:00, а видео нет. Без видео сегодня максимум 1 катка."),
+    (15, 30, "mon,tue,wed,thu,fri,sat", lambda d: "gym" in d["done"] or "fight" in d["done"], "🥊 15:30. Тренировка. Фото с тренировки сюда."),
+    (18, 45, None, lambda d: "eng" in d["done"], "🇬🇧 18:45. Английский, 45 минут. Кинь голосовое на английском, разберу."),
+]
+
+
+async def send_quest_reminder(bot: Bot, done_check, text: str) -> None:
+    try:
+        day = await quest.get_day(TELEGRAM_USER_ID)
+        day.setdefault("done", [])
+        if done_check(day):
+            return
+        from handlers.proof import quest_keyboard
+        await bot.send_message(TELEGRAM_USER_ID, text, reply_markup=quest_keyboard())
+    except Exception as e:
+        logger.error(f"Quest reminder error: {e}")
+
+
+async def send_quest_night(bot: Bot) -> None:
+    """22:30 — итог дня и экран выкл."""
+    try:
+        day = await quest.get_day(TELEGRAM_USER_ID)
+        text = "🌙 <b>22:30. Итог дня</b>\n\n" + quest.day_summary(day) + "\n\nЭкран выкл, 15 минут повтор CBR и спать в 23:30."
+        await bot.send_message(TELEGRAM_USER_ID, text)
+    except Exception as e:
+        logger.error(f"Quest night error: {e}")
+
+
 def setup_scheduler(bot: Bot) -> AsyncIOScheduler:
     tz = pytz.timezone(TIMEZONE)
     scheduler = AsyncIOScheduler(timezone=tz)
@@ -113,5 +149,16 @@ def setup_scheduler(bot: Bot) -> AsyncIOScheduler:
         day_of_week="sun", hour=19, minute=0,
         kwargs={"bot": bot}
     )
+
+    # Квест дня
+    for hour, minute, days, check, text in QUEST_REMINDERS:
+        trigger = {"hour": hour, "minute": minute}
+        if days:
+            trigger["day_of_week"] = days
+        scheduler.add_job(
+            send_quest_reminder, "cron", **trigger,
+            kwargs={"bot": bot, "done_check": check, "text": text},
+        )
+    scheduler.add_job(send_quest_night, "cron", hour=22, minute=30, kwargs={"bot": bot})
 
     return scheduler
