@@ -83,13 +83,6 @@ button{cursor:pointer}
 .opt[aria-pressed="true"]{border-color:var(--gold);background:#3a2416;color:var(--gold)}
 .menu{display:flex;flex-direction:column;gap:8px}
 .menu .opt{display:flex;align-items:center;gap:12px;text-align:left;padding:12px 14px}
-.onb .pnl{max-height:100%;height:100%;border-radius:0;justify-content:flex-start;padding-top:calc(20px + env(safe-area-inset-top,0px))}
-.onb .big{font-size:26px}
-.onb .hint{font-size:14px;color:var(--muted);margin:-6px 0 0;line-height:1.45}
-.onb textarea{min-height:110px;border-radius:14px;border:1px solid var(--line2);background:var(--bg);padding:12px 14px;color:var(--fg);font:inherit;font-size:16px;resize:vertical;width:100%}
-.days7{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
-.days7 .opt{min-height:48px;padding:4px}
-.onb .grow{flex:1}
 .why{font-size:14px;color:#d9c9b9;font-style:italic}
 .sum{padding:12px 14px;border-radius:14px;background:var(--panel);font-size:14px;color:#d9c9b9}
 
@@ -234,7 +227,7 @@ nav.tabs button[aria-selected="true"]{color:var(--gold);font-weight:800}
 
 <div class="focus" id="focus" hidden></div>
 <div class="sheet" id="sheet" hidden></div>
-<div class="sheet onb" id="onb" hidden></div>
+
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
@@ -606,8 +599,7 @@ function viewProg(){
     <div class="card" style="margin-top:10px"><div class="medal"><div class="m">${cs}</div><div style="display:flex;flex-direction:column;gap:2px"><b style="font-family:var(--display);font-weight:400;font-size:20px">${cr[1]}</b><span style="font-size:13px;color:var(--muted)">Чистая серия: ${cs} дн.${nx?` До ранга «${nx[1]}»: ${nx[0]-cs}.`:" Максимальный ранг."}</span></div></div></div>
     <div class="tiles"><div class="tile"><b>${vids()}</b><span>видео всего</span></div><div class="tile"><b>${countQ(["gym","fight"],7)}</b><span>тренировок за 7 дней</span></div>
       <div class="tile"><b>${countQ(["cbr"],7)}/7</b><span>теория за неделю</span></div><div class="tile"><b>${countQ(["eng"],7)}/7</b><span>Duolingo за неделю</span></div><div class="tile"><b>${cleanWeek}/7</b><span>чистых дней, награда в среднем в ${avg}</span></div></div>
-    <div class="sec"><h3>Ачивки</h3><span>${ACH.filter(a=>a.ok()).length} из ${ACH.length}</span></div><div class="ach">${ach}</div>
-    <div style="padding:20px 16px 0"><button type="button" class="line" data-onb="1">Изменить анкету</button></div>`;
+    <div class="sec"><h3>Ачивки</h3><span>${ACH.filter(a=>a.ok()).length} из ${ACH.length}</span></div><div class="ach">${ach}</div>`;
 }
 
 function render(){
@@ -626,7 +618,6 @@ document.addEventListener("click",e=>{
   if(t.dataset.start){startTask(t.dataset.start);return}
   if(t.dataset.focus){openFocus();return}
   if(t.dataset.game){askGame();return}
-  if(t.dataset.onb){openOnb();return}
   if(t.dataset.proof){toast("Открой чат с ботом и кинь пруф туда.");try{window.Telegram&&Telegram.WebApp.close()}catch(_){}return}
   if(t.id==="smoke"){const d=dayOf(key());mutate(()=>{if(!d.smokes)d.firstSmoke=hhmm();d.smokes=(d.smokes||0)+1});return}
   const d=dayOf(key());
@@ -722,60 +713,6 @@ $("sheet").addEventListener("submit",e=>{e.preventDefault();e.stopPropagation();
 $("plus").onclick=openSheet;
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&W)closeSheet()});
 
-/* ---------- анкета карточками ---------- */
-const OB_STEPS=["hello","name","wake","bed","gym","req","video","reward","body","why","done"];
-let OB=null;
-function openOnb(){OB={i:0,p:JSON.parse(JSON.stringify(prof()))};if(!OB.p.name)OB.p.name="";renderOnb()}
-function closeOnb(){OB=null;$("onb").hidden=true;$("onb").innerHTML=""}
-function renderOnb(){
-  const el=$("onb");el.hidden=false;const st=OB_STEPS[OB.i],P=OB.p,n=OB_STEPS.length-2;
-  const pr=(v,c)=>`aria-pressed="${v===c}"`;
-  const dots=OB.i>0&&OB.i<=n?`<div class="dots">${OB_STEPS.slice(1,-1).map((_,j)=>`<i class="${j<OB.i?"on":""}"></i>`).join("")}</div>`:"<span></span>";
-  const top=`<div class="sbar">${OB.i>0?`<button type="button" class="x" data-o="back" aria-label="Назад">${IC.back}</button>`:'<span style="width:36px"></span>'}${dots}${state.profile?`<button type="button" class="x" data-o="close" aria-label="Закрыть">${IC.x}</button>`:'<span style="width:36px"></span>'}</div>`;
-  let b="";
-  if(st==="hello")b=`<h2 class="big">Настроим квест под тебя</h2><p class="hint">9 коротких вопросов. По ответам приложение соберёт твой день: когда вставать, когда зал, что входит в награду. Потом всё можно поменять во вкладке «Прогресс».</p><div class="grow"></div><button type="button" class="goldbtn" data-o="next">Поехали</button>`;
-  if(st==="name")b=`<h2>Как тебя зовут?</h2><input id="ov" maxlength="30" value="${esc(P.name)}" placeholder="Имя" autocomplete="off" aria-label="Имя"><div class="grow"></div><button type="button" class="goldbtn" data-o="next">Дальше</button>`;
-  if(st==="wake")b=`<h2>Во сколько встаёшь?</h2><p class="hint">Каждый день одно время, даже в выходные. Это половина режима.</p><div class="opts">${["07:00","07:30","08:00","09:00"].map(t=>`<button type="button" class="opt" data-o="wake:${t}" ${pr(P.wake,t)}>${t}</button>`).join("")}</div><input type="time" id="ov" value="${esc(P.wake)}" aria-label="Своё время"><div class="grow"></div><button type="button" class="goldbtn" data-o="next">Дальше</button>`;
-  if(st==="bed")b=`<h2>Во сколько отбой?</h2><p class="hint">Сон 7.5–8.5 часов. При подъёме в ${esc(P.wake)} это примерно ${hm(toMin(P.wake)-510)}–${hm(toMin(P.wake)-450)}. За 45 минут до отбоя план закрывается: экран выкл, повтор теории, душ.</p><div class="opts">${["22:30","23:00","23:30","00:00"].map(t=>`<button type="button" class="opt" data-o="bed:${t}" ${pr(P.bed,t)}>${t}</button>`).join("")}</div><div class="grow"></div><button type="button" class="goldbtn" data-o="next">Дальше</button>`;
-  if(st==="gym"){const N=["Вс","Пн","Вт","Ср","Чт","Пт","Сб"],order=[1,2,3,4,5,6,0];
-    b=`<h2>В какие дни зал?</h2><p class="hint">Зал с дорогой занимает 2 часа. В дни без зала будет прогулка 45 минут.</p><div class="days7">${order.map(i=>`<button type="button" class="opt" data-o="day:${i}" ${pr(P.gymDays.includes(i),true)}>${N[i]}</button>`).join("")}</div><p class="hint">Выбрано дней: ${P.gymDays.length}</p><div class="grow"></div><button type="button" class="goldbtn" data-o="next">Дальше</button>`}
-  if(st==="req")b=`<h2>Что входит в награду дня?</h2><p class="hint">Видео входит всегда. Остальное отметь сам. Награда откроется, когда сделано всё отмеченное.</p><div class="menu">
-    <button type="button" class="opt" disabled aria-pressed="true"><span>Видео<small>Всегда, это главное</small></span></button>
-    <button type="button" class="opt" data-o="req:train" ${pr(!!P.req.train,true)}><span>Зал<small>В дни зала</small></span></button>
-    <button type="button" class="opt" data-o="req:cbr" ${pr(!!P.req.cbr,true)}><span>Теория на права<small>TheorieExamen.nl</small></span></button>
-    <button type="button" class="opt" data-o="req:eng" ${pr(!!P.req.eng,true)}><span>Duolingo<small>Английский каждый день</small></span></button></div><div class="grow"></div><button type="button" class="goldbtn" data-o="next">Дальше</button>`;
-  if(st==="video")b=`<h2>Сколько уходит на одно видео?</h2><p class="hint">От текста до загрузки. План заложит столько времени.</p><div class="opts">${[60,90,110,150].map(m=>`<button type="button" class="opt" data-o="vid:${m}" ${pr(P.videoMin,m)}>${durTxt(m)}</button>`).join("")}</div><div class="grow"></div><button type="button" class="goldbtn" data-o="next">Дальше</button>`;
-  if(st==="reward")b=`<h2>Что для тебя главная награда дня?</h2><p class="hint">То, что ты берёшь только после того, как день закрыт. Одна в день.</p><input id="ov" maxlength="40" value="${esc(P.reward)}" placeholder="Например: трава, сериал, сладкое" autocomplete="off" aria-label="Награда"><div class="grow"></div><button type="button" class="goldbtn" data-o="next">Дальше</button>`;
-  if(st==="body")b=`<h2>Вес сейчас и цель</h2><p class="hint">Можно пропустить. Цель будет видна во вкладке «Зал».</p><div style="display:flex;gap:8px"><input id="okg" inputmode="decimal" placeholder="Сейчас, кг" value="${P.kg??""}" aria-label="Вес сейчас"><input id="ogoal" inputmode="decimal" placeholder="Цель, кг" value="${P.goalKg??""}" aria-label="Цель по весу"></div><div class="grow"></div><button type="button" class="goldbtn" data-o="next">Дальше</button>`;
-  if(st==="why")b=`<h2>Зачем тебе всё это?</h2><p class="hint">Одной-двумя фразами, своими словами. Приложение будет напоминать тебе это в тяжёлые дни.</p><textarea id="ov" maxlength="200" placeholder="Например: хочу жить на доход с канала и не возвращаться на завод" aria-label="Зачем">${esc(P.why)}</textarea><div class="grow"></div><button type="button" class="goldbtn" data-o="next">Дальше</button>`;
-  if(st==="done"){const N=["вс","пн","вт","ср","чт","пт","сб"];const r=["видео"].concat(P.req.train?["зал"]:[],P.req.cbr?["теория"]:[],P.req.eng?["Duolingo"]:[]);
-    b=`<h2 class="big">${P.name?esc(P.name)+", готово":"Готово"}</h2><div class="sum">Подъём в ${esc(P.wake)}, отбой в ${esc(P.bed)}.<br>Зал: ${P.gymDays.length?[1,2,3,4,5,6,0].filter(i=>P.gymDays.includes(i)).map(i=>N[i]).join(", "):"нет"}.<br>Видео: ${durTxt(P.videoMin)}.<br>Награда «${esc(P.reward)}» после: ${r.join(", ")}.${P.goalKg?`<br>Цель по весу: ${P.goalKg} кг.`:""}</div>${P.why?`<p class="why">«${esc(P.why)}»</p>`:""}<div class="grow"></div><button type="button" class="goldbtn" data-o="save">Собрать мой день</button>`}
-  el.innerHTML=`<div class="pnl" role="dialog" aria-modal="true" aria-label="Анкета">${top}${b}</div>`;
-  const f=el.querySelector("#ov");if(f&&st!=="wake")setTimeout(()=>f.focus(),60);
-}
-function onbRead(){const st=OB_STEPS[OB.i],P=OB.p,v=$("ov");
-  if(st==="name")P.name=v.value.trim().slice(0,30);
-  if(st==="wake"&&v.value)P.wake=v.value;
-  if(st==="reward")P.reward=v.value.trim().slice(0,40)||"Награда";
-  if(st==="why")P.why=v.value.trim().slice(0,200);
-  if(st==="body"){const a=parseFloat(($("okg").value||"").replace(",",".")),g=parseFloat(($("ogoal").value||"").replace(",","."));P.kg=a>30&&a<250?a:null;P.goalKg=g>30&&g<250?g:null}
-  if(st==="gym"&&!P.gymDays.length&&P.req.train)P.req.train=0;
-}
-$("onb").addEventListener("click",e=>{
-  const b=e.target.closest("[data-o]");if(!b||!OB)return;const a=b.dataset.o,P=OB.p;
-  if(a==="close")return closeOnb();
-  if(a==="back"){OB.i=Math.max(0,OB.i-1);return renderOnb()}
-  if(a==="next"){onbRead();OB.i++;return renderOnb()}
-  if(a.startsWith("wake:")){P.wake=a.slice(5);OB.i++;return renderOnb()}
-  if(a.startsWith("bed:")){P.bed=a.slice(4);OB.i++;return renderOnb()}
-  if(a.startsWith("vid:")){P.videoMin=+a.slice(4);OB.i++;return renderOnb()}
-  if(a.startsWith("day:")){const i=+a.slice(4);P.gymDays=P.gymDays.includes(i)?P.gymDays.filter(x=>x!==i):P.gymDays.concat(i);return renderOnb()}
-  if(a.startsWith("req:")){const id=a.slice(4);P.req[id]=P.req[id]?0:1;return renderOnb()}
-  if(a==="save"){const p={...P,done:1};closeOnb();mutate(()=>{state.profile=p;if(p.kg&&!state.body.some(b=>b.d===key()))state.body.push({d:key(),kg:Math.round(p.kg*10)/10})});tab="today";render();toast("Готово. День собран под тебя.")}
-});
-$("onb").addEventListener("submit",e=>e.preventDefault());
-setTimeout(()=>{if(!state.profile&&!OB)openOnb()},1800);
-
 /* ---------- фокус ---------- */
 const WORK=50*60,BREAK=10*60;
 let F={phase:"work",endsAt:0,left:WORK,running:false,session:1},tick=null;
@@ -811,7 +748,7 @@ function renderFocus(onlyTime){
 }
 
 /* ---------- пересчёт раз в минуту ---------- */
-setInterval(()=>{if($("focus").hidden&&!W&&!OB&&!document.querySelector("form.add input:focus"))render()},60000);
+setInterval(()=>{if($("focus").hidden&&!W&&!document.querySelector("form.add input:focus"))render()},60000);
 
 /*STORAGE: Telegram Mini App, данные в базе бота*/
 const tg=window.Telegram&&Telegram.WebApp;
