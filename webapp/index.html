@@ -401,7 +401,7 @@ function toggle(id){
     if(i>=0){if(q&&locked(q))return;d.done.splice(i,1);delete d.at[id]}
     else{d.done.push(id);d.at[id]=hhmm();if(d.cur&&(d.cur.id===id||(d.cur.id==="video"&&bossDone(d))))delete d.cur}});
 }
-function startTask(id){const d=dayOf(key());mutate(()=>{d.cur={id,at:hhmm()}})}
+function startTask(id){const d=dayOf(key());mutate(()=>{d.cur={id,at:hhmm()}});const q=findQ(id);if(q)toast("Начал: "+q.name+". Остальное сдвинулось")}
 const nextStep=d=>VIDEO_STEPS.find(s=>!has(d,s.id));
 
 /* ---------- отрисовка ---------- */
@@ -468,7 +468,8 @@ function planRow(d,it,opts={}){
   const right=q.kind==="video"?`<span class="tok" style="border-color:var(--fire2);color:var(--fire2)">+2</span>`:q.tok?`<span class="tok">+1</span>`:`<span class="dur">${durTxt(durOf(d,q))}</span>`;
   const sub=q.kind==="video"?`${BOSS_IDS.filter(b=>has(d,b)).length} из 5 шагов · ${durTxt(durOf(d,q))}`:(it.late&&it.started?`Сверх плана ${it.late} мин`:subOf(q));
   const tag=q.kind==="video"?"data-tab-go=\"today\"":`data-t="${esc(q.id)}"`;
-  const extra=q.custom&&opts.edit?`<button type="button" class="x" data-later="${esc(q.id)}" aria-label="Перенести на завтра">${IC.later}</button><button type="button" class="x" data-del="${esc(q.id)}" aria-label="Удалить">${IC.x}</button>`:"";
+  const go=!it.started&&!it.anchor?(q.kind==="video"?`<button type="button" class="x" data-focus="1" aria-label="Делать видео сейчас">${IC.play}</button>`:`<button type="button" class="x" data-start="${esc(q.id)}" aria-label="Делать сейчас">${IC.play}</button>`):"";
+  const extra=go+(q.custom&&opts.edit?`<button type="button" class="x" data-later="${esc(q.id)}" aria-label="Перенести на завтра">${IC.later}</button><button type="button" class="x" data-del="${esc(q.id)}" aria-label="Удалить">${IC.x}</button>`:"");
   return `<div style="display:flex;gap:4px;align-items:center"><button type="button" class="row${q.kind==="video"?" boss":""}${it.anchor?" anchor":""}" ${tag}><span class="tm" style="${it.late?"color:var(--red)":""}">${hm(it.start)}<small>${hm(it.end)}</small></span><span class="chk"></span><span class="nm"><b>${esc(q.name)}${it.anchor?'<span class="pin">ЯКОРЬ</span>':""}</b><small>${esc(sub)}</small></span>${right}</button>${extra}</div>`;
 }
 function doneRow(d,q){
