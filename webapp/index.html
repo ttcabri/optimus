@@ -44,7 +44,30 @@ button{cursor:pointer}
 
 .head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:18px 20px 12px}
 .head h1{font-family:var(--display);font-weight:400;font-size:24px;margin:0;text-transform:capitalize}
-.head .meta{font-size:13px;font-weight:700;color:var(--muted);text-align:right}
+.head{align-items:center}
+.plus{width:48px;height:48px;border-radius:50%;border:none;background:var(--gold);color:var(--ink);display:grid;place-items:center;flex-shrink:0;box-shadow:0 4px 16px rgba(224,164,86,.25)}
+.stats{display:flex;flex-wrap:wrap;gap:6px;padding:0 20px 10px}
+.stat{display:flex;align-items:baseline;gap:5px;padding:5px 9px;border-radius:10px;background:var(--panel);font-size:13px;font-weight:700;color:var(--muted)}
+.stat b{font-family:var(--display);font-weight:400;font-size:16px;color:var(--fg);font-variant-numeric:tabular-nums}
+.stat.free b{color:var(--okl)}.stat.minus b{color:var(--red)}
+/* окошки добавления */
+.sheet{position:fixed;inset:0;z-index:25;display:flex;flex-direction:column;justify-content:flex-end;background:rgba(10,7,5,.6)}
+.sheet .pnl{background:var(--panel2);border-radius:22px 22px 0 0;border-top:1px solid var(--line2);padding:16px 16px calc(20px + env(safe-area-inset-bottom,0px));max-width:520px;width:100%;margin:0 auto;display:flex;flex-direction:column;gap:14px;max-height:88vh;overflow-y:auto}
+.sheet .sbar{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.sheet .dots{display:flex;gap:6px}
+.sheet .dots i{width:22px;height:5px;border-radius:3px;background:var(--line2)}
+.sheet .dots i.on{background:var(--gold)}
+.sheet h2{font-family:var(--display);font-weight:400;font-size:22px;margin:0}
+.sheet .q{font-size:14px;color:var(--muted);margin:-8px 0 0}
+.sheet input{height:52px;border-radius:14px;border:1px solid var(--line2);background:var(--bg);padding:0 14px;color:var(--fg);font-size:17px;width:100%}
+.opts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.opts.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+.opt{min-height:52px;border-radius:14px;border:1px solid var(--line2);background:var(--panel);font-weight:700;font-size:15px;padding:8px;text-align:center}
+.opt small{display:block;font-size:12px;font-weight:600;color:var(--muted)}
+.opt[aria-pressed="true"]{border-color:var(--gold);background:#3a2416;color:var(--gold)}
+.menu{display:flex;flex-direction:column;gap:8px}
+.menu .opt{display:flex;align-items:center;gap:12px;text-align:left;padding:12px 14px}
+.sum{padding:12px 14px;border-radius:14px;background:var(--panel);font-size:14px;color:#d9c9b9}
 .xpbar{height:4px;margin:0 20px 14px;border-radius:2px;background:var(--line);overflow:hidden}
 .xpbar i{display:block;height:100%;background:var(--gold);transition:width .4s}
 
@@ -171,7 +194,8 @@ nav.tabs button[aria-selected="true"]{color:var(--gold);font-weight:800}
 <div class="app">
   <div class="reward" id="reward"></div>
   <div id="confirm"></div>
-  <div class="head"><h1 id="day"></h1><div class="meta" id="meta"></div></div>
+  <div class="head"><h1 id="day"></h1><button type="button" class="plus" id="plus" aria-label="Добавить"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button></div>
+  <div class="stats" id="stats"></div>
   <div class="xpbar"><i id="xpbar"></i></div>
   <main id="view"></main>
 </div>
@@ -184,6 +208,7 @@ nav.tabs button[aria-selected="true"]{color:var(--gold);font-weight:800}
 </div></nav>
 
 <div class="focus" id="focus" hidden></div>
+<div class="sheet" id="sheet" hidden></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
@@ -199,11 +224,11 @@ const VIDEO_STEPS=[
 ];
 // dur в минутах. fixed = якорь (время не двигается). days: 0 вс ... 6 сб.
 const QUESTS=[
-  {id:"wake",name:"Подъём, вода, улица",sub:"10 минут дневного света",dur:20,xp:20,minor:1},
-  {id:"bfast",name:"Завтрак",sub:"Разогреть заготовку",dur:20,xp:15,minor:1},
+  {id:"wake",name:"Подъём, вода, улица",sub:"10 минут дневного света",dur:20,xp:20,minor:1,until:"12:00"},
+  {id:"bfast",name:"Завтрак",sub:"Разогреть заготовку",dur:20,xp:15,minor:1,until:"12:00"},
   {id:"cbr",name:"Теория CBR",sub:"Глава и тест",botSub:"Скрин результата в бот",dur:45,xp:40,tok:1,proof:1},
   {id:"video",name:"Видео",kind:"video",dur:110},
-  {id:"lunch",name:"Обед",sub:"Разогреть заготовку",dur:30,xp:15,minor:1},
+  {id:"lunch",name:"Обед",sub:"Разогреть заготовку",dur:30,xp:15,minor:1,until:"16:00"},
   {id:"gym",name:"Зал",sub:"С дорогой. Веса запиши во вкладке «Зал»",botSub:"С дорогой. Селфи из зала в бот",dur:120,xp:50,tok:1,proof:1,days:[1,2,4,5],train:1},
   {id:"fight",name:"Единоборства",sub:"С дорогой",botSub:"С дорогой. Фото с тренировки в бот",dur:120,xp:50,tok:1,proof:1,days:[3,6],train:1},
   {id:"walk",name:"Прогулка",sub:"День восстановления",dur:45,xp:20,days:[0]},
@@ -266,6 +291,7 @@ function queue(k){
     if(q.id==="_custom"){for(const c of d.custom)out.push({id:c.id,name:c.name,dur:c.dur||30,fixed:c.at||null,xp:15,custom:1});continue}
     if(q.id==="vid2"&&!bossDone(d))continue;
     if(d.skip.includes(q.id))continue;
+    if(q.until&&k===key()&&nowMin()>toMin(q.until)&&!has(d,q.id))continue; // утро прошло: не тащим завтрак в вечер
     out.push(q);
   }
   return out;
@@ -401,7 +427,10 @@ function renderReward(){
 function renderHead(){
   const xp=totalXP(),lvl=Math.floor(xp/300)+1;
   $("day").textContent=new Date().toLocaleDateString("ru-RU",{weekday:"long"});
-  $("meta").textContent=`Ур. ${lvl} ${RANKS[Math.min(lvl-1,RANKS.length-1)]} · серия ${videoStreak()}`;
+  const p=plan(key()),free=p.items.filter(i=>i.gap).reduce((a,i)=>a+i.end-Math.max(i.start,nowMin()),0),miss=p.over.reduce((a,o)=>a+o.dur,0);
+  const toBed=Math.max(0,toMin("23:30")-nowMin());
+  $("stats").innerHTML=(miss?`<span class="stat minus">Не хватает <b>${durTxt(miss)}</b></span>`:`<span class="stat free">Свободно <b>${durTxt(Math.max(0,free))}</b></span>`)+
+    `<span class="stat">До отбоя <b>${durTxt(toBed)}</b></span><span class="stat">Ур. <b>${lvl}</b> ${RANKS[Math.min(lvl-1,RANKS.length-1)]}</span>`+(videoStreak()?`<span class="stat">Серия <b>${videoStreak()}</b></span>`:"");
   $("xpbar").style.width=((xp%300)/3)+"%";
 }
 function nowCard(k,d,p){
@@ -422,7 +451,7 @@ function nowCard(k,d,p){
   const done=locked(q)?`<button type="button" class="bigbtn" data-proof="1">Кинуть пруф боту</button>`:`<button type="button" class="bigbtn" data-t="${esc(q.id)}">Готово</button>`;
   const startB=it.started?"":`<button type="button" class="ghost" data-start="${esc(q.id)}">Начать, засечь время</button>`;
   const tok=q.tok?(bossDone(d)?" Даст +1 катку.":" После видео даст +1 катку."):q.id==="vid2"?" Даст +2 катки.":"";
-  return `<section class="now${late?" late":""}">${kline}<div><h2>${esc(q.name)}</h2><p>${esc(subOf(q))}${tok}</p></div>${clock}${done}${startB}</section>`;
+  return `<section class="now${late?" late":""}">${kline}<div><h2>${esc(q.name)}</h2><p>${esc(subOf(q))}${tok&&subOf(q)&&!/[.!?]$/.test(subOf(q))?".":""}${tok}</p></div>${clock}${done}${startB}</section>`;
 }
 function cleanCard(k,d){
   const c=cleanState(k),tr=trainOf(k);
@@ -465,19 +494,19 @@ function viewToday(){
   const next=p.items.slice(1,6);
   return nowCard(k,d,p)+overCard(p)+cleanCard(k,d)+
     `<div class="sec"><h3>Дальше</h3><button type="button" data-tab-go="day">весь день</button></div>
-     <div class="list">${next.map(it=>planRow(d,it)).join("")||'<p class="empty">Больше ничего.</p>'}</div>`+addForm("today");
+     <div class="list">${next.map(it=>planRow(d,it)).join("")||'<p class="empty">Больше ничего. Нажми «+», если что-то появилось.</p>'}</div>`;
 }
 function viewDay(){
   const k=key(),d=dayOf(k),p=plan(k);
   const done=queue(k).filter(q=>isDone(d,q)).sort((a,b)=>(d.at[a.kind==="video"?"b5":a.id]||"").localeCompare(d.at[b.kind==="video"?"b5":b.id]||""));
-  const tk=shift(k,1),td=peek(tk);
-  const tl=(td&&td.custom||[]).map(c=>`<div class="row"><span class="tm">${esc(c.at||"")}</span><span class="nm"><b>${esc(c.name)}</b><small>${durTxt(c.dur||30)}</small></span><button type="button" class="x" data-deltom="${esc(c.id)}" aria-label="Удалить">${IC.x}</button></div>`).join("");
+  const up=[];for(let i=1;i<=14;i++){const kk=shift(k,i),dd=peek(kk);if(dd&&dd.custom)for(const c of dd.custom)up.push({kk,c})}
+  const dname=kk=>{const i=Math.round((new Date(kk+"T12:00:00")-new Date(k+"T12:00:00"))/864e5);return i===1?"Завтра":i===2?"Послезавтра":new Date(kk+"T12:00:00").toLocaleDateString("ru-RU",{weekday:"short",day:"numeric",month:"short"})};
+  const tl=up.map(({kk,c})=>`<div class="row"><span class="tm">${esc(dname(kk))}<small>${esc(c.at||"")}</small></span><span class="nm"><b>${esc(c.name)}</b><small>${durTxt(c.dur||30)}</small></span><button type="button" class="x" data-delon="${esc(kk)}|${esc(c.id)}" aria-label="Удалить">${IC.x}</button></div>`).join("");
   return `${overCard(p)}<div class="sec"><h3>План от сейчас</h3><span>до ${DAY_END}</span></div>
     <div class="list">${p.items.map(it=>planRow(d,it,{edit:1})).join("")}</div>
     ${done.length?`<div class="sec"><h3>Сделано</h3><span>${done.length}</span></div><div class="list">${done.map(q=>doneRow(d,q)).join("")}</div>`:""}
-    ${addForm("today")}
-    <div class="sec"><h3>Завтра, кроме основы</h3><span>${(td&&td.custom||[]).length} дел</span></div>
-    <div class="list">${tl||'<p class="empty">Добавь 1–3 дела. Утром они уже будут в плане.</p>'}</div>${addForm("tomorrow")}`;
+    <div class="sec"><h3>Запланировано вперёд</h3><span>${up.length} дел</span></div>
+    <div class="list">${tl||'<p class="empty">Нажми «+», выбери день, и дело встанет в план того дня.</p>'}</div>`;
 }
 function viewGym(){
   const k=key(),d=dayOf(k),tr=trainOf(k);
@@ -544,7 +573,7 @@ document.addEventListener("click",e=>{
     mutate(()=>{if(c){d.custom=d.custom.filter(x=>x!==c);(d.del=d.del||[]).push(id);dayOf(shift(key(),1)).custom.push(c)}else d.skip.push(id)});toast(c?"Перенёс на завтра":"Убрал на сегодня");return}
   if(t.dataset.del){mutate(()=>{d.custom=d.custom.filter(c=>c.id!==t.dataset.del);d.done=d.done.filter(x=>x!==t.dataset.del);(d.del=d.del||[]).push(t.dataset.del)});return}
   if(t.dataset.later){const c=d.custom.find(c=>c.id===t.dataset.later);if(!c)return;mutate(()=>{d.custom=d.custom.filter(x=>x!==c);(d.del=d.del||[]).push(c.id);dayOf(shift(key(),1)).custom.push(c)});toast("Перенёс на завтра");return}
-  if(t.dataset.deltom){const dt=dayOf(shift(key(),1));mutate(()=>{dt.custom=dt.custom.filter(c=>c.id!==t.dataset.deltom);(dt.del=dt.del||[]).push(t.dataset.deltom)});return}
+  if(t.dataset.delon){const[kk,id]=t.dataset.delon.split("|"),dt=dayOf(kk);mutate(()=>{dt.custom=dt.custom.filter(c=>c.id!==id);(dt.del=dt.del||[]).push(id)});return}
 });
 document.addEventListener("submit",e=>{
   const f=e.target.closest("form[data-add]");if(!f)return;e.preventDefault();const kind=f.dataset.add;
@@ -560,6 +589,74 @@ document.addEventListener("submit",e=>{
     toast(L.length&&kg*(1+reps/30)>prev?"Новый рекорд в «"+ex+"»":"Подход записан")}
   f.reset();
 });
+
+/* ---------- «+»: добавление по окошкам ---------- */
+let W=null;
+const STEPS=["name","when","time","dur"];
+function openSheet(){W={step:"menu",name:"",date:key(),at:"",dur:30};renderSheet()}
+function closeSheet(){W=null;$("sheet").hidden=true;$("sheet").innerHTML=""}
+function wDate(){return W.date===key()?"сегодня":W.date===shift(key(),1)?"завтра":new Date(W.date+"T12:00:00").toLocaleDateString("ru-RU",{weekday:"long",day:"numeric",month:"long"})}
+function renderSheet(){
+  const el=$("sheet");el.hidden=false;const i=STEPS.indexOf(W.step);
+  const dots=i>=0?`<div class="dots">${STEPS.map((_,j)=>`<i class="${j<=i?"on":""}"></i>`).join("")}</div>`:"<span></span>";
+  const top=`<div class="sbar">${i>0?`<button type="button" class="x" data-w="back" aria-label="Назад">${IC.back}</button>`:"<span style=\"width:36px\"></span>"}${dots}<button type="button" class="x" data-w="close" aria-label="Закрыть">${IC.x}</button></div>`;
+  const pr=(v,cur)=>`aria-pressed="${v===cur}"`;
+  let body="";
+  if(W.step==="menu")body=`<h2>Что добавить?</h2><div class="menu">
+    <button type="button" class="opt" data-w="go:name">${IC.later}<span>Дело<small>На сегодня, завтра или любой день</small></span></button>
+    <button type="button" class="opt" data-w="go:weight">${IC.shield}<span>Вес тела<small>Раз в неделю, утром до завтрака</small></span></button>
+    <button type="button" class="opt" data-w="go:lift">${IC.star}<span>Подход в зале<small>Упражнение, вес и повторы</small></span></button></div>`;
+  if(W.step==="name")body=`<h2>Что нужно сделать?</h2><form data-wf="name"><input name="v" maxlength="80" placeholder="Например: отвезти Audi механику" value="${esc(W.name)}" autocomplete="off" aria-label="Что нужно сделать"></form>
+    <button type="button" class="goldbtn" data-w="next">Дальше</button>`;
+  if(W.step==="when"){const t=key(),t1=shift(t,1),t2=shift(t,2),other=![t,t1,t2].includes(W.date);
+    body=`<h2>Когда?</h2><p class="q">${esc(W.name)}</p><div class="opts three">
+      <button type="button" class="opt" data-w="date:${t}" ${pr(W.date,t)}>Сегодня</button><button type="button" class="opt" data-w="date:${t1}" ${pr(W.date,t1)}>Завтра</button><button type="button" class="opt" data-w="date:${t2}" ${pr(W.date,t2)}>Послезавтра</button></div>
+      <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:700;color:var(--muted)">Другой день<input type="date" id="wdate" min="${t}" value="${other?W.date:""}"></label>
+      <button type="button" class="goldbtn" data-w="next">Дальше</button>`}
+  if(W.step==="time")body=`<h2>Во сколько?</h2><p class="q">${esc(W.name)}, ${esc(wDate())}</p><div class="opts">
+      <button type="button" class="opt" data-w="at:" ${pr(W.at,"")}>Когда будет окно<small>План сам найдёт место</small></button>
+      <button type="button" class="opt" data-w="at:pick" ${pr(W.at!=="","true")}>Точное время<small>Якорь, не двигается</small></button></div>
+      ${W.at!==""?`<input type="time" id="wtime" value="${W.at==="pick"?"":esc(W.at)}" aria-label="Время">`:""}
+      <button type="button" class="goldbtn" data-w="next">Дальше</button>`;
+  if(W.step==="dur")body=`<h2>Сколько займёт?</h2><p class="q">${esc(W.name)}, ${esc(wDate())}${W.at&&W.at!=="pick"?" в "+esc(W.at):""}</p><div class="opts three">
+      ${[15,30,45,60,90,120].map(m=>`<button type="button" class="opt" data-w="dur:${m}" ${pr(W.dur,m)}>${durTxt(m)}</button>`).join("")}</div>
+      <button type="button" class="goldbtn" data-w="save">Добавить в план</button>`;
+  if(W.step==="weight")body=`<h2>Вес тела</h2><form data-wf="weight"><input name="v" inputmode="decimal" placeholder="82.5" aria-label="Вес, кг" autocomplete="off"></form><button type="button" class="goldbtn" data-w="saveweight">Записать</button>`;
+  if(W.step==="lift")body=`<h2>Подход в зале</h2><form data-wf="lift" style="display:flex;flex-direction:column;gap:8px"><input name="ex" list="exlist2" placeholder="Упражнение" aria-label="Упражнение" autocomplete="off">
+      <datalist id="exlist2">${[...new Set(EXERCISES.concat(state.lifts.map(l=>l.ex).filter(Boolean)))].map(e=>`<option value="${esc(e)}">`).join("")}</datalist>
+      <div style="display:flex;gap:8px"><input name="kg" inputmode="decimal" placeholder="Вес, кг" aria-label="Вес, кг"><input name="reps" inputmode="numeric" placeholder="Повторы" aria-label="Повторы"></div></form>
+      <button type="button" class="goldbtn" data-w="savelift">Записать</button>`;
+  el.innerHTML=`<div class="pnl" role="dialog" aria-modal="true" aria-label="Добавить">${top}${body}</div>`;
+  const inp=el.querySelector("input[name=v]");if(inp)setTimeout(()=>inp.focus(),50);
+}
+function wNext(){
+  if(W.step==="name"){const v=$("sheet").querySelector("input[name=v]").value.trim();if(!v){toast("Напиши, что за дело");return}W.name=v.slice(0,80);W.step="when"}
+  else if(W.step==="when"){const dv=$("wdate")&&$("wdate").value;if(dv)W.date=dv;W.step="time"}
+  else if(W.step==="time"){if(W.at!==""){const tv=$("wtime")&&$("wtime").value;if(!tv){toast("Выбери время");return}W.at=tv}W.step="dur"}
+  renderSheet();
+}
+$("sheet").addEventListener("click",e=>{
+  if(e.target===$("sheet")){closeSheet();return}
+  const b=e.target.closest("[data-w]");if(!b)return;e.stopPropagation();const a=b.dataset.w;
+  if(a==="close")return closeSheet();
+  if(a==="back"){const i=STEPS.indexOf(W.step);W.step=i>0?STEPS[i-1]:"menu";return renderSheet()}
+  if(a==="next")return wNext();
+  if(a.startsWith("go:")){W.step=a.slice(3);return renderSheet()}
+  if(a.startsWith("date:")){W.date=a.slice(5);W.step="time";return renderSheet()}
+  if(a.startsWith("at:")){const v=a.slice(3);if(v===""){W.at="";W.step="dur"}else W.at="pick";return renderSheet()}
+  if(a.startsWith("dur:")){W.dur=+a.slice(4);return renderSheet()}
+  if(a==="save"){const c={id:"c"+Date.now().toString(36),name:W.name,dur:W.dur};if(W.at&&W.at!=="pick")c.at=W.at;const dd=dayOf(W.date),when=wDate();
+    closeSheet();mutate(()=>dd.custom.push(c));toast(`Добавил на ${when}${c.at?" в "+c.at:""}. План пересчитан`);return}
+  if(a==="saveweight"){const kg=parseFloat($("sheet").querySelector("input[name=v]").value.replace(",","."));if(!(kg>30&&kg<250)){toast("Напиши вес числом, например 82.5");return}
+    closeSheet();mutate(()=>{state.body=state.body.filter(x=>x.d!==key());state.body.push({d:key(),kg:Math.round(kg*10)/10})});toast("Вес записан");return}
+  if(a==="savelift"){const f=$("sheet").querySelector("form"),ex=f.ex.value.trim(),kg=parseFloat(f.kg.value.replace(",",".")),reps=parseInt(f.reps.value,10);
+    if(!ex||!(kg>=0)||!(reps>0)){toast("Заполни упражнение, вес и повторы");return}
+    const L=liftsOf(ex),prev=L.length?Math.max(...L.map(e1rm)):0;closeSheet();
+    mutate(()=>state.lifts.push({d:key(),ex:ex.slice(0,40),kg:Math.round(kg*10)/10,reps,clean:!dayOf(key()).firstSmoke}));toast(L.length&&kg*(1+reps/30)>prev?"Новый рекорд в «"+ex+"»":"Подход записан");return}
+});
+$("sheet").addEventListener("submit",e=>{e.preventDefault();e.stopPropagation();const f=e.target.dataset.wf;if(f==="name")wNext();if(f==="weight")$("sheet").querySelector("[data-w=saveweight]").click()});
+$("plus").onclick=openSheet;
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&W)closeSheet()});
 
 /* ---------- фокус ---------- */
 const WORK=50*60,BREAK=10*60;
@@ -596,7 +693,7 @@ function renderFocus(onlyTime){
 }
 
 /* ---------- пересчёт раз в минуту ---------- */
-setInterval(()=>{if($("focus").hidden&&!document.querySelector("form.add input:focus,form.add select:focus"))render()},60000);
+setInterval(()=>{if($("focus").hidden&&!W&&!document.querySelector("form.add input:focus"))render()},60000);
 
 /*STORAGE: Telegram Mini App, данные в базе бота*/
 const tg=window.Telegram&&Telegram.WebApp;

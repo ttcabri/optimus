@@ -101,7 +101,7 @@ def quest_messages(day: dict, now_min: int, today: str, wd: int) -> list[str]:
             _sent.add(k)
             out.append(text)
 
-    if "wake" not in day.get("done", []) and now_min >= quest.to_min(quest.DAY_START) + 15:
+    if "wake" not in day.get("done", []) and quest.to_min(quest.DAY_START) + 15 <= now_min < quest.to_min("12:00"):
         once("wake", "☀️ Подъём. Отметь в квесте, и день пересчитается от сейчас.")
     p = quest.build_plan(day, now_min, wd)
     first = next((it for it in p["items"] if not it.get("game")), None)

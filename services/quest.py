@@ -253,6 +253,7 @@ def day_summary(day: dict) -> str:
 # --- Живой план (та же логика, что в webapp/index.html) ---
 
 GAME_MIN = 45
+UNTIL = {"wake": "12:00", "bfast": "12:00", "lunch": "16:00"}
 DAY_START = "08:00"
 DAY_END = "22:45"
 # (id, название, минут, дни недели JS: 0 вс .. 6 сб или None, якорь, бытовое)
@@ -319,6 +320,8 @@ def build_plan(day: dict, now_min: int | None = None, wd: int | None = None) -> 
             continue
         if qid in skip:
             continue
+        if qid in UNTIL and now_m > to_min(UNTIL[qid]) and qid not in done:
+            continue  # утро прошло: завтрак в вечер не тащим
         queue.append({"id": qid, "name": name, "dur": dur, "fixed": fixed, "minor": minor})
 
     items, over = [], []
