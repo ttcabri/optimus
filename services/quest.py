@@ -14,15 +14,14 @@ import database
 from config import TIMEZONE
 
 BOSS_IDS = ["b1", "b2", "b3", "b4", "b5"]
-TOKEN_IDS = ["cbr", "gym", "fight", "eng"]
 # Закрываются только пруфом через бота
-PROOF_IDS = {"cbr", "gym", "fight", "b5", "vid2"}
+PROOF_IDS = {"cbr", "gym", "fight", "eng", "b5", "vid2"}
 
 QUEST_NAMES = {
-    "cbr": "Теория CBR",
+    "cbr": "TheorieExamen",
     "gym": "Зал",
     "fight": "Единоборства",
-    "eng": "Английский",
+    "eng": "Duolingo",
     "house": "Жильё",
 }
 
@@ -63,39 +62,54 @@ def boss_done(day: dict | None) -> bool:
     return bool(day) and all(b in day.get("done", []) for b in BOSS_IDS)
 
 
-def tokens(day: dict) -> int:
-    """Дота открывается только после видео."""
-    if not boss_done(day):
-        return 0
-    done = day.get("done", [])
-    n = 2 + sum(1 for q in TOKEN_IDS if q in done)
-    if "vid2" in done:
-        n += 2
-    return n
+REQ_NAMES = {"video": "Видео", "train": "Тренировка", "cbr": "Теория", "eng": "Duolingo"}
 
 
-def games_used(day: dict) -> int:
-    return max(day.get("games", 0), len(day.get("gl", [])))
+def reqs(day: dict, weekday: int | None = None) -> list[dict]:
+    """4 главных дела для награды дня. weekday как в Python: пн=0, вс=6."""
+    at = day.get("at", {})
+    skip = set(day.get("skip", []))
+    tr = training_id(weekday)
+    r = [{"id": "video", "t": at.get("b5")}]
+    if tr:
+        r.append({"id": "train", "tr": tr, "t": at.get(tr) or ("skip" if tr in skip else None)})
+    r.append({"id": "cbr", "t": at.get("cbr") or ("skip" if "cbr" in skip else None)})
+    r.append({"id": "eng", "t": at.get("eng") or ("skip" if "eng" in skip else None)})
+    return r
 
 
-def clean_state(day: dict | None, weekday: int) -> str:
-    """base: тренировка до первой травы (в вс: видео). gold: и видео, и тренировка до травы."""
+def reward_state(day: dict | None, weekday: int | None = None) -> str:
+    """pending: копим · open: награда открыта · gold: взял после всех дел ·
+    base: раньше, но тренировка была чистой · broken: раньше тренировки."""
     if not day:
         return "pending"
-    at = day.get("at", {})
+    r = reqs(day, weekday)
     fs = day.get("firstSmoke")
-    tr = training_id(weekday)
-    t_tr = at.get(tr) if tr else None
-    t_v = at.get("b5")
-
-    def before(a, b):
-        return bool(a) and (not b or a <= b)
-
-    if before(t_v, fs) and (not tr or before(t_tr, fs)):
+    done_all = all(x["t"] for x in r)
+    if not fs:
+        return "open" if done_all else "pending"
+    if done_all and all(x["t"] == "skip" or x["t"] <= fs for x in r):
         return "gold"
-    if (before(t_tr, fs) if tr else before(t_v, fs)):
+    tr = next((x for x in r if x["id"] == "train"), None)
+    first = tr if tr else r[0]
+    if first["t"] and first["t"] != "skip" and first["t"] <= fs:
         return "base"
-    return "broken" if fs else "pending"
+    return "broken"
+
+
+def reward_line(day: dict, weekday: int | None = None) -> str:
+    r = reqs(day, weekday)
+    n = sum(1 for x in r if x["t"])
+    st = reward_state(day, weekday)
+    marks = " · ".join(("✅ " if x["t"] else "▫️ ") + (("Бой" if x.get("tr") == "fight" else "Зал") if x["id"] == "train" else REQ_NAMES[x["id"]]) for x in r)
+    head = {
+        "pending": f"🌿 Награда дня: {n} из {len(r)}",
+        "open": "🌿 Награда открыта. Заслужил.",
+        "gold": "🌿 Награда взята по-честному.",
+        "base": "🌿 Раньше времени, но тренировка была чистой.",
+        "broken": "🌿 Награда сегодня сгорела.",
+    }[st]
+    return head + "\n" + marks
 
 
 async def get_day(telegram_id: int) -> dict:
@@ -235,18 +249,10 @@ def day_summary(day: dict) -> str:
     open_custom = [c["name"] for c in day.get("custom", []) if c["id"] not in done]
     if open_custom:
         lines.append("Не закрыто: " + "; ".join(open_custom))
-    c = clean_state(day, w)
-    lines.append({
-        "gold": "Чистое утро: золотой день 🥇",
-        "base": "Чистое утро: засчитано ✅",
-        "broken": "Чистое утро: сорвано",
-        "pending": "Чистое утро: без травы весь день ✅",
-    }[c])
-    if boss_done(day):
-        left = max(tokens(day) - games_used(day), 0)
-        lines.append(f"Каток на Доту не сыграно: {left}" + (f" (+{left * 10} XP)" if left else ""))
-    else:
-        lines.append("Дота сегодня закрыта: видео не вышло")
+    lines.append("")
+    lines.append(reward_line(day, w))
+    if day.get("smokes"):
+        lines.append(f"Трава: {day['smokes']}, первый раз в {day.get('firstSmoke')}")
     return "\n".join(lines)
 
 
@@ -260,7 +266,7 @@ DAY_END = "22:45"
 PLAN_QUESTS = [
     ("wake", "Подъём, вода, улица", 20, None, None, True),
     ("bfast", "Завтрак", 20, None, None, True),
-    ("cbr", "Теория CBR", 45, None, None, False),
+    ("cbr", "Теория на права", 45, None, None, False),
     ("video", "Видео", 110, None, None, False),
     ("lunch", "Обед", 30, None, None, True),
     ("gym", "Зал", 120, [1, 2, 4, 5], None, False),
@@ -270,9 +276,9 @@ PLAN_QUESTS = [
     ("vid2", "Бонус: второе видео", 110, None, None, False),
     ("prep", "Заготовка еды", 80, [0, 3, 5], None, True),
     ("dinner", "Ужин", 30, [1, 2, 4, 6], None, True),
-    ("eng", "Английский", 45, None, None, False),
+    ("eng", "Duolingo", 20, None, None, False),
     ("house", "Жильё", 20, [3, 0], None, False),
-    ("screen", "Экран выкл, повтор CBR, душ", 45, None, DAY_END, True),
+    ("screen", "Экран выкл, повтор теории, душ", 45, None, DAY_END, True),
 ]
 
 

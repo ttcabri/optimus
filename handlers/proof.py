@@ -26,8 +26,8 @@ def quest_keyboard() -> InlineKeyboardMarkup | None:
     )
 
 
-def _left(day: dict) -> int:
-    return max(quest.tokens(day) - day.get("games", 0), 0)
+def _reward(day: dict) -> str:
+    return quest.reward_line(day)
 
 
 def _split(text: str) -> list[str]:
@@ -50,14 +50,13 @@ async def proof_youtube(message: Message) -> None:
     if not quest.boss_done(day):
         day = await quest.mark_done(message.from_user.id, quest.BOSS_IDS)
         await message.answer(
-            f"🎬 Видео засчитано. Босс убит.\nКаток на Доту: <b>{_left(day)}</b>\n\n"
-            "Успеваешь до обеда? Второе видео даст ещё +2.",
+            f"🎬 Видео засчитано. Босс убит.\n\n{_reward(day)}",
             reply_markup=quest_keyboard(),
         )
     elif "vid2" not in day["done"]:
         day = await quest.mark_done(message.from_user.id, ["vid2"])
         await message.answer(
-            f"🔥 Второе видео засчитано. Дубль.\nКаток на Доту: <b>{_left(day)}</b>",
+            f"🔥 Второе видео засчитано. Дубль. +100 XP",
             reply_markup=quest_keyboard(),
         )
     else:
@@ -67,13 +66,14 @@ async def proof_youtube(message: Message) -> None:
 @router.message(F.text.regexp(SMOKE_PATTERN))
 async def log_smoke(message: Message) -> None:
     day = await quest.add_smoke(message.from_user.id)
-    state = quest.clean_state(day, quest.now().weekday())
+    state = quest.reward_state(day)
     if day.get("smokes") == 1:
         note = {
-            "gold": "Первый за день, и видео с тренировкой уже закрыты. Золотой день 🥇",
-            "base": "Первый за день, тренировка уже закрыта. Чистое утро засчитано ✅",
-            "broken": "Первый за день, а тренировка ещё не закрыта. Чистое утро сорвано. Завтра заново.",
+            "gold": "Все 4 дела закрыты раньше. Награда по-честному 🌿",
+            "base": "Раньше времени, но тренировка была чистой. +30 XP.",
+            "broken": "Раньше тренировки. Награда сегодня сгорела. Завтра заново.",
         }.get(state, "Записал.")
+        note += "\n\n" + quest.reward_line(day)
     else:
         note = f"Записал. Сегодня уже {day['smokes']}."
     await message.answer(note)
@@ -123,7 +123,7 @@ async def proof_photo(message: Message, bot: Bot) -> None:
 
     kind = result.get("quest")
     comment = result.get("comment", "").strip()
-    if not result.get("ok") or kind not in ("cbr", "training", "video"):
+    if not result.get("ok") or kind not in ("cbr", "eng", "training", "video"):
         await message.answer("❌ Не засчитано.\n" + (comment or "Не понял, что это за пруф. Подпиши фото."))
         return
 
@@ -131,7 +131,9 @@ async def proof_photo(message: Message, bot: Bot) -> None:
     if kind == "training":
         ids, title = [training], "Тренировка"
     elif kind == "cbr":
-        ids, title = ["cbr"], "Теория CBR"
+        ids, title = ["cbr"], "Теория на права"
+    elif kind == "eng":
+        ids, title = ["eng"], "Duolingo"
     elif not quest.boss_done(day):
         ids, title = quest.BOSS_IDS, "Видео"
     else:
@@ -139,13 +141,9 @@ async def proof_photo(message: Message, bot: Bot) -> None:
 
     day = await quest.mark_done(message.from_user.id, ids)
     extra = ""
-    if kind == "training":
-        c = quest.clean_state(day, quest.now().weekday())
-        if c == "gold":
-            extra = "\nЧисто до видео и тренировки. Золотой день 🥇"
-        elif c == "base":
-            extra = "\nЧистое утро засчитано ✅"
+    if quest.reward_state(day) == "open":
+        extra = "\n\n🌿 Все 4 дела закрыты. Награда открыта."
     await message.answer(
-        f"✅ {title} засчитано.\n{comment}{extra}\n\nКаток на Доту: <b>{_left(day)}</b>",
+        f"✅ {title} засчитано.\n{comment}{extra}\n\n{_reward(day)}",
         reply_markup=quest_keyboard(),
     )
