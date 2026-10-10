@@ -42,14 +42,20 @@ button{cursor:pointer}
 .btns button{flex:1;height:46px;border-radius:12px;font-weight:800;border:1px solid var(--line2);background:transparent}
 .btns .pri{background:var(--gold);color:var(--ink);border-color:var(--gold)}
 
-.head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:18px 20px 12px}
+.head{display:flex;justify-content:space-between;gap:12px;padding:16px 20px 12px}
+.hl{display:flex;flex-direction:column;gap:2px;min-width:0}
+.hl span{font-size:13px;font-weight:700;color:var(--muted)}
+.daybar{margin:0 16px 14px;display:flex;flex-direction:column;gap:6px}
+.track{display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--line)}
+.track i{display:block;height:100%;border-right:2px solid var(--bg)}
+.track .t{background:#5a4131}.track .v{background:var(--fire)}.track .g{background:var(--gold)}.track .f{background:#2f4a3b}.track .o{background:var(--red)}.track .a{background:#3a2b22}
+.dline{display:flex;justify-content:space-between;gap:8px;font-size:13px;font-weight:700;color:var(--muted)}
+.dline b{color:var(--fg);font-variant-numeric:tabular-nums}
+.dline .free b{color:var(--okl)}.dline .minus b{color:var(--red)}
 .head h1{font-family:var(--display);font-weight:400;font-size:24px;margin:0;text-transform:capitalize}
 .head{align-items:center}
 .plus{width:48px;height:48px;border-radius:50%;border:none;background:var(--gold);color:var(--ink);display:grid;place-items:center;flex-shrink:0;box-shadow:0 4px 16px rgba(224,164,86,.25)}
-.stats{display:flex;flex-wrap:wrap;gap:6px;padding:0 20px 10px}
-.stat{display:flex;align-items:baseline;gap:5px;padding:5px 9px;border-radius:10px;background:var(--panel);font-size:13px;font-weight:700;color:var(--muted)}
 .stat b{font-family:var(--display);font-weight:400;font-size:16px;color:var(--fg);font-variant-numeric:tabular-nums}
-.stat.free b{color:var(--okl)}.stat.minus b{color:var(--red)}
 /* окошки добавления */
 .sheet{position:fixed;inset:0;z-index:25;display:flex;flex-direction:column;justify-content:flex-end;background:rgba(10,7,5,.6)}
 .sheet .pnl{background:var(--panel2);border-radius:22px 22px 0 0;border-top:1px solid var(--line2);padding:16px 16px calc(20px + env(safe-area-inset-bottom,0px));max-width:520px;width:100%;margin:0 auto;display:flex;flex-direction:column;gap:14px;max-height:88vh;overflow-y:auto}
@@ -68,8 +74,6 @@ button{cursor:pointer}
 .menu{display:flex;flex-direction:column;gap:8px}
 .menu .opt{display:flex;align-items:center;gap:12px;text-align:left;padding:12px 14px}
 .sum{padding:12px 14px;border-radius:14px;background:var(--panel);font-size:14px;color:#d9c9b9}
-.xpbar{height:4px;margin:0 20px 14px;border-radius:2px;background:var(--line);overflow:hidden}
-.xpbar i{display:block;height:100%;background:var(--gold);transition:width .4s}
 
 .now{margin:0 16px;padding:18px 16px;border-radius:22px;background:var(--paper);color:var(--ink);display:flex;flex-direction:column;gap:12px}
 .now .k{display:flex;justify-content:space-between;gap:8px;font-size:13px;font-weight:800;color:var(--rust)}
@@ -87,7 +91,7 @@ button{cursor:pointer}
 .ghost{height:46px;border-radius:14px;background:transparent;border:1px solid #cdb39c;color:var(--ink);font-weight:700;font-size:15px;width:100%}
 .now.free .ghost{border-color:var(--line2);color:var(--fg)}
 
-.clean{margin:14px 16px 0;padding:12px 14px;border-radius:16px;background:var(--panel);border:1px solid var(--line2);display:flex;align-items:center;gap:12px}
+.clean{margin:12px 16px 0;padding:10px 12px;border-radius:16px;background:var(--panel);border:1px solid var(--line2);display:flex;align-items:center;gap:12px}
 .clean.base{border-color:#3c6b52}.clean.gold{border-color:var(--gold);background:#2a2014}.clean.broken{border-color:#6b3a2a}
 .clean .txt{flex:1;min-width:0;display:flex;flex-direction:column}
 .clean .t{font-size:14px;font-weight:800}
@@ -118,10 +122,10 @@ button{cursor:pointer}
 .dur{font-size:12px;font-weight:700;color:var(--dim);white-space:nowrap}
 .x{width:36px;height:36px;border-radius:10px;border:none;background:transparent;color:var(--dim);display:grid;place-items:center;flex-shrink:0}
 .grp{font-size:13px;font-weight:800;color:var(--muted);padding:10px 4px 2px}
-.over{margin:14px 16px 0;padding:14px;border-radius:16px;border:1px solid var(--red);background:#2a1712;display:flex;flex-direction:column;gap:10px}
+.over{margin:12px 16px 0;padding:12px 14px;border-radius:16px;border:1px solid var(--red);background:#2a1712;display:flex;flex-direction:column;gap:10px}
 .over h3{margin:0;font-size:15px;color:var(--red)}
-.over .it{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.over .it b{flex:1;min-width:120px;font-size:14px}
+.over .it{display:flex;align-items:center;gap:8px}
+.over .it b{flex:1;min-width:0;font-size:14px}
 .chip{border-radius:10px;border:1px solid var(--line2);background:transparent;font-size:13px;font-weight:700;padding:6px 10px;min-height:36px}
 
 .add{display:flex;flex-direction:column;gap:8px;margin:10px 16px 0;padding:12px;border-radius:16px;background:var(--panel)}
@@ -194,9 +198,8 @@ nav.tabs button[aria-selected="true"]{color:var(--gold);font-weight:800}
 <div class="app">
   <div class="reward" id="reward"></div>
   <div id="confirm"></div>
-  <div class="head"><h1 id="day"></h1><button type="button" class="plus" id="plus" aria-label="Добавить"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button></div>
-  <div class="stats" id="stats"></div>
-  <div class="xpbar"><i id="xpbar"></i></div>
+  <div class="head"><div class="hl"><h1 id="day"></h1><span id="lvl"></span></div><button type="button" class="plus" id="plus" aria-label="Добавить"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button></div>
+  <div class="daybar" id="daybar"></div>
   <main id="view"></main>
 </div>
 
@@ -427,11 +430,17 @@ function renderReward(){
 function renderHead(){
   const xp=totalXP(),lvl=Math.floor(xp/300)+1;
   $("day").textContent=new Date().toLocaleDateString("ru-RU",{weekday:"long"});
-  const p=plan(key()),free=p.items.filter(i=>i.gap).reduce((a,i)=>a+i.end-Math.max(i.start,nowMin()),0),miss=p.over.reduce((a,o)=>a+o.dur,0);
-  const toBed=Math.max(0,toMin("23:30")-nowMin());
-  $("stats").innerHTML=(miss?`<span class="stat minus">Не хватает <b>${durTxt(miss)}</b></span>`:`<span class="stat free">Свободно <b>${durTxt(Math.max(0,free))}</b></span>`)+
-    `<span class="stat">До отбоя <b>${durTxt(toBed)}</b></span><span class="stat">Ур. <b>${lvl}</b> ${RANKS[Math.min(lvl-1,RANKS.length-1)]}</span>`+(videoStreak()?`<span class="stat">Серия <b>${videoStreak()}</b></span>`:"");
-  $("xpbar").style.width=((xp%300)/3)+"%";
+  $("lvl").textContent=`Ур. ${lvl} ${RANKS[Math.min(lvl-1,RANKS.length-1)]} · ${xp%300}/300 XP${videoStreak()?" · серия "+videoStreak():""}`;
+  // полоса дня: от сейчас до отбоя
+  const now=nowMin(),bed=toMin("23:30"),span=Math.max(1,bed-now),p=plan(key());
+  const free=p.items.filter(i=>i.gap).reduce((a,i)=>a+Math.max(0,i.end-Math.max(i.start,now)),0),miss=p.over.reduce((a,o)=>a+o.dur,0);
+  let segs="",total=0;
+  for(const i of p.items){const st=Math.max(i.start,now),en=Math.min(i.end,bed);if(en<=st)continue;const w=(en-st)/span*100;total+=en-st;
+    const c=i.gap?"f":i.game?"g":i.q&&i.q.kind==="video"?"v":i.anchor?"a":"t";segs+=`<i class="${c}" style="width:${w.toFixed(2)}%" title="${esc(i.gap?"Свободно":i.game?"Катка":i.q.name)}"></i>`}
+  if(miss)segs+=`<i class="o" style="width:${Math.min(30,miss/span*100).toFixed(2)}%"></i>`;
+  $("daybar").innerHTML=`<div class="track" role="img" aria-label="План до отбоя">${segs}</div>
+    <div class="dline">${miss?`<span class="minus">Не хватает <b>${durTxt(miss)}</b></span>`:`<span class="free">Свободно <b>${durTxt(free)}</b></span>`}<span>До отбоя <b>${durTxt(Math.max(0,bed-now))}</b></span></div>`;
+
 }
 function nowCard(k,d,p){
   const it=p.items[0],now=nowMin();
@@ -478,10 +487,10 @@ function doneRow(d,q){
 function overCard(p){
   if(!p.over.length)return "";
   const late=p.over.reduce((a,o)=>a+o.dur,0);
-  return `<section class="over"><h3>Не влезает до ${DAY_END}: ${durTxt(late)}</h3>
+  return `<section class="over"><h3>Не влезает до ${DAY_END}</h3>
     ${p.over.map(o=>`<div class="it"><b>${esc(o.q.name)} · ${durTxt(o.dur)}</b>
-      ${o.dur>=30?`<button type="button" class="chip" data-cut="${esc(o.q.id)}">Сократить вдвое</button>`:""}
-      <button type="button" class="chip" data-skip="${esc(o.q.id)}">${o.q.custom?"На завтра":"Убрать сегодня"}</button></div>`).join("")}</section>`;
+      ${o.dur>=30?`<button type="button" class="chip" data-cut="${esc(o.q.id)}">Вдвое</button>`:""}
+      <button type="button" class="chip" data-skip="${esc(o.q.id)}">${o.q.custom?"На завтра":"Убрать"}</button></div>`).join("")}</section>`;
 }
 function addForm(kind){
   return `<form class="add" data-add="${kind}"><div class="r"><input name="t" maxlength="80" placeholder="${kind==="today"?"Своё дело на сегодня":"Дело на завтра"}" aria-label="Название дела" autocomplete="off"></div>
@@ -492,10 +501,10 @@ function addForm(kind){
 
 function viewToday(){
   const k=key(),d=dayOf(k),p=plan(k);
-  const next=p.items.slice(1,6);
-  return nowCard(k,d,p)+overCard(p)+cleanCard(k,d)+
+  const next=p.items.slice(1,5);
+  return nowCard(k,d,p)+overCard(p)+
     `<div class="sec"><h3>Дальше</h3><button type="button" data-tab-go="day">весь день</button></div>
-     <div class="list">${next.map(it=>planRow(d,it)).join("")||'<p class="empty">Больше ничего. Нажми «+», если что-то появилось.</p>'}</div>`;
+     <div class="list">${next.map(it=>planRow(d,it)).join("")||'<p class="empty">Больше ничего. Нажми «+», если что-то появилось.</p>'}</div>`+cleanCard(k,d);
 }
 function viewDay(){
   const k=key(),d=dayOf(k),p=plan(k);
