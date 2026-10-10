@@ -81,10 +81,10 @@ async def send_monday_focus(bot: Bot) -> None:
 QUEST_REMINDERS = [
     # (час, минута, дни недели или None, проверка "уже сделано", текст)
     (8, 50, None, lambda d: "cbr" in d["done"], "📘 08:50. Теория CBR, 45 минут. Скрин результата сюда."),
-    (9, 30, None, lambda d: quest.boss_done(d), "🎬 09:30. Босс дня. Блок 1: история, сценарий, озвучка."),
-    (12, 45, None, lambda d: quest.boss_done(d), "🎬 12:45. Блок 2: монтаж, превью, загрузка. Ссылку на видео сюда."),
-    (15, 0, None, lambda d: quest.boss_done(d), "⏰ 15:00, а видео нет. Без видео сегодня максимум 1 катка."),
-    (15, 30, "mon,tue,wed,thu,fri,sat", lambda d: "gym" in d["done"] or "fight" in d["done"], "🥊 15:30. Тренировка. Фото с тренировки сюда."),
+    (9, 30, None, lambda d: quest.boss_done(d), "🎬 09:30. Видео. Открой квест и жми «Начать фокус». Телефон экраном вниз."),
+    (11, 30, None, lambda d: quest.boss_done(d), "🎬 11:30. Как видео? Если застрял, напиши, на каком шаге."),
+    (14, 0, None, lambda d: quest.boss_done(d), "⏰ 14:00, а видео нет. Без него сегодня максимум 1 катка."),
+    (15, 30, "mon,tue,wed,thu,fri,sat", lambda d: "gym" in d["done"] or "fight" in d["done"], "🥊 15:30. Тренировка. До неё без травы. Фото с тренировки сюда."),
     (18, 45, None, lambda d: "eng" in d["done"], "🇬🇧 18:45. Английский, 45 минут. Кинь голосовое на английском, разберу."),
 ]
 
@@ -105,10 +105,22 @@ async def send_quest_night(bot: Bot) -> None:
     """22:30 — итог дня и экран выкл."""
     try:
         day = await quest.get_day(TELEGRAM_USER_ID)
-        text = "🌙 <b>22:30. Итог дня</b>\n\n" + quest.day_summary(day) + "\n\nЭкран выкл, 15 минут повтор CBR и спать в 23:30."
+        text = (
+            "🌙 <b>22:30. Итог дня</b>\n\n" + quest.day_summary(day)
+            + "\n\nЧто завтра, кроме основы? Напиши так:\n<code>завтра: отвезти Audi; письмо в UWV</code>"
+            + "\n\nЭкран выкл, 15 минут повтор CBR и спать в 23:30."
+        )
         await bot.send_message(TELEGRAM_USER_ID, text)
     except Exception as e:
         logger.error(f"Quest night error: {e}")
+
+
+async def send_weigh_in(bot: Bot) -> None:
+    """Понедельник 08:10 — взвешивание."""
+    try:
+        await bot.send_message(TELEGRAM_USER_ID, "⚖️ Понедельник. Встань на весы до завтрака и напиши: <code>вес 82.5</code>")
+    except Exception as e:
+        logger.error(f"Weigh-in error: {e}")
 
 
 def setup_scheduler(bot: Bot) -> AsyncIOScheduler:
@@ -160,5 +172,6 @@ def setup_scheduler(bot: Bot) -> AsyncIOScheduler:
             kwargs={"bot": bot, "done_check": check, "text": text},
         )
     scheduler.add_job(send_quest_night, "cron", hour=22, minute=30, kwargs={"bot": bot})
+    scheduler.add_job(send_weigh_in, "cron", day_of_week="mon", hour=8, minute=10, kwargs={"bot": bot})
 
     return scheduler
