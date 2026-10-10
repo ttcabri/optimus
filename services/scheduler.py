@@ -93,7 +93,8 @@ _sent: set[str] = set()
 def quest_messages(day: dict, now_min: int, today: str, wd: int) -> list[str]:
     """Что сказать сейчас по живому плану. Каждое сообщение один раз за день."""
     out = []
-    if now_min < quest.to_min(quest.DAY_START) or now_min > quest.to_min(quest.DAY_END):
+    P = quest.prof(day)
+    if now_min < quest.to_min(P["wake"]) or now_min > quest.to_min(quest.day_end(P)):
         return out
 
     def once(tag, text):
@@ -102,7 +103,7 @@ def quest_messages(day: dict, now_min: int, today: str, wd: int) -> list[str]:
             _sent.add(k)
             out.append(text)
 
-    if "wake" not in day.get("done", []) and quest.to_min(quest.DAY_START) + 15 <= now_min < quest.to_min("12:00"):
+    if "wake" not in day.get("done", []) and quest.to_min(P["wake"]) + 15 <= now_min < quest.to_min("12:00"):
         once("wake", "☀️ Подъём. Отметь в квесте, и день пересчитается от сейчас.")
     p = quest.build_plan(day, now_min, wd)
     first = next((it for it in p["items"] if not it.get("game")), None)

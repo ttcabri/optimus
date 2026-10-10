@@ -42,10 +42,32 @@ def hhmm() -> str:
     return now().strftime("%H:%M")
 
 
-def training_id(weekday: int | None = None) -> str | None:
-    """Зал пн–сб, воскресенье отдых."""
+DEF_PROFILE = {"reward": "Трава", "name": "", "wake": "08:00", "bed": "23:30", "gymDays": [1, 2, 3, 4, 5, 6],
+               "req": {"train": 1, "cbr": 1, "eng": 1}, "videoMin": 110}
+
+
+def prof(day_or_state: dict | None) -> dict:
+    """Анкета: из day["_profile"] или state["profile"], поверх значений по умолчанию."""
+    p = dict(DEF_PROFILE)
+    src = (day_or_state or {}).get("_profile") or (day_or_state or {}).get("profile") or {}
+    p.update({k: v for k, v in src.items() if v is not None})
+    return p
+
+
+def bed_min(p: dict) -> int:
+    m = to_min(p["bed"])
+    return m + 1440 if m < 300 else m
+
+
+def day_end(p: dict) -> str:
+    return hm(min(bed_min(p) - 45, 1439))
+
+
+def training_id(weekday: int | None = None, profile: dict | None = None) -> str | None:
+    """Зал в дни из анкеты (по умолчанию пн–сб). weekday как в Python: пн=0."""
     w = now().weekday() if weekday is None else weekday
-    return None if w == 6 else "gym"  # зал пн–сб, вс отдых
+    js = (w + 1) % 7
+    return "gym" if js in (profile or DEF_PROFILE)["gymDays"] else None
 
 
 def _day(state: dict, key: str) -> dict:
@@ -83,12 +105,15 @@ def reqs(day: dict, weekday: int | None = None) -> list[dict]:
     """4 главных дела для награды дня. weekday как в Python: пн=0, вс=6."""
     at = day.get("at", {})
     skip = set(day.get("skip", []))
-    tr = training_id(weekday)
+    p = prof(day)
+    tr = training_id(weekday, p)
     r = [{"id": "video", "t": at.get("b5")}]
-    if tr:
+    if tr and p["req"].get("train"):
         r.append({"id": "train", "tr": tr, "t": at.get(tr) or ("skip" if tr in skip else None)})
-    r.append({"id": "cbr", "t": at.get("cbr") or ("skip" if "cbr" in skip else None)})
-    r.append({"id": "eng", "t": at.get("eng") or ("skip" if "eng" in skip else None)})
+    if p["req"].get("cbr"):
+        r.append({"id": "cbr", "t": at.get("cbr") or ("skip" if "cbr" in skip else None)})
+    if p["req"].get("eng"):
+        r.append({"id": "eng", "t": at.get("eng") or ("skip" if "eng" in skip else None)})
     if day.get("_debt"):
         r.append({"id": "debt", "t": at.get("vid2")})
         r.append({"id": "fine", "t": at.get("fine")})
@@ -133,6 +158,7 @@ async def get_day(telegram_id: int) -> dict:
     state = await database.get_quest_state(telegram_id)
     day = _day(state, today_key())
     day["_debt"] = has_debt(state)
+    day["_profile"] = state.get("profile")
     return day
 
 
@@ -146,6 +172,7 @@ async def mark_done(telegram_id: int, ids: list[str]) -> dict:
             day["at"][i] = t
     await database.save_quest_state(telegram_id, state)
     day["_debt"] = has_debt(state)
+    day["_profile"] = state.get("profile")
     return day
 
 
@@ -157,6 +184,7 @@ async def add_smoke(telegram_id: int) -> dict:
     day["smokes"] = day.get("smokes", 0) + 1
     await database.save_quest_state(telegram_id, state)
     day["_debt"] = has_debt(state)
+    day["_profile"] = state.get("profile")
     return day
 
 
@@ -212,6 +240,8 @@ def merge_incoming(server: dict, incoming: dict) -> dict:
         return server
     incoming.setdefault("body", server.get("body", []))
     incoming.setdefault("lifts", server.get("lifts", []))
+    if not incoming.get("profile") and server.get("profile"):
+        incoming["profile"] = server["profile"]
     s_days = server.get("days", {})
 
     for key, sday in s_days.items():
@@ -265,7 +295,7 @@ def day_summary(day: dict) -> str:
         lines.append("Долг за вчера: второе видео не вышло ❌")
     if day.get("_debt"):
         lines.append("Штраф €5: " + ("переведён ✅" if "fine" in done else "не переведён ❌"))
-    tr = training_id(w)
+    tr = training_id(w, prof(day))
     if tr:
         lines.append("Тренировка: " + ("да ✅" if tr in done else "нет ❌"))
     missed = [QUEST_NAMES[q] for q in ("cbr", "eng") if q not in done]
@@ -340,9 +370,21 @@ def build_plan(day: dict, now_min: int | None = None, wd: int | None = None) -> 
         return base
 
     queue = []
+    P = prof(day)
+    gym_today = wd in P["gymDays"]
     for qid, name, dur, days, fixed, minor in PLAN_QUESTS:
-        if days is not None and wd not in days:
+        if qid == "gym":
+            if not gym_today:
+                continue
+        elif qid == "walk":
+            if gym_today:
+                continue
+        elif days is not None and wd not in days:
             continue
+        if qid == "screen":
+            fixed = day_end(P)
+        if qid == "video":
+            dur = P["videoMin"]
         if qid == "_custom":
             for c in day.get("custom", []):
                 queue.append({"id": c["id"], "name": c["name"], "dur": c.get("dur", 30), "fixed": c.get("at"), "minor": False})
@@ -361,7 +403,7 @@ def build_plan(day: dict, now_min: int | None = None, wd: int | None = None) -> 
 
     items, over = [], []
     wake = day.get("at", {}).get("wake")
-    cur = max(now_m, to_min(DAY_START)) if not wake else now_m
+    cur = max(now_m, to_min(P["wake"])) if not wake else now_m
     for g in sorted(to_min(x) for x in day.get("gl", [])):
         if g + GAME_MIN > now_m:
             s = g if g <= now_m else max(g, cur)
@@ -381,7 +423,7 @@ def build_plan(day: dict, now_min: int | None = None, wd: int | None = None) -> 
 
     anchors = sorted([q for q in pending if q["fixed"]], key=lambda q: to_min(q["fixed"]))
     flex = [q for q in pending if not q["fixed"]]
-    end = to_min(DAY_END)
+    end = to_min(day_end(P))
 
     def place(a):
         nonlocal cur
@@ -391,7 +433,7 @@ def build_plan(day: dict, now_min: int | None = None, wd: int | None = None) -> 
 
     for q in flex:
         du = dur_of(q["id"], q["dur"])
-        while anchors and to_min(anchors[0]["fixed"]) < cur + du and anchors[0]["fixed"] != DAY_END:
+        while anchors and to_min(anchors[0]["fixed"]) < cur + du and anchors[0]["fixed"] != day_end(P):
             place(anchors.pop(0))
         if cur + du > end:
             over.append({**q, "dur": du})

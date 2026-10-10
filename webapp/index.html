@@ -83,6 +83,14 @@ button{cursor:pointer}
 .opt[aria-pressed="true"]{border-color:var(--gold);background:#3a2416;color:var(--gold)}
 .menu{display:flex;flex-direction:column;gap:8px}
 .menu .opt{display:flex;align-items:center;gap:12px;text-align:left;padding:12px 14px}
+.onb .pnl{max-height:100%;height:100%;border-radius:0;justify-content:flex-start;padding-top:calc(20px + env(safe-area-inset-top,0px))}
+.onb .big{font-size:26px}
+.onb .hint{font-size:14px;color:var(--muted);margin:-6px 0 0;line-height:1.45}
+.onb textarea{min-height:110px;border-radius:14px;border:1px solid var(--line2);background:var(--bg);padding:12px 14px;color:var(--fg);font:inherit;font-size:16px;resize:vertical;width:100%}
+.days7{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.days7 .opt{min-height:48px;padding:4px}
+.onb .grow{flex:1}
+.why{font-size:14px;color:#d9c9b9;font-style:italic}
 .sum{padding:12px 14px;border-radius:14px;background:var(--panel);font-size:14px;color:#d9c9b9}
 
 .now{margin:0 16px;padding:18px 16px;border-radius:22px;background:var(--paper);color:var(--ink);display:flex;flex-direction:column;gap:12px}
@@ -118,7 +126,10 @@ button{cursor:pointer}
 .row .nm{flex:1;min-width:0;display:flex;flex-direction:column}
 .row .nm b{font-size:15px;font-weight:700}
 .row .nm small{font-size:12px;color:var(--muted)}
-.row .chk{width:26px;height:26px;flex-shrink:0;border-radius:8px;border:2px solid var(--line2);display:grid;place-items:center}
+.row .chk{width:30px;height:30px;flex-shrink:0;border-radius:9px;border:2px solid var(--line2);background:transparent;display:grid;place-items:center;padding:0}
+.rowmain{flex:1;min-width:0;display:flex;align-items:center;gap:10px;background:none;border:none;padding:4px 0;text-align:left;color:inherit;min-height:44px}
+.row.cur{border-color:var(--gold)}
+.row .x{width:32px;height:32px}
 .row.on{opacity:.7}.row.on .chk{background:var(--ok);border-color:var(--ok)}
 .row.on .nm b{color:var(--dim);text-decoration:line-through}
 .row.boss{background:var(--panel2);border-color:var(--fire)}
@@ -223,11 +234,19 @@ nav.tabs button[aria-selected="true"]{color:var(--gold);font-weight:800}
 
 <div class="focus" id="focus" hidden></div>
 <div class="sheet" id="sheet" hidden></div>
+<div class="sheet onb" id="onb" hidden></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
 const MODE=window.QD_MODE||"artifact";const BOT=MODE==="bot";
-const GAME_MIN=45, DAY_START="08:00", DAY_END="22:45";
+const GAME_MIN=45;
+// Анкета: настройки под человека. Пока анкеты нет, работают значения по умолчанию.
+const DEF_PROFILE={reward:"Трава",name:"",wake:"08:00",bed:"23:30",gymDays:[1,2,3,4,5,6],req:{train:1,cbr:1,eng:1},videoMin:110,kg:null,goalKg:null,why:""};
+const prof=()=>Object.assign({},DEF_PROFILE,state.profile||{});
+const DAY_START_=()=>prof().wake;
+const BED_=()=>prof().bed;
+const bedMin=()=>{const m=toMin(BED_());return m<300?m+1440:m};
+const DAY_END_=()=>hm(Math.min(bedMin()-45,1439));
 
 const VIDEO_STEPS=[
   {id:"b1",name:"Текст в ChatGPT",hint:"Попроси историю и скопируй текст целиком."},
@@ -252,7 +271,7 @@ const QUESTS=[
   {id:"dinner",name:"Ужин",sub:"Разогреть заготовку",dur:30,xp:15,days:[1,2,4,6],minor:1},
   {id:"eng",name:"Duolingo",sub:"Английский, урок или два",botSub:"Английский. Скрин урока в бот",dur:20,xp:30,req:1,proof:1},
   {id:"house",name:"Жильё",sub:"Только новые объявления",dur:20,xp:20,days:[3,0],opt:1},
-  {id:"screen",name:"Экран выкл, повтор теории, душ",sub:"Отбой в 23:30",dur:45,xp:20,fixed:DAY_END,minor:1}
+  {id:"screen",name:"Экран выкл, повтор теории, душ",sub:"Перед отбоем",dur:45,xp:20,fixed:"END",minor:1}
 ];
 const BOSS_IDS=VIDEO_STEPS.map(s=>s.id);
 const RANKS=["Рекрут","Крип","Саппорт","Офлейнер","Мидер","Керри","Капитан","Легенда","Титан","Бессмертный"];
@@ -295,14 +314,18 @@ function dayOf(k){const d=state.days[k]||(state.days[k]={});d.done=d.done||[];d.
 const peek=k=>state.days[k];
 const has=(d,id)=>!!d&&(d.done||[]).includes(id);
 const bossDone=d=>!!d&&BOSS_IDS.every(b=>has(d,b));
-const trainOf=k=>dow(k)===0?null:"gym"; // зал пн–сб, вс отдых
+const trainOf=k=>prof().gymDays.includes(dow(k))?"gym":null; // дни зала из анкеты
 const subOf=q=>BOT&&q.botSub?q.botSub:(q.sub||"");
 const locked=q=>BOT&&q.proof;
 
 function queue(k){
   const d=dayOf(k),out=[];
   for(const q of QUESTS){
-    if(q.days&&!q.days.includes(dow(k)))continue;
+    if(q.id==="gym"){if(!trainOf(k))continue}
+    else if(q.id==="walk"){if(trainOf(k))continue}
+    else if(q.days&&!q.days.includes(dow(k)))continue;
+    if(q.id==="screen"){out.push({...q,fixed:DAY_END_(),sub:"Отбой в "+BED_()});continue}
+    if(q.kind==="video"&&prof().videoMin!==q.dur){out.push({...q,dur:prof().videoMin});continue}
     if(q.id==="_custom"){for(const c of d.custom)out.push({id:c.id,name:c.name,dur:c.dur||30,fixed:c.at||null,xp:15,custom:1});continue}
     const debt=debtOf(k);
     if(q.id==="fine"&&!debt)continue;
@@ -324,7 +347,7 @@ function durOf(d,q){
 // Раскладывает несделанное от «сейчас»: якоря стоят на месте, остальное обтекает их.
 function plan(k,extraGame){
   const d=dayOf(k),now=nowMin(),out=[],over=[];
-  const start=d.at.wake?Math.min(now,toMin(d.at.wake)):Math.max(now,toMin(DAY_START));
+  const start=d.at.wake?Math.min(now,toMin(d.at.wake)):Math.max(now,toMin(DAY_START_()));
   let cur=Math.max(now,start);
   // идущие катки
   const games=(d.gl||[]).map(toMin).filter(g=>g+GAME_MIN>now).sort((a,b)=>a-b);
@@ -336,11 +359,11 @@ function plan(k,extraGame){
   if(ci>=0){const q=pending.splice(ci,1)[0];const s=toMin(d.cur.at);const e=s+durOf(d,q);out.push({q,start:s,end:Math.max(e,now+5),pe:e,started:1,late:now>e?now-e:0,now:1});cur=Math.max(cur,Math.max(e,now+5))}
   const anchors=pending.filter(q=>q.fixed).sort((a,b)=>toMin(a.fixed)-toMin(b.fixed));
   const flex=pending.filter(q=>!q.fixed);
-  const end=toMin(DAY_END);
+  const end=toMin(DAY_END_());
   const placeAnchor=a=>{const s=Math.max(toMin(a.fixed),cur);if(toMin(a.fixed)>cur&&toMin(a.fixed)-cur>=10)out.push({gap:1,start:cur,end:toMin(a.fixed)});out.push({q:a,start:s,end:s+durOf(d,a),anchor:1,late:Math.max(0,cur-toMin(a.fixed))});cur=s+durOf(d,a)};
   for(const q of flex){
     const du=durOf(d,q);
-    while(anchors.length&&toMin(anchors[0].fixed)<cur+du&&anchors[0].fixed!==DAY_END)placeAnchor(anchors.shift());
+    while(anchors.length&&toMin(anchors[0].fixed)<cur+du&&anchors[0].fixed!==DAY_END_())placeAnchor(anchors.shift());
     if(cur+du>end){over.push({q,dur:du});continue}
     out.push({q,start:cur,end:cur+du});cur+=du;
   }
@@ -357,11 +380,13 @@ const debtOf=k=>failedDay(shift(k,-1));
 const debtClosed=d=>has(d,"vid2")&&has(d,"fine");
 
 /* ---------- награда дня, XP ---------- */
-// Главная награда (трава) открывается, когда закрыты 4 главных дела. Одна за день.
+// Главная награда (что именно, задаётся в анкете) открывается, когда закрыты 4 главных дела. Одна за день.
 const REQ_NAMES={video:"Видео",train:"Тренировка",cbr:"Теория",eng:"Duolingo",debt:"Долг",fine:"€5"};
 function reqs(k){const d=peek(k)||{},at=d.at||{},tr=trainOf(k);
   const r=[{id:"video",t:at.b5},{id:"cbr",t:at.cbr},{id:"eng",t:at.eng}];
-  if(tr)r.splice(1,0,{id:"train",tr,t:at[tr]});
+  const P=prof().req;
+  if(tr&&P.train)r.splice(1,0,{id:"train",tr,t:at[tr]});
+  for(const id of ["cbr","eng"])if(!P[id]){const i=r.findIndex(x=>x.id===id);if(i>=0)r.splice(i,1)}
   if(debtOf(k)){r.push({id:"debt",t:at.vid2,pen:1},{id:"fine",t:at.fine,pen:1})}
   if(d.skip)for(const x of r)if(x.id!=="video"&&!x.pen&&d.skip.includes(x.id==="train"?x.tr:x.id))x.t=x.t||"skip"; // убранное сегодня не блокирует награду, видео убрать нельзя
   return r}
@@ -440,9 +465,9 @@ const nextStep=d=>VIDEO_STEPS.find(s=>!has(d,s.id));
 /* ---------- отрисовка ---------- */
 function renderReward(){
   const k=key(),d=dayOf(k),R=reqs(k),st=rewardState(k),n=R.filter(x=>x.t).length;
-  const L={pending:`${debtOf(k)?"Штрафной день":"Награда дня"}: ${n} из ${R.length}`,open:"Награда открыта",gold:"Награда взята. Заслужил",base:"Раньше времени, но тренировка чистая",broken:"Награда сгорела. Завтра заново"}[st];
+  const L={pending:`${debtOf(k)?"Штрафной день":"Награда дня"}: ${n} из ${R.length}`,open:`Награда открыта: ${prof().reward}`,gold:"Награда взята. Заслужил",base:"Раньше времени, но тренировка чистая",broken:"Награда сгорела. Завтра заново"}[st];
   const chips=R.map(x=>`<span class="rq${x.pen?" pen":""}${x.t?" on":""}">${x.t?IC.check:""}${x.id==="train"?(x.tr==="fight"?"Бой":"Зал"):REQ_NAMES[x.id]}</span>`).join("");
-  $("reward").innerHTML=`<div class="rtop"><span class="leaf ${st}">${IC.leaf}</span><span class="lbl">${L}</span><button type="button" class="playbtn${st==="open"?"":" quiet"}" id="smoke">Покурил</button></div><div class="rqs">${chips}</div>`;
+  $("reward").innerHTML=`<div class="rtop"><span class="leaf ${st}">${IC.leaf}</span><span class="lbl">${L}</span><button type="button" class="playbtn${st==="open"?"":" quiet"}" id="smoke" title="${esc(prof().reward)}">Взял награду</button></div><div class="rqs">${chips}</div>`;
   if(!confirmPlay){$("confirm").innerHTML="";return}
   const a=plan(k),b=plan(k,true),nextReal=b.items.find(x=>x.q&&!x.started),newly=b.over.filter(o=>!a.over.some(x=>x.q.id===o.q.id));
   $("confirm").innerHTML=`<section class="confirm"><b style="font-size:16px">Катка сейчас: ${hhmm()}–${hm(nowMin()+GAME_MIN)}</b>
@@ -458,7 +483,7 @@ function renderHead(){
   $("day").textContent=new Date().toLocaleDateString("ru-RU",{weekday:"long"});
   $("lvl").textContent=`Ур. ${lvl} ${RANKS[Math.min(lvl-1,RANKS.length-1)]} · ${xp%300}/300 XP${videoStreak()?" · серия "+videoStreak():""}`;
   // полоса дня: от сейчас до отбоя
-  const now=nowMin(),bed=toMin("23:30"),span=Math.max(1,bed-now),p=plan(key());
+  const now=nowMin(),bed=bedMin(),span=Math.max(1,bed-now),p=plan(key());
   const free=p.items.filter(i=>i.gap).reduce((a,i)=>a+Math.max(0,i.end-Math.max(i.start,now)),0),miss=p.over.reduce((a,o)=>a+o.dur,0);
   let segs="",total=0;
   for(const i of p.items){const st=Math.max(i.start,now),en=Math.min(i.end,bed);if(en<=st)continue;const w=(en-st)/span*100;total+=en-st;
@@ -470,7 +495,7 @@ function renderHead(){
 }
 function nowCard(k,d,p){
   const it=p.items[0],now=nowMin();
-  if(!it)return `<section class="now free"><span class="k">День закрыт</span><h2>Всё сделано</h2><p>Свободное время до ${DAY_END}. Потом экран выкл.</p><button type="button" class="ghost" data-game="1">Катка 45 минут</button></section>`;
+  if(!it)return `<section class="now free"><span class="k">День закрыт</span><h2>Всё сделано</h2><p>Свободное время до ${DAY_END_()}. Потом экран выкл.</p><button type="button" class="ghost" data-game="1">Катка 45 минут</button></section>`;
   if(it.gap)return `<section class="now free"><span class="k"><span>Свободно</span><span>до ${hm(it.end)}</span></span><h2>${durTxt(it.end-now)} свободно</h2><p>Следом: «${esc((p.items[1]&&p.items[1].q||{}).name||"")}». Катка, ролик на английском или просто отдых.</p>${bossDone(d)&&it.end-now>=GAME_MIN?`<button type="button" class="ghost" data-game="1">Катка 45 минут</button>`:""}</section>`;
   if(it.game){const left=it.end-now;return `<section class="now free"><span class="k"><span>Катка</span><span>до ${hm(it.end)}</span></span><div class="clock"><b>${left}</b><span>мин осталось</span></div><p>Потом: «${esc((p.items[1]&&p.items[1].q||{}).name||"дел нет")}» в ${p.items[1]?hm(p.items[1].start):""}.</p></section>`}
   const q=it.q,late=it.late>0,left=it.end-now;
@@ -485,20 +510,23 @@ function nowCard(k,d,p){
   }
   const done=locked(q)?`<button type="button" class="bigbtn" data-proof="1">Кинуть пруф боту</button>`:`<button type="button" class="bigbtn" data-t="${esc(q.id)}">Готово</button>`;
   const startB=it.started?"":`<button type="button" class="ghost" data-start="${esc(q.id)}">Начать, засечь время</button>`;
-  const tok=q.req?" Нужно для награды.":"";
+  const tok=q.req&&(q.kind==="video"||q.penalty||(q.id==="gym"?prof().req.train:prof().req[q.id]))?" Нужно для награды.":"";
   return `<section class="now${late?" late":""}">${kline}<div><h2>${esc(q.name)}</h2><p>${esc(subOf(q))}${tok&&subOf(q)&&!/[.!?]$/.test(subOf(q))?".":""}${tok}</p></div>${clock}${done}${startB}</section>`;
 }
 function planRow(d,it,opts={}){
   if(it.gap)return `<div class="row gap"><span class="tm">${hm(it.start)}</span><span class="nm"><b>Свободно ${durTxt(it.end-it.start)}</b></span></div>`;
   if(it.game)return `<div class="row game"><span class="tm">${hm(it.start)}<small>${hm(it.end)}</small></span>${IC.chest}<span class="nm"><b>Катка</b><small>${GAME_MIN} минут</small></span></div>`;
   const q=it.q;
-  const right=q.req?`<span class="tok" title="Нужно для награды">${IC.leaf}</span>`:`<span class="dur">${durTxt(durOf(d,q))}</span>`;
+  const inReward=q.req&&(q.kind==="video"||q.penalty||(q.id==="gym"?prof().req.train:prof().req[q.id]));
+  const right=inReward?`<span class="tok" title="Нужно для награды">${IC.leaf}</span>`:`<span class="dur">${durTxt(durOf(d,q))}</span>`;
   const sub=q.kind==="video"?`${BOSS_IDS.filter(b=>has(d,b)).length} из 5 шагов · ${durTxt(durOf(d,q))}`:(it.late&&it.started?`Сверх плана ${it.late} мин`:subOf(q));
-  const tag=q.kind==="video"?"data-tab-go=\"today\"":`data-t="${esc(q.id)}"`;
-  const go=!it.started&&!it.anchor?(q.kind==="video"?`<button type="button" class="x" data-focus="1" aria-label="Делать видео сейчас">${IC.play}</button>`:`<button type="button" class="x" data-start="${esc(q.id)}" aria-label="Делать сейчас">${IC.play}</button>`):"";
+  const startAttr=q.kind==="video"?'data-focus="1"':`data-start="${esc(q.id)}"`;
+  const chk=q.kind==="video"?`<span class="chk" aria-hidden="true"></span>`:`<button type="button" class="chk" data-t="${esc(q.id)}" aria-label="Отметить «${esc(q.name)}» сделанным"></button>`;
   const skipB=!q.custom&&!q.penalty&&q.kind!=="video"&&!it.anchor?`<button type="button" class="x" data-skip="${esc(q.id)}" aria-label="Убрать на сегодня">${IC.x}</button>`:"";
-  const extra=go+skipB+(q.custom&&opts.edit?`<button type="button" class="x" data-later="${esc(q.id)}" aria-label="Перенести на завтра">${IC.later}</button><button type="button" class="x" data-del="${esc(q.id)}" aria-label="Удалить">${IC.x}</button>`:"");
-  return `<div style="display:flex;gap:4px;align-items:center"><button type="button" class="row${q.kind==="video"?" boss":""}${it.anchor?" anchor":""}" ${tag}><span class="tm" style="${it.late?"color:var(--red)":""}">${hm(it.start)}<small>${hm(it.end)}</small></span><span class="chk"></span><span class="nm"><b>${esc(q.name)}${it.anchor?'<span class="pin">ЯКОРЬ</span>':""}</b><small>${esc(sub)}</small></span>${right}</button>${extra}</div>`;
+  const extra=skipB+(q.custom&&opts.edit?`<button type="button" class="x" data-later="${esc(q.id)}" aria-label="Перенести на завтра">${IC.later}</button><button type="button" class="x" data-del="${esc(q.id)}" aria-label="Удалить">${IC.x}</button>`:"");
+  const main=it.started?`<span class="rowmain"><span class="nm"><b>${esc(q.name)}</b><small>Идёт сейчас · ${esc(sub)}</small></span>${right}</span>`
+    :`<button type="button" class="rowmain" ${startAttr} aria-label="Делать «${esc(q.name)}» сейчас"><span class="nm"><b>${esc(q.name)}${it.anchor?'<span class="pin">ЯКОРЬ</span>':""}</b><small>${esc(sub)}</small></span>${right}</button>`;
+  return `<div class="row${q.kind==="video"?" boss":""}${it.anchor?" anchor":""}${it.started?" cur":""}"><span class="tm" style="${it.late?"color:var(--red)":""}">${hm(it.start)}<small>${hm(it.end)}</small></span>${chk}${main}${extra}</div>`;
 }
 function doneRow(d,q){
   return `<button type="button" class="row on" data-t="${esc(q.kind==="video"?"b5":q.id)}"${q.kind==="video"?" disabled":""}><span class="tm">${esc(q.kind==="video"?(d.at.b5||""):(d.at[q.id]||""))}</span><span class="chk">${IC.check}</span><span class="nm"><b>${esc(q.name)}</b></span></button>`;
@@ -506,7 +534,7 @@ function doneRow(d,q){
 function overCard(p){
   if(!p.over.length)return "";
   const late=p.over.reduce((a,o)=>a+o.dur,0);
-  return `<section class="over"><h3>Не влезает до ${DAY_END}</h3>
+  return `<section class="over"><h3>Не влезает до ${DAY_END_()}</h3>
     ${p.over.map(o=>`<div class="it"><b>${esc(o.q.name)} · ${durTxt(o.dur)}</b>
       ${o.dur>=30?`<button type="button" class="chip" data-cut="${esc(o.q.id)}">Вдвое</button>`:""}
       ${o.q.penalty?"":`<button type="button" class="chip" data-skip="${esc(o.q.id)}">${o.q.custom?"На завтра":"Убрать"}</button>`}</div>`).join("")}</section>`;
@@ -531,7 +559,7 @@ function viewDay(){
   const up=[];for(let i=1;i<=14;i++){const kk=shift(k,i),dd=peek(kk);if(dd&&dd.custom)for(const c of dd.custom)up.push({kk,c})}
   const dname=kk=>{const i=Math.round((new Date(kk+"T12:00:00")-new Date(k+"T12:00:00"))/864e5);return i===1?"Завтра":i===2?"Послезавтра":new Date(kk+"T12:00:00").toLocaleDateString("ru-RU",{weekday:"short",day:"numeric",month:"short"})};
   const tl=up.map(({kk,c})=>`<div class="row"><span class="tm">${esc(dname(kk))}<small>${esc(c.at||"")}</small></span><span class="nm"><b>${esc(c.name)}</b><small>${durTxt(c.dur||30)}</small></span><button type="button" class="x" data-delon="${esc(kk)}|${esc(c.id)}" aria-label="Удалить">${IC.x}</button></div>`).join("");
-  return `${overCard(p)}<div class="sec"><h3>План от сейчас</h3><span>до ${DAY_END}</span></div>
+  return `${overCard(p)}<div class="sec"><h3>План от сейчас</h3><span>до ${DAY_END_()}</span></div>
     <div class="list">${p.items.map(it=>planRow(d,it,{edit:1})).join("")}</div>
     ${done.length?`<div class="sec"><h3>Сделано</h3><span>${done.length}</span></div><div class="list">${done.map(q=>doneRow(d,q)).join("")}</div>`:""}
     <div class="sec"><h3>Запланировано вперёд</h3><span>${up.length} дел</span></div>
@@ -542,7 +570,8 @@ function viewGym(){
   const body=state.body.slice(-6);
   const dl=body.length>1?Math.round((body[body.length-1].kg-body[0].kg)*10)/10:null;
   const dd=x=>String(x).slice(5).split("-").reverse().join(".");
-  const bodyCard=body.length?`<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span class="big">${body[body.length-1].kg} кг</span>${dl!==null?`<span style="font-size:13px;font-weight:700;color:var(--muted)">${dl>0?"+":""}${dl} кг с ${dd(body[0].d)}</span>`:""}</div>
+  const goal=prof().goalKg,cur=body.length?body[body.length-1].kg:null;
+  const bodyCard=body.length?`${goal?`<span style="font-size:13px;font-weight:700;color:var(--muted)">Цель ${goal} кг · осталось ${Math.abs(Math.round((goal-cur)*10)/10)} кг</span>`:""}<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span class="big">${body[body.length-1].kg} кг</span>${dl!==null?`<span style="font-size:13px;font-weight:700;color:var(--muted)">${dl>0?"+":""}${dl} кг с ${dd(body[0].d)}</span>`:""}</div>
     <div class="mini">${body.slice().reverse().map(b=>`<div><span>${dd(b.d)}</span><b>${b.kg} кг</b></div>`).join("")}</div>`:'<p class="empty">Взвешивайся раз в неделю, в понедельник утром до завтрака.</p>';
   const exs=[...new Set(state.lifts.filter(l=>l.ex).map(l=>l.ex))];
   const exCards=exs.map(ex=>{const L=liftsOf(ex),last=L[L.length-1],best=L.reduce((a,l)=>e1rm(l)>e1rm(a)?l:a,L[0]),first=L[0];
@@ -571,12 +600,14 @@ function viewProg(){
   const st=days.map(x=>peek(x)&&peek(x).firstSmoke).filter(Boolean).map(toMin);
   const avg=st.length?hm(st.reduce((a,b)=>a+b,0)/st.length):"нет";
   const ach=ACH.map(a=>{const ok=a.ok();return `<div class="a${ok?" got":""}" title="${esc(a.d)}"><div class="ic">${ok?IC.star:IC.lock}</div><span>${esc(a.t)}</span></div>`}).join("");
-  return `<div class="card"><div style="display:flex;justify-content:space-between;align-items:baseline"><b>Неделя</b><span style="font-size:13px;font-weight:700;color:var(--fire2)">видео ${days.filter(x=>bossDone(peek(x))).length} из 7</span></div>
+  const P=prof();
+  return `${P.why?`<div class="card" style="margin-bottom:10px"><span style="font-size:13px;font-weight:800;color:var(--muted)">Зачем</span><p class="why" style="margin:0">«${esc(P.why)}»</p></div>`:""}<div class="card"><div style="display:flex;justify-content:space-between;align-items:baseline"><b>Неделя</b><span style="font-size:13px;font-weight:700;color:var(--fire2)">видео ${days.filter(x=>bossDone(peek(x))).length} из 7</span></div>
       <div class="bars">${bars}</div><span class="empty">Высота это XP за день. Оранжевый значит видео вышло.</span></div>
     <div class="card" style="margin-top:10px"><div class="medal"><div class="m">${cs}</div><div style="display:flex;flex-direction:column;gap:2px"><b style="font-family:var(--display);font-weight:400;font-size:20px">${cr[1]}</b><span style="font-size:13px;color:var(--muted)">Чистая серия: ${cs} дн.${nx?` До ранга «${nx[1]}»: ${nx[0]-cs}.`:" Максимальный ранг."}</span></div></div></div>
     <div class="tiles"><div class="tile"><b>${vids()}</b><span>видео всего</span></div><div class="tile"><b>${countQ(["gym","fight"],7)}</b><span>тренировок за 7 дней</span></div>
-      <div class="tile"><b>${countQ(["cbr"],7)}/7</b><span>теория за неделю</span></div><div class="tile"><b>${countQ(["eng"],7)}/7</b><span>Duolingo за неделю</span></div><div class="tile"><b>${cleanWeek}/7</b><span>чистых дней, трава с ${avg}</span></div></div>
-    <div class="sec"><h3>Ачивки</h3><span>${ACH.filter(a=>a.ok()).length} из ${ACH.length}</span></div><div class="ach">${ach}</div>`;
+      <div class="tile"><b>${countQ(["cbr"],7)}/7</b><span>теория за неделю</span></div><div class="tile"><b>${countQ(["eng"],7)}/7</b><span>Duolingo за неделю</span></div><div class="tile"><b>${cleanWeek}/7</b><span>чистых дней, награда в среднем в ${avg}</span></div></div>
+    <div class="sec"><h3>Ачивки</h3><span>${ACH.filter(a=>a.ok()).length} из ${ACH.length}</span></div><div class="ach">${ach}</div>
+    <div style="padding:20px 16px 0"><button type="button" class="line" data-onb="1">Изменить анкету</button></div>`;
 }
 
 function render(){
@@ -595,6 +626,7 @@ document.addEventListener("click",e=>{
   if(t.dataset.start){startTask(t.dataset.start);return}
   if(t.dataset.focus){openFocus();return}
   if(t.dataset.game){askGame();return}
+  if(t.dataset.onb){openOnb();return}
   if(t.dataset.proof){toast("Открой чат с ботом и кинь пруф туда.");try{window.Telegram&&Telegram.WebApp.close()}catch(_){}return}
   if(t.id==="smoke"){const d=dayOf(key());mutate(()=>{if(!d.smokes)d.firstSmoke=hhmm();d.smokes=(d.smokes||0)+1});return}
   const d=dayOf(key());
@@ -690,6 +722,60 @@ $("sheet").addEventListener("submit",e=>{e.preventDefault();e.stopPropagation();
 $("plus").onclick=openSheet;
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&W)closeSheet()});
 
+/* ---------- анкета карточками ---------- */
+const OB_STEPS=["hello","name","wake","bed","gym","req","video","reward","body","why","done"];
+let OB=null;
+function openOnb(){OB={i:0,p:JSON.parse(JSON.stringify(prof()))};if(!OB.p.name)OB.p.name="";renderOnb()}
+function closeOnb(){OB=null;$("onb").hidden=true;$("onb").innerHTML=""}
+function renderOnb(){
+  const el=$("onb");el.hidden=false;const st=OB_STEPS[OB.i],P=OB.p,n=OB_STEPS.length-2;
+  const pr=(v,c)=>`aria-pressed="${v===c}"`;
+  const dots=OB.i>0&&OB.i<=n?`<div class="dots">${OB_STEPS.slice(1,-1).map((_,j)=>`<i class="${j<OB.i?"on":""}"></i>`).join("")}</div>`:"<span></span>";
+  const top=`<div class="sbar">${OB.i>0?`<button type="button" class="x" data-o="back" aria-label="Назад">${IC.back}</button>`:'<span style="width:36px"></span>'}${dots}${state.profile?`<button type="button" class="x" data-o="close" aria-label="Закрыть">${IC.x}</button>`:'<span style="width:36px"></span>'}</div>`;
+  let b="";
+  if(st==="hello")b=`<h2 class="big">Настроим квест под тебя</h2><p class="hint">9 коротких вопросов. По ответам приложение соберёт твой день: когда вставать, когда зал, что входит в награду. Потом всё можно поменять во вкладке «Прогресс».</p><div class="grow"></div><button type="button" class="goldbtn" data-o="next">Поехали</button>`;
+  if(st==="name")b=`<h2>Как тебя зовут?</h2><input id="ov" maxlength="30" value="${esc(P.name)}" placeholder="Имя" autocomplete="off" aria-label="Имя"><div class="grow"></div><button type="button" class="goldbtn" data-o="next">Дальше</button>`;
+  if(st==="wake")b=`<h2>Во сколько встаёшь?</h2><p class="hint">Каждый день одно время, даже в выходные. Это половина режима.</p><div class="opts">${["07:00","07:30","08:00","09:00"].map(t=>`<button type="button" class="opt" data-o="wake:${t}" ${pr(P.wake,t)}>${t}</button>`).join("")}</div><input type="time" id="ov" value="${esc(P.wake)}" aria-label="Своё время"><div class="grow"></div><button type="button" class="goldbtn" data-o="next">Дальше</button>`;
+  if(st==="bed")b=`<h2>Во сколько отбой?</h2><p class="hint">Сон 7.5–8.5 часов. При подъёме в ${esc(P.wake)} это примерно ${hm(toMin(P.wake)-510)}–${hm(toMin(P.wake)-450)}. За 45 минут до отбоя план закрывается: экран выкл, повтор теории, душ.</p><div class="opts">${["22:30","23:00","23:30","00:00"].map(t=>`<button type="button" class="opt" data-o="bed:${t}" ${pr(P.bed,t)}>${t}</button>`).join("")}</div><div class="grow"></div><button type="button" class="goldbtn" data-o="next">Дальше</button>`;
+  if(st==="gym"){const N=["Вс","Пн","Вт","Ср","Чт","Пт","Сб"],order=[1,2,3,4,5,6,0];
+    b=`<h2>В какие дни зал?</h2><p class="hint">Зал с дорогой занимает 2 часа. В дни без зала будет прогулка 45 минут.</p><div class="days7">${order.map(i=>`<button type="button" class="opt" data-o="day:${i}" ${pr(P.gymDays.includes(i),true)}>${N[i]}</button>`).join("")}</div><p class="hint">Выбрано дней: ${P.gymDays.length}</p><div class="grow"></div><button type="button" class="goldbtn" data-o="next">Дальше</button>`}
+  if(st==="req")b=`<h2>Что входит в награду дня?</h2><p class="hint">Видео входит всегда. Остальное отметь сам. Награда откроется, когда сделано всё отмеченное.</p><div class="menu">
+    <button type="button" class="opt" disabled aria-pressed="true"><span>Видео<small>Всегда, это главное</small></span></button>
+    <button type="button" class="opt" data-o="req:train" ${pr(!!P.req.train,true)}><span>Зал<small>В дни зала</small></span></button>
+    <button type="button" class="opt" data-o="req:cbr" ${pr(!!P.req.cbr,true)}><span>Теория на права<small>TheorieExamen.nl</small></span></button>
+    <button type="button" class="opt" data-o="req:eng" ${pr(!!P.req.eng,true)}><span>Duolingo<small>Английский каждый день</small></span></button></div><div class="grow"></div><button type="button" class="goldbtn" data-o="next">Дальше</button>`;
+  if(st==="video")b=`<h2>Сколько уходит на одно видео?</h2><p class="hint">От текста до загрузки. План заложит столько времени.</p><div class="opts">${[60,90,110,150].map(m=>`<button type="button" class="opt" data-o="vid:${m}" ${pr(P.videoMin,m)}>${durTxt(m)}</button>`).join("")}</div><div class="grow"></div><button type="button" class="goldbtn" data-o="next">Дальше</button>`;
+  if(st==="reward")b=`<h2>Что для тебя главная награда дня?</h2><p class="hint">То, что ты берёшь только после того, как день закрыт. Одна в день.</p><input id="ov" maxlength="40" value="${esc(P.reward)}" placeholder="Например: трава, сериал, сладкое" autocomplete="off" aria-label="Награда"><div class="grow"></div><button type="button" class="goldbtn" data-o="next">Дальше</button>`;
+  if(st==="body")b=`<h2>Вес сейчас и цель</h2><p class="hint">Можно пропустить. Цель будет видна во вкладке «Зал».</p><div style="display:flex;gap:8px"><input id="okg" inputmode="decimal" placeholder="Сейчас, кг" value="${P.kg??""}" aria-label="Вес сейчас"><input id="ogoal" inputmode="decimal" placeholder="Цель, кг" value="${P.goalKg??""}" aria-label="Цель по весу"></div><div class="grow"></div><button type="button" class="goldbtn" data-o="next">Дальше</button>`;
+  if(st==="why")b=`<h2>Зачем тебе всё это?</h2><p class="hint">Одной-двумя фразами, своими словами. Приложение будет напоминать тебе это в тяжёлые дни.</p><textarea id="ov" maxlength="200" placeholder="Например: хочу жить на доход с канала и не возвращаться на завод" aria-label="Зачем">${esc(P.why)}</textarea><div class="grow"></div><button type="button" class="goldbtn" data-o="next">Дальше</button>`;
+  if(st==="done"){const N=["вс","пн","вт","ср","чт","пт","сб"];const r=["видео"].concat(P.req.train?["зал"]:[],P.req.cbr?["теория"]:[],P.req.eng?["Duolingo"]:[]);
+    b=`<h2 class="big">${P.name?esc(P.name)+", готово":"Готово"}</h2><div class="sum">Подъём в ${esc(P.wake)}, отбой в ${esc(P.bed)}.<br>Зал: ${P.gymDays.length?[1,2,3,4,5,6,0].filter(i=>P.gymDays.includes(i)).map(i=>N[i]).join(", "):"нет"}.<br>Видео: ${durTxt(P.videoMin)}.<br>Награда «${esc(P.reward)}» после: ${r.join(", ")}.${P.goalKg?`<br>Цель по весу: ${P.goalKg} кг.`:""}</div>${P.why?`<p class="why">«${esc(P.why)}»</p>`:""}<div class="grow"></div><button type="button" class="goldbtn" data-o="save">Собрать мой день</button>`}
+  el.innerHTML=`<div class="pnl" role="dialog" aria-modal="true" aria-label="Анкета">${top}${b}</div>`;
+  const f=el.querySelector("#ov");if(f&&st!=="wake")setTimeout(()=>f.focus(),60);
+}
+function onbRead(){const st=OB_STEPS[OB.i],P=OB.p,v=$("ov");
+  if(st==="name")P.name=v.value.trim().slice(0,30);
+  if(st==="wake"&&v.value)P.wake=v.value;
+  if(st==="reward")P.reward=v.value.trim().slice(0,40)||"Награда";
+  if(st==="why")P.why=v.value.trim().slice(0,200);
+  if(st==="body"){const a=parseFloat(($("okg").value||"").replace(",",".")),g=parseFloat(($("ogoal").value||"").replace(",","."));P.kg=a>30&&a<250?a:null;P.goalKg=g>30&&g<250?g:null}
+  if(st==="gym"&&!P.gymDays.length&&P.req.train)P.req.train=0;
+}
+$("onb").addEventListener("click",e=>{
+  const b=e.target.closest("[data-o]");if(!b||!OB)return;const a=b.dataset.o,P=OB.p;
+  if(a==="close")return closeOnb();
+  if(a==="back"){OB.i=Math.max(0,OB.i-1);return renderOnb()}
+  if(a==="next"){onbRead();OB.i++;return renderOnb()}
+  if(a.startsWith("wake:")){P.wake=a.slice(5);OB.i++;return renderOnb()}
+  if(a.startsWith("bed:")){P.bed=a.slice(4);OB.i++;return renderOnb()}
+  if(a.startsWith("vid:")){P.videoMin=+a.slice(4);OB.i++;return renderOnb()}
+  if(a.startsWith("day:")){const i=+a.slice(4);P.gymDays=P.gymDays.includes(i)?P.gymDays.filter(x=>x!==i):P.gymDays.concat(i);return renderOnb()}
+  if(a.startsWith("req:")){const id=a.slice(4);P.req[id]=P.req[id]?0:1;return renderOnb()}
+  if(a==="save"){const p={...P,done:1};closeOnb();mutate(()=>{state.profile=p;if(p.kg&&!state.body.some(b=>b.d===key()))state.body.push({d:key(),kg:Math.round(p.kg*10)/10})});tab="today";render();toast("Готово. День собран под тебя.")}
+});
+$("onb").addEventListener("submit",e=>e.preventDefault());
+setTimeout(()=>{if(!state.profile&&!OB)openOnb()},1800);
+
 /* ---------- фокус ---------- */
 const WORK=50*60,BREAK=10*60;
 let F={phase:"work",endsAt:0,left:WORK,running:false,session:1},tick=null;
@@ -725,7 +811,7 @@ function renderFocus(onlyTime){
 }
 
 /* ---------- пересчёт раз в минуту ---------- */
-setInterval(()=>{if($("focus").hidden&&!W&&!document.querySelector("form.add input:focus"))render()},60000);
+setInterval(()=>{if($("focus").hidden&&!W&&!OB&&!document.querySelector("form.add input:focus"))render()},60000);
 
 /*STORAGE: Telegram Mini App, данные в базе бота*/
 const tg=window.Telegram&&Telegram.WebApp;

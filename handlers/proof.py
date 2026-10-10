@@ -12,7 +12,7 @@ from services import claude, quest
 router = Router()
 
 YT_PATTERN = r"(youtube\.com/(watch|shorts|live)|youtu\.be/|studio\.youtube\.com)"
-SMOKE_PATTERN = r"(?i)^\s*(покурил|курнул|дунул)\s*[.!]?\s*$"
+SMOKE_PATTERN = r"(?i)^\s*(покурил|курнул|дунул|взял награду|награда)\s*[.!]?\s*$"
 WEIGHT_PATTERN = r"(?i)^\s*вес\s*:?\s*(\d{2,3}(?:[.,]\d)?)\s*(кг)?\s*$"
 ADD_PATTERN = r"(?is)^\s*(добавь|сегодня)\s*:\s*(.+)$"
 PLAN_PATTERN = r"(?is)^\s*завтра\s*:\s*(.+)$"
@@ -69,7 +69,7 @@ async def log_smoke(message: Message) -> None:
     state = quest.reward_state(day)
     if day.get("smokes") == 1:
         note = {
-            "gold": "Все 4 дела закрыты раньше. Награда по-честному 🌿",
+            "gold": "День закрыт раньше. Награда по-честному 🌿",
             "base": "Раньше времени, но тренировка была чистой. +30 XP.",
             "broken": "Раньше тренировки. Награда сегодня сгорела. Завтра заново.",
         }.get(state, "Записал.")
