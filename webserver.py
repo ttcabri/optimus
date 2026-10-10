@@ -80,9 +80,10 @@ async def post_gifts(request: web.Request) -> web.Response:
     prefs = state.get("prefs")
     if not prefs:
         raise web.HTTPBadRequest(text="no prefs")
-    level = int(body.get("level") or 2)
+    budget = int(body.get("budget") or prefs.get("budget") or 25)
+    label = str(body.get("label") or "новая ступень")[:60]
     try:
-        ideas = await gifts.suggest_gifts(uid, prefs, level)
+        ideas = await gifts.suggest_gifts(uid, prefs, budget, label)
     except RuntimeError as e:
         status = 429 if str(e) == "too_often" else 502
         return web.json_response({"ideas": [], "error": str(e)}, status=status)

@@ -12,9 +12,10 @@ logger = logging.getLogger(__name__)
 
 API_URL = "https://api.anthropic.com/v1/messages"
 MODEL = "claude-haiku-4-5"
+FALLBACK_MODEL = "claude-sonnet-4-5"
 _last_call: dict[int, float] = {}
 
-PROMPT = """Ты подбираешь реальную награду человеку за то, что он взял уровень {level} в своём трекере дисциплины.
+PROMPT = """Ты подбираешь реальную награду человеку за достижение в его трекере дисциплины: «{label}».
 Найди в интернете 3 РЕАЛЬНЫХ варианта, которые он может купить или заказать сейчас.
 
 Человек:
@@ -34,16 +35,16 @@ PROMPT = """Ты подбираешь реальную награду челов
 [{{"title": "коротко, что это (до 6 слов)", "what": "одна фраза, почему это кайф", "where": "место или магазин", "price": "€..", "link": "https://..."}}]"""
 
 
-async def suggest_gifts(telegram_id: int, prefs: dict, level: int) -> list[dict]:
+async def suggest_gifts(telegram_id: int, prefs: dict, budget: int, label: str) -> list[dict]:
     now = time.time()
     if now - _last_call.get(telegram_id, 0) < 10:
         raise RuntimeError("too_often")
     _last_call[telegram_id] = now
 
     prompt = PROMPT.format(
-        level=level,
+        label=label[:60],
         city=(prefs.get("city") or "Dronten")[:40],
-        budget=int(prefs.get("budget") or 25),
+        budget=int(budget or prefs.get("budget") or 25),
         likes=", ".join(prefs.get("likes") or []) or "не указано",
         foods=", ".join(prefs.get("foods") or []) or "не указано",
         more=(prefs.get("more") or "не указано")[:120],
@@ -59,6 +60,11 @@ async def suggest_gifts(telegram_id: int, prefs: dict, level: int) -> list[dict]
         data = {}
         for _ in range(3):  # web search может вернуть pause_turn: тогда продолжаем
             r = await client.post(API_URL, headers=headers, json=body)
+            if r.status_code == 400 and body["model"] != FALLBACK_MODEL:
+                # модель без веб-поиска или поиск выключен: пробуем другую модель
+                logger.warning(f"Gift search 400 on {body['model']}: {r.text[:300]}")
+                body["model"] = FALLBACK_MODEL
+                r = await client.post(API_URL, headers=headers, json=body)
             if r.status_code != 200:
                 logger.error(f"Gift search error {r.status_code}: {r.text[:500]}")
                 _last_call.pop(telegram_id, None)

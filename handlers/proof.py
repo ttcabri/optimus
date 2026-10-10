@@ -6,6 +6,7 @@ from aiogram import Bot, F, Router
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, WebAppInfo
 
+import database
 from config import WEBAPP_URL
 from services import claude, quest
 
@@ -56,7 +57,7 @@ async def proof_youtube(message: Message) -> None:
     elif "vid2" not in day["done"]:
         day = await quest.mark_done(message.from_user.id, ["vid2"])
         await message.answer(
-            f"🔥 Второе видео засчитано. Дубль. +100 XP",
+            f"🔥 Второе видео засчитано. Дубль.",
             reply_markup=quest_keyboard(),
         )
     else:
@@ -70,7 +71,7 @@ async def log_smoke(message: Message) -> None:
     if day.get("smokes") == 1:
         note = {
             "gold": "День закрыт раньше. Награда по-честному 🌿",
-            "base": "Раньше времени, но тренировка была чистой. +30 XP.",
+            "base": "Раньше времени, но тренировка была чистой.",
             "broken": "Раньше тренировки. Награда сегодня сгорела. Завтра заново.",
         }.get(state, "Записал.")
         note += "\n\n" + quest.reward_line(day)
@@ -93,6 +94,21 @@ async def log_weight(message: Message) -> None:
         await message.answer(f"⚖️ {kg} кг записал. С первого взвешивания: {sign}{diff} кг.")
     else:
         await message.answer(f"⚖️ {kg} кг записал. Первое взвешивание, дальше будет видна динамика.")
+
+
+SUBS_PATTERN = r"(?i)^\s*подписчик\w*\s*:?\s*(\d[\d\s]*)\s*$"
+
+
+@router.message(F.text.regexp(SUBS_PATTERN))
+async def log_subs(message: Message) -> None:
+    n = int(re.sub(r"\D", "", re.match(SUBS_PATTERN, message.text).group(1)))
+    state = await database.get_quest_state(message.from_user.id)
+    goals = dict(state.get("goals") or {})
+    goals["subs"] = n
+    state["goals"] = goals
+    await database.save_quest_state(message.from_user.id, state)
+    left = next((t - n for t in (100, 1000) if t > n), None)
+    await message.answer(f"📈 Записал: {n} подписчиков." + (f" До следующей цели {left}." if left else " Обе цели по подписчикам взяты."))
 
 
 @router.message(F.text.regexp(ADD_PATTERN))

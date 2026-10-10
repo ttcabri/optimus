@@ -27,18 +27,23 @@ button{cursor:pointer}
 [hidden]{display:none!important}
 .app{max-width:520px;margin:0 auto;padding-bottom:calc(88px + env(safe-area-inset-bottom,0px))}
 
-.reward{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--panel2);border-bottom:1px solid var(--line2)}
-.reward{flex-direction:column;align-items:stretch;gap:8px;padding:10px 16px}
-.rtop{display:flex;align-items:center;gap:10px}
-.reward .lbl{flex:1;min-width:0;font-weight:800;font-size:14px}
-.leaf{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:var(--panel);color:var(--dim);flex-shrink:0}
-.leaf.open,.leaf.gold{background:#2f4a3b;color:var(--okl)}.leaf.broken{color:#c97b62}
-.rqs{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:6px}
-.rq.pen{border-color:#6b3a2a;color:#c97b62}.rq.pen.on{background:#2f4a3b;border-color:#3c6b52;color:var(--okl)}
+.appbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px 12px;background:var(--bg)}
+.appbar .tt{display:flex;flex-direction:column;min-width:0}
+.appbar h1{font-family:var(--display);font-weight:400;font-size:28px;line-height:1.1;margin:0}
+.appbar .sub{font-size:13px;font-weight:700;color:var(--muted)}
+.appbar .sub::first-letter{text-transform:uppercase}
+.pills{display:flex;gap:8px;flex-shrink:0}
+.pill{display:flex;align-items:center;gap:6px;height:38px;white-space:nowrap;flex-shrink:0;padding:0 12px;border-radius:19px;background:var(--panel);border:1px solid var(--line2);font-family:var(--display);font-size:16px;color:var(--fg)}
+.pill svg{width:18px;height:18px}
+.pill.fire{color:#ff8a5c}.pill.fire.zero{color:var(--dim)}
+.pill.navplus{min-width:64px;display:grid;place-items:center;background:none;border:none;padding:0}
+.navplus span{width:54px;height:54px;margin-top:-22px;border-radius:50%;background:var(--gold);color:var(--ink);display:grid;place-items:center;box-shadow:0 6px 18px rgba(224,164,86,.3);border:4px solid #1c1511}
+.rqlist{display:flex;flex-direction:column;gap:6px}
+.rqlist div{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:var(--panel);font-weight:700}
+.rqlist .c{width:24px;height:24px;border-radius:7px;border:2px solid var(--line2);display:grid;place-items:center;flex-shrink:0}
+.rqlist .on .c{background:var(--ok);border-color:var(--ok)}
+.rqlist .on{color:var(--dim)}
 .playbtn.quiet{background:transparent;color:var(--muted);border:1px solid var(--line2)}
-.rq{display:flex;align-items:center;justify-content:center;gap:4px;height:26px;min-width:0;overflow:hidden;border-radius:8px;border:1px solid var(--line2);font-size:12px;font-weight:700;color:var(--dim);white-space:nowrap}
-.rq.on{background:#2f4a3b;border-color:#3c6b52;color:var(--okl)}
-.rq svg{width:12px;height:12px;stroke:var(--okl)}
 .pips{flex:1;display:grid;gap:4px;min-width:0}
 .pip{height:8px;border-radius:4px;background:var(--line2)}
 .pip.on{background:var(--gold)}.pip.used{background:#7a5a37}
@@ -52,7 +57,6 @@ button{cursor:pointer}
 .btns button{flex:1;height:46px;border-radius:12px;font-weight:800;border:1px solid var(--line2);background:transparent}
 .btns .pri{background:var(--gold);color:var(--ink);border-color:var(--gold)}
 
-.head{display:flex;justify-content:space-between;gap:12px;padding:16px 20px 12px}
 .hl{display:flex;flex-direction:column;gap:2px;min-width:0}
 .hl span{font-size:13px;font-weight:700;color:var(--muted)}
 .daybar{margin:0 16px 14px;display:flex;flex-direction:column;gap:6px}
@@ -168,6 +172,54 @@ button{cursor:pointer}
 .a .ic{width:58px;height:58px;border-radius:16px;background:var(--panel);border:2px dashed var(--line2);display:grid;place-items:center}
 .a.got .ic{background:#3a2416;border:2px solid var(--gold)}
 .a span{font-size:11px;font-weight:700;line-height:1.2;color:var(--dim)}.a.got span{color:var(--fg)}
+.hero{margin:0 16px;padding:16px;border-radius:22px;background:linear-gradient(135deg,#2c1a12,#201712);border:1px solid var(--line2);display:flex;align-items:center;justify-content:space-between;gap:12px}
+.hl2{display:flex;align-items:center;gap:12px;min-width:0}
+.hl2 .flame{width:52px;height:52px;border-radius:16px;background:#3a1d14;color:#ff8a5c;display:grid;place-items:center;flex-shrink:0}
+.hl2 .flame svg{width:30px;height:30px}
+.hl2 b{display:block;font-family:var(--display);font-weight:400;font-size:40px;line-height:1}
+.hl2 small{display:block;font-size:13px;font-weight:700;color:var(--muted)}
+.hl2 small.dim{color:var(--dim);font-weight:600}
+.ring2{position:relative;width:84px;height:84px;flex-shrink:0}
+.ring2>div{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ring2 b{font-family:var(--display);font-weight:400;font-size:22px;line-height:1}
+.ring2 small{font-size:10px;font-weight:700;color:var(--muted)}
+.fcard{margin:14px 16px 0;padding:16px;border-radius:20px;background:var(--panel);border:1px solid var(--line2);display:flex;flex-direction:column;gap:10px}
+.fcard.open{background:#2a2014;border-color:var(--gold)}
+.fcard .k{font-size:13px;font-weight:800;color:var(--gold)}
+.fcard .fh{display:flex;align-items:center;gap:12px}
+.fcard .fh b{display:block;font-size:17px}.fcard .fh small{font-size:13px;font-weight:700;color:var(--muted)}
+.fcard p{margin:0;font-size:14px;color:#d9c9b9}
+.segc{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin:18px 16px 10px;padding:4px;border-radius:14px;background:var(--panel)}
+.segc button{height:38px;border:none;border-radius:10px;background:transparent;color:var(--muted);font-weight:800;font-size:14px}
+.segc button[aria-selected="true"]{background:var(--panel2);color:var(--fg);box-shadow:inset 0 0 0 1px var(--line2)}
+.lrow{display:flex;align-items:center;gap:12px;width:100%;padding:12px 14px;border-radius:16px;background:var(--panel);border:1px solid transparent;text-align:left;color:inherit}
+.lrow.open{border-color:var(--gold);background:#2a2014}
+.lrow.got{opacity:.6}
+.lrow .rt{flex:1;min-width:0;display:flex;flex-direction:column}
+.lrow .rt b{font-size:15px}.lrow .rt small{font-size:12px;font-weight:700;color:var(--muted)}
+.lrow .rt em{font-style:normal;font-size:13px;color:#d9c9b9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lrow .rt em.none{color:var(--dim)}
+.rs{width:28px;height:28px;display:grid;place-items:center;flex-shrink:0}
+.rs.ok svg{stroke:var(--okl)}.rs.open svg{stroke:var(--gold)}
+.segfoot{padding:10px 16px 0}
+.rung{display:flex;flex-direction:column;gap:8px;padding:12px 14px;border-radius:16px;background:var(--panel);border:1px solid transparent}
+.rung.open{border-color:var(--gold);background:#2a2014}
+.rung.got{opacity:.6}
+.rh{display:flex;align-items:center;gap:12px}
+.rb{width:40px;height:40px;border-radius:12px;background:var(--panel2);border:1px solid var(--line2);display:grid;place-items:center;font-family:var(--display);font-size:16px;color:var(--gold);flex-shrink:0}
+.rb svg{width:20px;height:20px}
+.rung.open .rb,.lrow.open .rb,.fcard.open .rb{background:var(--gold);color:var(--ink)}
+.lrow.open .rb svg,.fcard.open .rb svg{stroke:var(--ink)}
+.rung.open .rb svg{stroke:var(--ink)}
+.rt{display:flex;flex-direction:column;min-width:0}
+.rt b{font-size:15px}.rt small{font-size:12px;color:var(--muted);font-weight:700}
+.rg{font-size:14px;color:#d9c9b9}
+.rung .btns button{height:40px;font-size:13px}
+.wins{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.win{display:flex;flex-direction:column;align-items:center;gap:4px}
+.win i{width:100%;height:28px;border-radius:8px;background:var(--line)}
+.win.on i{background:var(--fire)}.win.today i{outline:2px solid var(--gold);outline-offset:2px}
+.win span{font-size:11px;font-weight:700;color:var(--muted)}
 .mini{display:flex;flex-direction:column;gap:4px;font-size:14px}
 .mini div{display:flex;justify-content:space-between;gap:8px;color:var(--muted)}
 .mini b{color:var(--fg);font-weight:700;font-variant-numeric:tabular-nums}
@@ -211,9 +263,8 @@ nav.tabs button[aria-selected="true"]{color:var(--gold);font-weight:800}
 
 </head><body>
 <div class="app">
-  <div class="reward" id="reward"></div>
+  <header class="appbar" id="appbar"></header>
   <div id="confirm"></div>
-  <div class="head"><div class="hl"><h1 id="day"></h1><span id="lvl"></span></div><button type="button" class="plus" id="plus" aria-label="Добавить"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button></div>
   <div class="daybar" id="daybar"></div>
   <main id="view"></main>
 </div>
@@ -221,6 +272,7 @@ nav.tabs button[aria-selected="true"]{color:var(--gold);font-weight:800}
 <nav class="tabs" aria-label="Разделы"><div class="in" role="tablist">
   <button type="button" role="tab" data-tab="today" aria-selected="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l3 6 6 1-4.5 4.5L18 20l-6-3-6 3 1.5-6.5L3 9l6-1z"/></svg>Сегодня</button>
   <button type="button" role="tab" data-tab="day" aria-selected="false"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>День</button>
+  <button type="button" class="navplus" id="plus" aria-label="Добавить"><span><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span></button>
   <button type="button" role="tab" data-tab="gym" aria-selected="false"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 5v14M18 5v14M6 12h12M3 8v8M21 8v8"/></svg>Зал</button>
   <button type="button" role="tab" data-tab="prog" aria-selected="false"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Прогресс</button>
 </div></nav>
@@ -263,7 +315,7 @@ const QUESTS=[
   {id:"gym",name:"Зал",sub:"С дорогой. Веса запиши во вкладке «Зал»",botSub:"С дорогой. Селфи из зала в бот",dur:120,xp:50,req:1,proof:1,days:[1,2,3,4,5,6],train:1},
   {id:"walk",name:"Прогулка",sub:"День восстановления",dur:45,xp:20,days:[0]},
   {id:"_custom"},
-  {id:"vid2",name:"Бонус: второе видео",sub:"Бонус +100 XP",botSub:"Бонус +100 XP. Ссылку кинь боту",dur:110,xp:100,proof:1,kind:"bonus",opt:1},
+  {id:"vid2",name:"Бонус: второе видео",sub:"Плюс к каналу",botSub:"Плюс к каналу. Ссылку кинь боту",dur:110,xp:100,proof:1,kind:"bonus",opt:1},
   {id:"prep",name:"Заготовка еды на 2–3 дня",sub:"Готовка и ужин",dur:80,xp:30,days:[0,3,5],minor:1},
   {id:"dinner",name:"Ужин",sub:"Разогреть заготовку",dur:30,xp:15,days:[1,2,4,6],minor:1},
   {id:"eng",name:"Duolingo",sub:"Английский, урок или два",botSub:"Английский. Скрин урока в бот",dur:20,xp:30,req:1,proof:1},
@@ -271,8 +323,6 @@ const QUESTS=[
   {id:"screen",name:"Экран выкл, повтор теории, душ",sub:"Перед отбоем",dur:45,xp:20,fixed:"END",minor:1}
 ];
 const BOSS_IDS=VIDEO_STEPS.map(s=>s.id);
-const RANKS=["Рекрут","Крип","Саппорт","Офлейнер","Мидер","Керри","Капитан","Легенда","Титан","Бессмертный"];
-const CLEAN_RANKS=[[0,"Рекрут"],[1,"Страж"],[3,"Рыцарь"],[5,"Герой"],[7,"Легенда"],[14,"Властелин"],[21,"Божество"],[30,"Титан"]];
 const EXERCISES=["Жим лёжа","Присед","Становая","Жим стоя","Тяга штанги","Подтягивания","Брусья","Жим ногами"];
 const IC={
   check:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#17110e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>',
@@ -401,54 +451,50 @@ const cleanState=rewardState;
 const isClean=k=>["base","gold","open"].includes(rewardState(k));
 function cleanStreak(){let n=0,k=key();if(!isClean(k))k=shift(k,-1);
   for(let i=0;i<400;i++){if(isClean(k)){n++;k=shift(k,-1)}else break}return n}
-const cleanRank=n=>{let r=CLEAN_RANKS[0];for(const x of CLEAN_RANKS)if(n>=x[0])r=x;return r};
-const nextClean=n=>CLEAN_RANKS.find(x=>x[0]>n);
 const gamesUsed=d=>Math.max(d.games||0,(d.gl||[]).length);
-function dayXP(k){const d=peek(k);if(!d)return 0;let x=0;
-  for(const q of QUESTS)if(q.xp&&has(d,q.id))x+=q.xp;
-  for(const c of d.custom||[])if(has(d,c.id))x+=15;
-  for(const b of BOSS_IDS)if(has(d,b))x+=10;
-  if(bossDone(d))x+=100;
-  if(failedDay(k))x-=100;
-  const c=rewardState(k);if(c==="base")x+=30;if(c==="gold"||c==="open")x+=60;return x}
-const totalXP=()=>Math.max(0,Object.keys(state.days).reduce((a,k)=>a+dayXP(k),0)); // ниже нуля не падаем, уровень минимум 1
 const vids=()=>Object.values(state.days).reduce((a,d)=>a+(bossDone(d)?1:0)+(has(d,"vid2")?1:0),0);
 function videoStreak(){let n=0,k=key();if(!bossDone(peek(k)))k=shift(k,-1);while(bossDone(peek(k))){n++;k=shift(k,-1)}return n}
 const countQ=(ids,days)=>{let n=0;const keys=days?Array.from({length:days},(_,i)=>shift(key(),-i)):Object.keys(state.days);for(const k of keys){const d=peek(k);if(d&&ids.some(id=>has(d,id)))n++}return n};
 const e1rm=l=>l.kg*(1+(l.reps||1)/30);
 const liftsOf=ex=>state.lifts.filter(l=>l.ex===ex);
 
-const ACH=[
-  {t:"Первая кровь",d:"Первое видео",ok:()=>vids()>=1},
-  {t:"Тройной",d:"3 дня подряд с видео",ok:()=>videoStreak()>=3},
-  {t:"Неделя без пропусков",d:"7 дней с видео",ok:()=>videoStreak()>=7},
-  {t:"Дубль",d:"Два видео за день",ok:()=>countQ(["vid2"])>=1},
-  {t:"Заслужил",d:"Награда после всех 4 дел",ok:()=>Object.keys(state.days).some(k=>rewardState(k)==="gold")},
-  {t:"Десятка",d:"10 видео",ok:()=>vids()>=10},
-  {t:"Канал живой",d:"30 видео",ok:()=>vids()>=30},
-  {t:"Ясная голова",d:"3 чистых дня подряд",ok:()=>cleanStreak()>=3},
-  {t:"Неделя чистоты",d:"7 чистых дней подряд",ok:()=>cleanStreak()>=7},
-  {t:"Железо",d:"8 тренировок",ok:()=>countQ(["gym","fight"])>=8},
-  {t:"Рекорд",d:"Побить свой вес в упражнении",ok:()=>EXERCISES.concat([...new Set(state.lifts.map(l=>l.ex))]).some(ex=>{const L=liftsOf(ex);return L.length>1&&e1rm(L[L.length-1])>Math.max(...L.slice(0,-1).map(e1rm))})},
-  {t:"Почти водитель",d:"TheorieExamen 10 дней",ok:()=>countQ(["cbr"])>=10},
-  {t:"Сова",d:"Duolingo 10 дней",ok:()=>countQ(["eng"])>=10}
+/* ---------- лестница наград ---------- */
+// Серия: подарки внутри одной серии дней с видео. Большие цели: разовые, за реальный результат.
+const RUNGS=[{id:"s3",n:3,budget:5,t:"3 дня подряд"},{id:"s7",n:7,budget:15,t:"7 дней подряд"},{id:"s14",n:14,budget:30,t:"14 дней подряд"},{id:"s30",n:30,budget:50,t:"30 дней подряд"}];
+const curKg=()=>state.body.length?state.body[state.body.length-1].kg:null;
+const GOALS=[
+  {id:"g_sub100",t:"100 подписчиков",grp:"Канал",budget:25,ok:G=>(G.subs||0)>=100,prog:G=>`${G.subs||0} / 100`},
+  {id:"g_views10k",t:"Видео набрало 10 000 просмотров",grp:"Канал",budget:50,ok:G=>(G.maxViews||0)>=10000,prog:G=>`лучшее ${(G.maxViews||0).toLocaleString("ru-RU")}`},
+  {id:"g_sub1000",t:"1000 подписчиков",grp:"Канал",budget:150,ok:G=>(G.subs||0)>=1000,prog:G=>`${G.subs||0} / 1000`},
+  {id:"g_money",t:"Первые деньги с YouTube",grp:"Канал",budget:300,ok:G=>!!G.earned,flag:"earned"},
+  {id:"g_cbr",t:"Сдал теорию CBR",grp:"Жизнь",budget:75,ok:G=>!!G.cbr,flag:"cbr"},
+  {id:"g_license",t:"Получил права",grp:"Жизнь",budget:200,ok:G=>!!G.license,flag:"license"},
+  {id:"g_weight",t:"Цель по весу",grp:"Жизнь",budget:50,ok:G=>!!G.goalKg&&curKg()!=null&&(G.goalKg<=G.startKg?curKg()<=G.goalKg:curKg()>=G.goalKg),prog:G=>G.goalKg?`${curKg()??"?"} → ${G.goalKg} кг`:"цель не задана"},
+  {id:"g_house",t:"Подписал договор на жильё",grp:"Жизнь",budget:75,ok:G=>!!G.house,flag:"house"}
 ];
-const achSet=()=>new Set(ACH.filter(a=>a.ok()).map(a=>a.t));
+const goalsSt=()=>state.goals||{};
+function streakStart(){const n=videoStreak();if(!n)return null;let k=key();if(!bossDone(peek(k)))k=shift(k,-1);return shift(k,-(n-1))}
+function bestStreak(){let best=0,run=0;const ks=Object.keys(state.days).sort();if(!ks.length)return 0;let k=ks[0];const end=key();
+  while(k<=end){if(bossDone(peek(k))){run++;best=Math.max(best,run)}else if(k<end)run=0;k=shift(k,1)}return best}
+const claimKey=r=>r.n?r.id+"@"+streakStart():r.id;
+const rungOpen=r=>r.n?videoStreak()>=r.n:r.ok(goalsSt());
+const rungClaimed=r=>!!(state.claims||{})[claimKey(r)];
+const openList=()=>RUNGS.concat(GOALS).filter(r=>rungOpen(r)&&!rungClaimed(r)).map(r=>r.id);
+const findRung=id=>RUNGS.concat(GOALS).find(r=>r.id===id);
 
 function toast(t){const el=$("toast");el.textContent=t;el.classList.add("show");clearTimeout(toast.h);toast.h=setTimeout(()=>el.classList.remove("show"),2600)}
 function haptic(t){try{window.Telegram&&Telegram.WebApp.HapticFeedback.notificationOccurred(t)}catch(e){}}
 
-const lvlOf=()=>Math.floor(totalXP()/300)+1;
 function mutate(fn){
-  const lv0=lvlOf();
-  const k=key(),before=achSet(),wasBoss=bossDone(peek(k)),wasClean=cleanState(k);
+  const before=new Set(openList());
+  const k=key(),wasBoss=bossDone(peek(k)),wasClean=cleanState(k);
   fn();
   const d=peek(k);let delay=0;
   if(!wasBoss&&bossDone(d)){toast("Видео вышло. Засчитано для награды.");haptic("success");delay=2700}
   const c=rewardState(k);
-  if(c!==wasClean){const T={open:"Все 4 дела закрыты. Награда открыта.",gold:"Заслужил. +60 XP",base:"Тренировка была чистой. +30 XP",broken:"Раньше тренировки. Награда сегодня сгорела."}[c];if(T)setTimeout(()=>toast(T),delay)}
-  const lv1=lvlOf();if(lv1>lv0){const g=(state.gifts||{})[lv1];setTimeout(()=>toast(`Уровень ${lv1}!${g?" Подарок: "+g:""}`),delay+5400);haptic("success")}
-  const got=ACH.filter(a=>a.ok()&&!before.has(a.t));if(got.length)setTimeout(()=>toast("Ачивка: "+got[0].t),delay+2700);
+  if(c!==wasClean){const T={open:"Все 4 дела закрыты. Награда открыта.",gold:"Заслужил.",base:"Раньше времени, но тренировка была чистой.",broken:"Раньше тренировки. Награда сегодня сгорела."}[c];if(T)setTimeout(()=>toast(T),delay)}
+  const fresh=openList().filter(id=>!before.has(id));
+  if(fresh.length){const r=findRung(fresh[0]),g=(state.gifts||{})[r.id];setTimeout(()=>toast(`Открыт подарок: ${r.t}!${g?" "+g:""}`),delay+2700);haptic("success")}
   render();save();
 }
 function findQ(id){return QUESTS.find(x=>x.id===id)||VIDEO_STEPS.find(x=>x.id===id)||dayOf(key()).custom.find(c=>c.id===id)}
@@ -463,11 +509,15 @@ function startTask(id){const d=dayOf(key());mutate(()=>{d.cur={id,at:hhmm()}});c
 const nextStep=d=>VIDEO_STEPS.find(s=>!has(d,s.id));
 
 /* ---------- отрисовка ---------- */
+const FIRE='<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 22c4.4 0 7.5-3 7.5-7.2 0-4.1-2.8-6.3-4.2-10.3-1.9 1.7-3 3.6-3.1 5.8-.9-1-1.6-2.2-1.8-3.9C7.4 8.4 4.5 11.3 4.5 14.8 4.5 19 7.6 22 12 22z"/></svg>';
+const TITLES={today:"Сегодня",day:"План дня",gym:"Зал",prog:"Прогресс"};
 function renderReward(){
-  const k=key(),d=dayOf(k),R=reqs(k),st=rewardState(k),n=R.filter(x=>x.t).length;
-  const L={pending:`${debtOf(k)?"Штрафной день":"Награда дня"}: ${n} из ${R.length}`,open:`Награда открыта: ${prof().reward}`,gold:"Награда взята. Заслужил",base:"Раньше времени, но тренировка чистая",broken:"Награда сгорела. Завтра заново"}[st];
-  const chips=R.map(x=>`<span class="rq${x.pen?" pen":""}${x.t?" on":""}">${x.t?IC.check:""}${x.id==="train"?(x.tr==="fight"?"Бой":"Зал"):REQ_NAMES[x.id]}</span>`).join("");
-  $("reward").innerHTML=`<div class="rtop"><span class="leaf ${st}">${IC.leaf}</span><span class="lbl">${L}</span><button type="button" class="playbtn${st==="open"?"":" quiet"}" id="smoke" title="${esc(prof().reward)}">Взял награду</button></div><div class="rqs">${chips}</div>`;
+  const k=key(),d=dayOf(k),R=reqs(k),st=rewardState(k),n=R.filter(x=>x.t).length,vs=videoStreak();
+  const sub=tab==="today"?new Date().toLocaleDateString("ru-RU",{weekday:"long",day:"numeric",month:"long"}):"";
+  const leafTxt=st==="open"||st==="gold"?IC.check:`${n}/${R.length}`;
+  $("appbar").innerHTML=`<div class="tt"><h1>${TITLES[tab]}</h1>${sub?`<span class="sub">${esc(sub)}</span>`:""}</div>
+    <div class="pills"><button type="button" class="pill fire${vs?"":" zero"}" data-tab-go="prog" aria-label="Серия ${vs} дней">${FIRE}${vs}</button>
+    <button type="button" class="pill leaf${st==="open"||st==="gold"?" open":""}${debtOf(k)&&!debtClosed(d)?" pen":""}" id="rewardpill" aria-label="Награда дня">${IC.leaf}${leafTxt}</button></div>`;
   if(!confirmPlay){$("confirm").innerHTML="";return}
   const a=plan(k),b=plan(k,restMin),nextReal=b.items.find(x=>x.q&&!x.started),newly=b.over.filter(o=>!a.over.some(x=>x.q.id===o.q.id));
   const done=restToday(d);
@@ -485,9 +535,7 @@ function askGame(){const d=dayOf(key());if(debtOf(key())&&!debtClosed(d)){toast(
 function endRest(){const d=dayOf(key()),r=restsOf(d),now=nowMin();const i=r.findIndex(x=>toMin(x.at)<=now&&toMin(x.at)+x.min>now);if(i<0)return;
   r[i]={at:r[i].at,min:Math.max(1,now-toMin(r[i].at))};mutate(()=>{d.gl=r});toast("Отдых закончен. Дальше по плану.")}
 function renderHead(){
-  const xp=totalXP(),lvl=Math.floor(xp/300)+1;
-  $("day").textContent=new Date().toLocaleDateString("ru-RU",{weekday:"long"});
-  $("lvl").textContent=`Ур. ${lvl} ${RANKS[Math.min(lvl-1,RANKS.length-1)]} · ${xp%300}/300 XP${videoStreak()?" · серия "+videoStreak():""}`;
+  $("daybar").hidden=tab!=="today";
   // полоса дня: от сейчас до отбоя
   const now=nowMin(),bed=bedMin(),span=Math.max(1,bed-now),p=plan(key());
   const free=p.items.filter(i=>i.gap).reduce((a,i)=>a+Math.max(0,i.end-Math.max(i.start,now)),0),miss=p.over.reduce((a,o)=>a+o.dur,0);
@@ -598,44 +646,53 @@ function viewGym(){
       <button type="submit">Записать подход</button></form>
     ${exCards||'<p class="empty" style="padding:10px 20px 0">Записывай лучший рабочий подход по каждому упражнению. Приложение покажет рекорды и рост.</p>'}`;
 }
+let progSeg="streak";
+function rungState(r){const open=rungOpen(r),claimed=rungClaimed(r);
+  return claimed?"got":open?"open":"locked"}
+function rungSub(r){const st=rungState(r);
+  if(st==="got")return "взято";if(st==="open")return "открыто, забирай";
+  if(r.n)return `${Math.min(videoStreak(),r.n)} из ${r.n}`;return r.prog?r.prog(goalsSt()):"впереди"}
+function rungRow(r){
+  const st=rungState(r),g=(state.gifts||{})[r.id];
+  const right=st==="got"?`<span class="rs ok">${IC.check}</span>`:st==="open"?`<span class="rs open">${IC.star}</span>`:`<span class="rs">${IC.lock}</span>`;
+  return `<button type="button" class="lrow ${st}" data-gift="${r.id}"><span class="rb">${r.n?r.n:IC.star}</span>
+    <span class="rt"><b>${esc(r.t)}</b><small>до €${r.budget} · ${esc(rungSub(r))}</small>${g?`<em>${esc(g)}</em>`:`<em class="none">подарок не выбран</em>`}</span>${right}</button>`;
+}
+function ring(pct,label,sub){const C=2*Math.PI*34;return `<div class="ring2"><svg width="84" height="84" viewBox="0 0 84 84" aria-hidden="true"><circle cx="42" cy="42" r="34" fill="none" stroke="var(--line)" stroke-width="8"/><circle cx="42" cy="42" r="34" fill="none" stroke="var(--fire)" stroke-width="8" stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C*(1-pct)).toFixed(1)}" transform="rotate(-90 42 42)"/></svg><div><b>${label}</b><small>${sub}</small></div></div>`}
 function viewProg(){
-  const k=key(),days=Array.from({length:7},(_,i)=>shift(k,i-6)),max=Math.max(300,...days.map(dayXP));
-  const bars=days.map(x=>{const v=dayXP(x);return `<div class="bar${bossDone(peek(x))?" vid":""}${x===k?" today":""}"><i style="height:${Math.round(v/max*84)+4}px"></i><span>${new Date(x+"T12:00:00").toLocaleDateString("ru-RU",{weekday:"short"})}</span></div>`}).join("");
-  const cs=cleanStreak(),cr=cleanRank(cs),nx=nextClean(cs);
-  const cleanWeek=days.filter(isClean).length;
-  const st=days.map(x=>peek(x)&&peek(x).firstSmoke).filter(Boolean).map(toMin);
-  const avg=st.length?hm(st.reduce((a,b)=>a+b,0)/st.length):"нет";
-  const ach=ACH.map(a=>{const ok=a.ok();return `<div class="a${ok?" got":""}" title="${esc(a.d)}"><div class="ic">${ok?IC.star:IC.lock}</div><span>${esc(a.t)}</span></div>`}).join("");
-  const P=prof();
-  return `${P.why?`<div class="card" style="margin-bottom:10px"><span style="font-size:13px;font-weight:800;color:var(--muted)">Зачем</span><p class="why" style="margin:0">«${esc(P.why)}»</p></div>`:""}<div class="card"><div style="display:flex;justify-content:space-between;align-items:baseline"><b>Неделя</b><span style="font-size:13px;font-weight:700;color:var(--fire2)">видео ${days.filter(x=>bossDone(peek(x))).length} из 7</span></div>
-      <div class="bars">${bars}</div><span class="empty">Высота это XP за день. Оранжевый значит видео вышло.</span></div>
-    <div class="card" style="margin-top:10px"><div class="medal"><div class="m">${cs}</div><div style="display:flex;flex-direction:column;gap:2px"><b style="font-family:var(--display);font-weight:400;font-size:20px">${cr[1]}</b><span style="font-size:13px;color:var(--muted)">Чистая серия: ${cs} дн.${nx?` До ранга «${nx[1]}»: ${nx[0]-cs}.`:" Максимальный ранг."}</span></div></div></div>
-    <div class="tiles"><div class="tile"><b>${vids()}</b><span>видео всего</span></div><div class="tile"><b>${countQ(["gym","fight"],7)}</b><span>тренировок за 7 дней</span></div>
-      <div class="tile"><b>${countQ(["cbr"],7)}/7</b><span>теория за неделю</span></div><div class="tile"><b>${countQ(["eng"],7)}/7</b><span>Duolingo за неделю</span></div><div class="tile"><b>${cleanWeek}/7</b><span>чистых дней${avg!=="нет"?", награда в среднем в "+avg:""}</span></div></div>
-    <div class="sec"><h3>Подарки за уровни</h3><span>сейчас ур. ${lvlOf()}</span></div>${giftsCard()}
-    <div class="sec"><h3>Ачивки</h3><span>${ACH.filter(a=>a.ok()).length} из ${ACH.length}</span></div><div class="ach">${ach}</div>`;
+  const k=key(),days=Array.from({length:7},(_,i)=>shift(k,i-6)),st=videoStreak(),nx=RUNGS.find(r=>r.n>st);
+  const wins=days.map(x=>`<div class="win${bossDone(peek(x))?" on":""}${x===k?" today":""}"><i></i><span>${new Date(x+"T12:00:00").toLocaleDateString("ru-RU",{weekday:"short"})}</span></div>`).join("");
+  const all=RUNGS.concat(GOALS),openR=all.find(r=>rungState(r)==="open");
+  const focus=openR||nx||null;
+  let fcard="";
+  if(focus){const g=(state.gifts||{})[focus.id],isOpen=rungState(focus)==="open";
+    fcard=`<section class="fcard${isOpen?" open":""}"><span class="k">${isOpen?"Подарок открыт":"Следующий подарок"}</span>
+      <div class="fh"><span class="rb">${focus.n?focus.n:IC.star}</span><div><b>${esc(focus.t)}</b><small>до €${focus.budget}${isOpen?"":focus.n?` · ещё ${focus.n-st} ${focus.n-st===1?"видео":"видео подряд"}`:""}</small></div></div>
+      <p>${g?esc(g):"Подарок ещё не выбран. Выбери сейчас: когда знаешь, ради чего, тянуть серию легче."}</p>
+      <div class="btns">${isOpen?`<button type="button" class="pri" data-claim="${focus.id}">Забрал</button>`:""}<button type="button" class="${isOpen?"":"pri"}" data-gift="${focus.id}">${g?"Сменить подарок":"Выбрать подарок"}</button></div></section>`}
+  const segs=[["streak","Серия"],["chan","Канал"],["life","Жизнь"]];
+  const list=progSeg==="streak"?RUNGS:GOALS.filter(r=>r.grp===(progSeg==="chan"?"Канал":"Жизнь"));
+  const doneN=list.filter(r=>rungState(r)==="got").length;
+  return `<section class="hero"><div class="hl2"><span class="flame">${FIRE}</span><div><b>${st}</b><small>${st===1?"день":st>1&&st<5?"дня":"дней"} подряд с видео</small><small class="dim">лучшая серия ${bestStreak()}</small></div></div>
+      ${nx?ring(st/nx.n,`${nx.n-st}`,"до подарка"):ring(1,"30+","максимум")}</section>
+    <div class="wins" style="margin:10px 16px 0">${wins}</div>
+    ${fcard}
+    <div class="segc" role="tablist">${segs.map(([id,t])=>`<button type="button" role="tab" data-seg="${id}" aria-selected="${progSeg===id}">${t}</button>`).join("")}</div>
+    <div class="list">${list.map(rungRow).join("")}</div>
+    <div class="segfoot">${progSeg==="chan"?`<button type="button" class="line" data-chan="1">Обновить цифры канала</button>`:progSeg==="streak"?`<span class="empty">Подарки внутри одной серии. Пропуск дня обнуляет серию и открывает лестницу заново.</span>`:`<span class="empty">Разовые большие подарки за реальный результат. Отметь цель внутри карточки, когда достиг.</span>`}</div>
+    <div class="sec"><h3>Неделя в цифрах</h3><button type="button" data-prefs="1">мои вкусы</button></div>
+    <div class="tiles" style="margin-top:0"><div class="tile"><b>${vids()}</b><span>видео всего</span></div><div class="tile"><b>${countQ(["gym"],7)}</b><span>тренировок за 7 дней</span></div>
+      <div class="tile"><b>${countQ(["cbr"],7)}/7</b><span>теория</span></div><div class="tile"><b>${countQ(["eng"],7)}/7</b><span>Duolingo</span></div></div>`;
 }
-
 let giftIdeas=null,giftBusy=false;
-function giftsCard(){
-  const G=state.gifts||{},lv=lvlOf(),xp=totalXP(),need=300-xp%300,P=state.prefs;
-  const rows=Object.keys(G).map(Number).sort((a,b)=>a-b).map(l=>`<div><span>Ур. ${l}${l<=lv?" · взят":""}</span><b style="${l<=lv?"color:var(--okl)":""}">${esc(G[l])}</b></div>`).join("");
-  const ideas=giftIdeas?`<div class="list" style="padding:0">${giftIdeas.map((g,i)=>`<div class="card" style="margin:0;gap:6px;background:var(--panel2)"><b>${esc(g.title)}</b><span class="empty" style="color:var(--muted)">${esc(g.what||"")}</span>
-      <div class="mini"><div><span>${esc(g.where||"")}</span><b>${esc(g.price||"")}</b></div></div>
-      <div class="btns">${g.link&&/^https?:\/\//.test(g.link)?`<a class="chip" style="flex:1;display:grid;place-items:center;text-decoration:none;color:var(--fg)" href="${esc(g.link)}" target="_blank" rel="noopener">Открыть</a>`:""}<button type="button" class="pri" data-gpick="${i}">Беру за ур. ${lv+1}</button></div></div>`).join("")}</div>`:"";
-  return `<div class="card"><div class="mini">${rows||'<p class="empty">Подарок за следующий уровень: впиши сам или попроси бота подобрать реальный.</p>'}</div>
-    <span class="empty">До уровня ${lv+1}: ${need} XP. Одно видео даёт около 150 XP.</span>
-    <div class="btns"><button type="button" data-prefs="1">${P?"Мои вкусы":"Мои вкусы, 5 вопросов"}</button><button type="button" class="pri" data-gifts="1" ${giftBusy?"disabled":""}>${giftBusy?"Ищу…":"Подобрать подарок"}</button></div>
-    ${ideas}</div>
-    <form class="add" data-add="gift"><div class="r"><input name="t" maxlength="80" placeholder="Или впиши сам: подарок за ур. ${lv+1}" aria-label="Подарок за уровень ${lv+1}" autocomplete="off"><button type="submit">Записать</button></div></form>`;
-}
-async function findGifts(){
+async function findGifts(id){
   if(!state.prefs){openPrefs();return}
+  const r=findRung(id);
   if(!BOT||typeof fetchGifts!=="function"){toast("Подбор реальных подарков работает в боте в Телеграме.");return}
-  giftBusy=true;giftIdeas=null;render();toast("Ищу реальные варианты, это до минуты…");
-  try{giftIdeas=await fetchGifts(lvlOf()+1);if(!giftIdeas.length)toast("Не нашёл. Попробуй ещё раз.")}
+  giftBusy=true;giftIdeas=null;renderSheet();toast("Ищу реальные варианты, это до минуты…");
+  try{giftIdeas=await fetchGifts({budget:r.budget,label:r.t});if(!giftIdeas.length)toast("Не нашёл. Попробуй ещё раз.")}
   catch(e){toast(String(e&&e.message)==="too_often"?"Подожди 10 секунд и жми снова.":"Не получилось найти. Попробуй ещё раз через минуту.")}
-  giftBusy=false;render();
+  giftBusy=false;if(W&&W.step==="gift")renderSheet();
 }
 function render(){
   renderReward();renderHead();
@@ -654,9 +711,13 @@ document.addEventListener("click",e=>{
   if(t.dataset.focus){openFocus();return}
   if(t.dataset.game){askGame();return}
   if(t.dataset.restend){endRest();return}
-  if(t.dataset.gifts){findGifts();return}
   if(t.dataset.prefs){openPrefs();return}
-  if(t.dataset.gpick){const g=giftIdeas[+t.dataset.gpick],l=lvlOf()+1;mutate(()=>{state.gifts=Object.assign({},state.gifts||{},{[l]:(g.title+(g.where?" · "+g.where:"")).slice(0,80)})});giftIdeas=null;render();toast("Подарок за уровень "+l+": "+g.title);return}
+  if(t.dataset.seg){progSeg=t.dataset.seg;render();return}
+  if(t.id==="rewardpill"){W={step:"reward"};renderSheet();return}
+  if(t.dataset.gift){openGift(t.dataset.gift);return}
+  if(t.dataset.claim){const r=findRung(t.dataset.claim);mutate(()=>{state.claims=Object.assign({},state.claims||{},{[claimKey(r)]:key()})});toast("Кайфуй. Ты это заработал.");return}
+  if(t.dataset.flag){const f=t.dataset.flag;mutate(()=>{state.goals=Object.assign({},goalsSt(),{[f]:true})});return}
+  if(t.dataset.chan){openChan();return}
   if(t.dataset.proof){toast("Открой чат с ботом и кинь пруф туда.");try{window.Telegram&&Telegram.WebApp.close()}catch(_){}return}
   if(t.id==="smoke"){const d=dayOf(key());mutate(()=>{if(!d.smokes)d.firstSmoke=hhmm();d.smokes=(d.smokes||0)+1});return}
   const d=dayOf(key());
@@ -672,7 +733,6 @@ document.addEventListener("submit",e=>{
   if(kind==="today"||kind==="tomorrow"){const v=f.t.value.trim();if(!v)return;const dd=dayOf(kind==="today"?key():shift(key(),1));
     const c={id:"c"+Date.now().toString(36),name:v.slice(0,80),dur:parseInt(f.dur.value,10)||30};if(f.at.value)c.at=f.at.value;
     mutate(()=>dd.custom.push(c));toast(kind==="today"?(c.at?"Поставил на "+c.at+", остальное сдвинется":"Добавил, план пересчитан"):"Добавил на завтра")}
-  if(kind==="gift"){const v=f.t.value.trim();if(!v)return;const l=lvlOf()+1;mutate(()=>{state.gifts=Object.assign({},state.gifts||{},{[l]:v.slice(0,80)})});toast("Подарок за уровень "+l+" записан");f.reset();return}
   if(kind==="weight"){const kg=parseFloat(f.t.value.replace(",","."));if(!(kg>30&&kg<250)){toast("Напиши вес числом, например 82.5");return}
     mutate(()=>{state.body=state.body.filter(b=>b.d!==key());state.body.push({d:key(),kg:Math.round(kg*10)/10})});toast("Вес записан")}
   if(kind==="lift"){const ex=f.ex.value.trim(),kg=parseFloat(f.kg.value.replace(",",".")),reps=parseInt(f.reps.value,10);
@@ -689,6 +749,8 @@ const STEPS=["name","when","time","dur"];
 const PSTEPS=["pcity","pbudget","plikes","pfood","pmore"];
 const LIKES=["Вкусная еда","Одежда и кроссовки","Игры и скины","Гаджеты","Развлечения","Спорт и здоровье","Поездки","Уход и барбер"];
 const FOODS=["Бургеры","Суши","Донер и шаурма","Пицца","Стейки","Азиатская","Домашняя","Сладкое"];
+function openGift(id){giftIdeas=null;W={step:"gift",rung:id};renderSheet()}
+function openChan(){W={step:"chan"};renderSheet()}
 function openPrefs(){const P=state.prefs||{};W={step:"pcity",prefs:{city:P.city||"Dronten",budget:P.budget||25,likes:(P.likes||[]).slice(),foods:(P.foods||[]).slice(),more:P.more||""}};renderSheet()}
 function openSheet(){W={step:"menu",name:"",date:key(),at:"",dur:30};renderSheet()}
 function closeSheet(){W=null;$("sheet").hidden=true;$("sheet").innerHTML=""}
@@ -726,6 +788,21 @@ function renderSheet(){
   if(W.step==="plikes")body=`<h2>Что тебя реально радует?</h2><p class="q">Выбери всё, что подходит.</p><div class="opts">${LIKES.map(v=>`<button type="button" class="opt" data-w="pl:${esc(v)}" ${tog(PR.likes,v)}>${esc(v)}</button>`).join("")}</div><button type="button" class="goldbtn" data-w="pnext">Дальше</button>`;
   if(W.step==="pfood")body=`<h2>Любимая еда?</h2><p class="q">Для подарков-ресторанов и доставки.</p><div class="opts">${FOODS.map(v=>`<button type="button" class="opt" data-w="pf:${esc(v)}" ${tog(PR.foods,v)}>${esc(v)}</button>`).join("")}</div><button type="button" class="goldbtn" data-w="pnext">Дальше</button>`;
   if(W.step==="pmore")body=`<h2>Что ещё любишь?</h2><p class="q">Бренды, хобби, о чём мечтаешь. Можно пропустить.</p><form data-wf="p"><input name="v" maxlength="120" value="${esc(PR.more)}" placeholder="Например: Nike, картинг, Lexus, Dota" autocomplete="off" aria-label="Что ещё любишь"></form><button type="button" class="goldbtn" data-w="psave">Сохранить</button>`;
+  if(W.step==="gift"){const r=findRung(W.rung),g=(state.gifts||{})[r.id]||"";
+    const ideas=giftBusy?'<p class="empty">Ищу…</p>':giftIdeas?giftIdeas.map((x,i)=>`<div class="card" style="margin:0;gap:6px;background:var(--panel)"><b>${esc(x.title)}</b><span class="empty" style="color:var(--muted)">${esc(x.what||"")}</span><div class="mini"><div><span>${esc(x.where||"")}</span><b>${esc(x.price||"")}</b></div></div><div class="btns">${x.link&&/^https?:\/\//.test(x.link)?`<a class="chip" style="flex:1;display:grid;place-items:center;text-decoration:none;color:var(--fg)" href="${esc(x.link)}" target="_blank" rel="noopener">Открыть</a>`:""}<button type="button" class="pri" data-w="gpick:${i}">Беру</button></div></div>`).join(""):"";
+    const rs=rungState(r),extra=(rs==="open"?`<button type="button" class="goldbtn" data-w="claim">Забрал подарок</button>`:"")+(r.flag&&rs==="locked"?`<button type="button" class="line" data-w="flag">Цель достигнута, отметить</button>`:"")+(r.grp==="Канал"&&!r.flag&&rs==="locked"?`<button type="button" class="line" data-w="tochan">Обновить цифры канала</button>`:"");
+    body=`<h2>${esc(r.t)}</h2><p class="q">Бюджет до €${r.budget} · ${esc(rungSub(r))}</p>${extra}<form data-wf="g"><input name="v" maxlength="80" value="${esc(g)}" placeholder="Впиши сам, что купишь" autocomplete="off" aria-label="Подарок"></form>
+      <div class="btns"><button type="button" data-w="gfind">Подобрать реальный</button><button type="button" class="pri" data-w="gsave">Сохранить</button></div>${ideas}`}
+  if(W.step==="chan"){const G=goalsSt();body=`<h2>Цифры канала</h2><p class="q">Обновляй раз в неделю из YouTube Studio.</p><form data-wf="c" style="display:flex;flex-direction:column;gap:8px">
+      <input name="subs" inputmode="numeric" value="${G.subs||""}" placeholder="Подписчиков" aria-label="Подписчиков"><input name="views" inputmode="numeric" value="${G.maxViews||""}" placeholder="Просмотров у лучшего видео" aria-label="Просмотров у лучшего видео">
+      <input name="goal" inputmode="decimal" value="${G.goalKg||""}" placeholder="Цель по весу, кг" aria-label="Цель по весу"></form><button type="button" class="goldbtn" data-w="csave">Сохранить</button>`}
+  if(W.step==="reward"){const k=key(),R=reqs(k),st=rewardState(k),open=st==="open";
+    const nm=x=>x.id==="train"?"Зал":REQ_NAMES[x.id]==="€5"?"Штраф €5 в safemoney":x.id==="debt"?"Долг: второе видео":REQ_NAMES[x.id];
+    const T={pending:"Закрой всё из списка, и награда твоя.",open:"Всё закрыто. Заслужил.",gold:"Сегодня награда уже взята по-честному.",base:"Взял раньше времени, но после тренировки.",broken:"Взял раньше тренировки. Сегодня награда сгорела."}[st];
+    body=`<h2>Награда дня: ${esc(prof().reward)}</h2><p class="q">${T}</p>
+      <div class="rqlist">${R.map(x=>`<div class="${x.t?"on":""}"><span class="c">${x.t?IC.check:""}</span>${esc(nm(x))}${x.t&&x.t!=="skip"?`<span style="margin-left:auto;font-size:12px;color:var(--dim)">${esc(x.t)}</span>`:x.t==="skip"?`<span style="margin-left:auto;font-size:12px;color:var(--dim)">убрано</span>`:""}</div>`).join("")}</div>
+      ${st==="gold"||st==="base"||st==="broken"?"":`<button type="button" class="${open?"goldbtn":"line"}" data-w="take">${open?"Взял награду":"Взять сейчас, раньше времени"}</button>`}
+      ${!open&&st==="pending"?`<p class="q" style="margin:0">Если возьмёшь до тренировки, награда сегодня сгорит.</p>`:""}`}
   if(W.step==="lift")body=`<h2>Подход в зале</h2><form data-wf="lift" style="display:flex;flex-direction:column;gap:8px"><input name="ex" list="exlist2" placeholder="Упражнение" aria-label="Упражнение" autocomplete="off">
       <datalist id="exlist2">${[...new Set(EXERCISES.concat(state.lifts.map(l=>l.ex).filter(Boolean)))].map(e=>`<option value="${esc(e)}">`).join("")}</datalist>
       <div style="display:flex;gap:8px"><input name="kg" inputmode="decimal" placeholder="Вес, кг" aria-label="Вес, кг"><input name="reps" inputmode="numeric" placeholder="Повторы" aria-label="Повторы"></div></form>
@@ -748,6 +825,15 @@ $("sheet").addEventListener("click",e=>{
   if(a==="pnext"||a==="psave"){const v=$("sheet").querySelector("input[name=v]");if(v){if(W.step==="pcity")W.prefs.city=v.value.trim().slice(0,40)||"Dronten";if(W.step==="pmore")W.prefs.more=v.value.trim().slice(0,120)}
     if(a==="psave"){const pr=W.prefs;closeSheet();mutate(()=>{state.prefs=pr});toast("Вкусы сохранены. Жми «Подобрать подарок».");return}
     W.step=PSTEPS[PSTEPS.indexOf(W.step)+1];return renderSheet()}
+  if(a==="gsave"){const v=$("sheet").querySelector("input[name=v]").value.trim(),id=W.rung;closeSheet();mutate(()=>{state.gifts=Object.assign({},state.gifts||{},{[id]:v.slice(0,80)})});toast(v?"Подарок записан":"Подарок убран");return}
+  if(a==="gfind"){findGifts(W.rung);return}
+  if(a==="claim"){const r=findRung(W.rung);closeSheet();mutate(()=>{state.claims=Object.assign({},state.claims||{},{[claimKey(r)]:key()})});toast("Кайфуй. Ты это заработал.");return}
+  if(a==="flag"){const r=findRung(W.rung);closeSheet();mutate(()=>{state.goals=Object.assign({},goalsSt(),{[r.flag]:true})});return}
+  if(a==="tochan"){W={step:"chan"};return renderSheet()}
+  if(a==="take"){const d=dayOf(key());closeSheet();mutate(()=>{if(!d.smokes)d.firstSmoke=hhmm();d.smokes=(d.smokes||0)+1});return}
+  if(a.startsWith("gpick:")){const x=giftIdeas[+a.slice(6)],id=W.rung;closeSheet();giftIdeas=null;mutate(()=>{state.gifts=Object.assign({},state.gifts||{},{[id]:(x.title+(x.where?" · "+x.where:"")).slice(0,80)})});toast("Подарок записан: "+x.title);return}
+  if(a==="csave"){const f=$("sheet").querySelector("form"),n=x=>parseInt(String(x).replace(/\D/g,""),10)||0,g=parseFloat(f.goal.value.replace(",","."));
+    closeSheet();mutate(()=>{const G=Object.assign({},goalsSt(),{subs:n(f.subs.value),maxViews:n(f.views.value)});if(g>30&&g<250){if(G.goalKg!==g)G.startKg=curKg();G.goalKg=g}state.goals=G});toast("Сохранил");return}
   if(a.startsWith("pb:")){W.prefs.budget=+a.slice(3);W.step="plikes";return renderSheet()}
   if(a.startsWith("pl:")||a.startsWith("pf:")){const arr=a.startsWith("pl:")?W.prefs.likes:W.prefs.foods,v=a.slice(3),k=arr.indexOf(v);if(k>=0)arr.splice(k,1);else arr.push(v);return renderSheet()}
   if(a==="next")return wNext();
@@ -764,7 +850,7 @@ $("sheet").addEventListener("click",e=>{
     const L=liftsOf(ex),prev=L.length?Math.max(...L.map(e1rm)):0;closeSheet();
     mutate(()=>state.lifts.push({d:key(),ex:ex.slice(0,40),kg:Math.round(kg*10)/10,reps,clean:!dayOf(key()).firstSmoke}));toast(L.length&&kg*(1+reps/30)>prev?"Новый рекорд в «"+ex+"»":"Подход записан");return}
 });
-$("sheet").addEventListener("submit",e=>{e.preventDefault();e.stopPropagation();const f=e.target.dataset.wf;if(f==="p"){$("sheet").querySelector("[data-w=pnext],[data-w=psave]").click();return}if(f==="name")wNext();if(f==="weight")$("sheet").querySelector("[data-w=saveweight]").click()});
+$("sheet").addEventListener("submit",e=>{e.preventDefault();e.stopPropagation();const f=e.target.dataset.wf;if(f==="p"){$("sheet").querySelector("[data-w=pnext],[data-w=psave]").click();return}if(f==="g"){$("sheet").querySelector("[data-w=gsave]").click();return}if(f==="c"){$("sheet").querySelector("[data-w=csave]").click();return}if(f==="name")wNext();if(f==="weight")$("sheet").querySelector("[data-w=saveweight]").click()});
 $("plus").onclick=openSheet;
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&W)closeSheet()});
 
@@ -818,7 +904,7 @@ let st;
 save=()=>{clearTimeout(st);st=setTimeout(async()=>{
   try{const r=await fetch("api/state",{method:"POST",headers:hdr(),body:JSON.stringify(state)});
     if(r.ok){state=norm(await r.json());render()}}catch(e){}},500)};
-async function fetchGifts(level){const r=await fetch("api/gifts",{method:"POST",headers:hdr(),body:JSON.stringify({level})});const v=await r.json().catch(()=>({}));if(!r.ok)throw new Error(v.error||r.status);return v.ideas||[]}
+async function fetchGifts(q){const r=await fetch("api/gifts",{method:"POST",headers:hdr(),body:JSON.stringify(q)});const v=await r.json().catch(()=>({}));if(!r.ok)throw new Error(v.error||r.status);return v.ideas||[]}
 render();pull();
 document.addEventListener("visibilitychange",()=>{if(!document.hidden)pull()});
 if(tg)tg.onEvent("activated",pull);

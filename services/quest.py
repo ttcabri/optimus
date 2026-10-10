@@ -240,7 +240,7 @@ def merge_incoming(server: dict, incoming: dict) -> dict:
         return server
     incoming.setdefault("body", server.get("body", []))
     incoming.setdefault("lifts", server.get("lifts", []))
-    for k in ("prefs", "gifts"):
+    for k in ("prefs", "gifts", "claims", "goals"):
         if not incoming.get(k) and server.get(k):
             incoming[k] = server[k]
     if not incoming.get("profile") and server.get("profile"):
