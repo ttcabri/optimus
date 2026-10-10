@@ -240,6 +240,9 @@ def merge_incoming(server: dict, incoming: dict) -> dict:
         return server
     incoming.setdefault("body", server.get("body", []))
     incoming.setdefault("lifts", server.get("lifts", []))
+    for k in ("prefs", "gifts"):
+        if not incoming.get(k) and server.get(k):
+            incoming[k] = server[k]
     if not incoming.get("profile") and server.get("profile"):
         incoming["profile"] = server["profile"]
     s_days = server.get("days", {})
@@ -351,6 +354,17 @@ def js_weekday() -> int:
     return (now().weekday() + 1) % 7
 
 
+def rests_of(day: dict) -> list[tuple[int, int]]:
+    """Отдых: [(начало в минутах, длительность)]. Старый формат "HH:MM" = 45 минут."""
+    out = []
+    for r in day.get("gl", []):
+        if isinstance(r, str):
+            out.append((to_min(r), GAME_MIN))
+        elif isinstance(r, dict) and r.get("at"):
+            out.append((to_min(r["at"]), int(r.get("min") or GAME_MIN)))
+    return out
+
+
 def build_plan(day: dict, now_min: int | None = None, wd: int | None = None) -> dict:
     now_m = now_min if now_min is not None else now().hour * 60 + now().minute
     wd = js_weekday() if wd is None else wd
@@ -404,11 +418,11 @@ def build_plan(day: dict, now_min: int | None = None, wd: int | None = None) -> 
     items, over = [], []
     wake = day.get("at", {}).get("wake")
     cur = max(now_m, to_min(P["wake"])) if not wake else now_m
-    for g in sorted(to_min(x) for x in day.get("gl", [])):
-        if g + GAME_MIN > now_m:
+    for g, mins in sorted(rests_of(day)):
+        if g + mins > now_m:
             s = g if g <= now_m else max(g, cur)
-            items.append({"game": True, "start": s, "end": s + GAME_MIN})
-            cur = max(cur, s + GAME_MIN)
+            items.append({"game": True, "start": s, "end": s + mins})
+            cur = max(cur, s + mins)
 
     pending = [q for q in queue if not is_done(q["id"])]
     started = day.get("cur")
@@ -436,7 +450,9 @@ def build_plan(day: dict, now_min: int | None = None, wd: int | None = None) -> 
         while anchors and to_min(anchors[0]["fixed"]) < cur + du and anchors[0]["fixed"] != day_end(P):
             place(anchors.pop(0))
         if cur + du > end:
-            over.append({**q, "dur": du})
+            optional = q["id"] in ("vid2", "house") and not day.get("_debt")
+            if not optional:  # бонусы молча не влезают, без тревоги
+                over.append({**q, "dur": du})
             continue
         items.append({**q, "start": cur, "end": cur + du})
         cur += du

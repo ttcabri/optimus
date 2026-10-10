@@ -14,7 +14,7 @@ from aiohttp import web
 
 import database
 from config import PORT, TELEGRAM_BOT_TOKEN, TELEGRAM_USER_ID
-from services import quest
+from services import gifts, quest
 
 logger = logging.getLogger(__name__)
 WEBAPP_DIR = Path(__file__).parent / "webapp"
@@ -70,6 +70,25 @@ async def post_state(request: web.Request) -> web.Response:
     return web.json_response(merged)
 
 
+async def post_gifts(request: web.Request) -> web.Response:
+    uid = _auth(request)
+    try:
+        body = await request.json()
+    except ValueError:
+        body = {}
+    state = await database.get_quest_state(uid)
+    prefs = state.get("prefs")
+    if not prefs:
+        raise web.HTTPBadRequest(text="no prefs")
+    level = int(body.get("level") or 2)
+    try:
+        ideas = await gifts.suggest_gifts(uid, prefs, level)
+    except RuntimeError as e:
+        status = 429 if str(e) == "too_often" else 502
+        return web.json_response({"ideas": [], "error": str(e)}, status=status)
+    return web.json_response({"ideas": ideas})
+
+
 async def health(request: web.Request) -> web.Response:
     return web.Response(text="ok")
 
@@ -80,6 +99,7 @@ async def start_web() -> web.AppRunner:
     app.router.add_get("/health", health)
     app.router.add_get("/api/state", get_state)
     app.router.add_post("/api/state", post_state)
+    app.router.add_post("/api/gifts", post_gifts)
     runner = web.AppRunner(app)
     await runner.setup()
     await web.TCPSite(runner, "0.0.0.0", PORT).start()

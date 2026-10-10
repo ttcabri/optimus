@@ -232,7 +232,11 @@ nav.tabs button[aria-selected="true"]{color:var(--gold);font-weight:800}
 
 <script>
 const MODE=window.QD_MODE||"artifact";const BOT=MODE==="bot";
-const GAME_MIN=45;
+const GAME_MIN=45; // отдых по умолчанию
+// Отдых: любое развлечение (Дота, ролики, что угодно), но блоком с таймером. Старые записи были просто "HH:MM" = 45 мин.
+const restsOf=d=>(d.gl||[]).map(g=>typeof g==="string"?{at:g,min:45}:g);
+const restToday=d=>restsOf(d).reduce((a,r)=>a+Math.max(0,Math.min(r.min,nowMin()-toMin(r.at))),0);
+let restMin=45;
 // Анкета: настройки под человека. Пока анкеты нет, работают значения по умолчанию.
 const DEF_PROFILE={reward:"Трава",name:"",wake:"08:00",bed:"23:30",gymDays:[1,2,3,4,5,6],req:{train:1,cbr:1,eng:1},videoMin:110,kg:null,goalKg:null,why:""};
 const prof=()=>Object.assign({},DEF_PROFILE,state.profile||{});
@@ -342,10 +346,10 @@ function plan(k,extraGame){
   const d=dayOf(k),now=nowMin(),out=[],over=[];
   const start=d.at.wake?Math.min(now,toMin(d.at.wake)):Math.max(now,toMin(DAY_START_()));
   let cur=Math.max(now,start);
-  // идущие катки
-  const games=(d.gl||[]).map(toMin).filter(g=>g+GAME_MIN>now).sort((a,b)=>a-b);
-  if(extraGame)games.push(Math.max(now,games.length?games[games.length-1]+GAME_MIN:now));
-  for(const g of games){const s=g<=now?g:Math.max(g,cur);out.push({game:1,start:s,end:s+GAME_MIN,now:s<=now});cur=Math.max(cur,s+GAME_MIN)}
+  // идущий отдых
+  const rests=restsOf(d).map(r=>({s:toMin(r.at),m:r.min})).filter(r=>r.s+r.m>now).sort((a,b)=>a.s-b.s);
+  if(extraGame)rests.push({s:Math.max(now,rests.length?rests[rests.length-1].s+rests[rests.length-1].m:now),m:extraGame});
+  for(const r of rests){const s=r.s<=now?r.s:Math.max(r.s,cur);out.push({game:1,start:s,end:s+r.m,now:s<=now});cur=Math.max(cur,s+r.m)}
   const pending=queue(k).filter(q=>!isDone(d,q));
   // начатое дело идёт первым
   const ci=d.cur&&pending.findIndex(q=>q.id===d.cur.id);
@@ -357,7 +361,7 @@ function plan(k,extraGame){
   for(const q of flex){
     const du=durOf(d,q);
     while(anchors.length&&toMin(anchors[0].fixed)<cur+du&&anchors[0].fixed!==DAY_END_())placeAnchor(anchors.shift());
-    if(cur+du>end){over.push({q,dur:du});continue}
+    if(cur+du>end){if(!q.opt||q.penalty)over.push({q,dur:du});continue} // бонусы молча не влезают
     out.push({q,start:cur,end:cur+du});cur+=du;
   }
   while(anchors.length)placeAnchor(anchors.shift());
@@ -434,13 +438,16 @@ const achSet=()=>new Set(ACH.filter(a=>a.ok()).map(a=>a.t));
 function toast(t){const el=$("toast");el.textContent=t;el.classList.add("show");clearTimeout(toast.h);toast.h=setTimeout(()=>el.classList.remove("show"),2600)}
 function haptic(t){try{window.Telegram&&Telegram.WebApp.HapticFeedback.notificationOccurred(t)}catch(e){}}
 
+const lvlOf=()=>Math.floor(totalXP()/300)+1;
 function mutate(fn){
+  const lv0=lvlOf();
   const k=key(),before=achSet(),wasBoss=bossDone(peek(k)),wasClean=cleanState(k);
   fn();
   const d=peek(k);let delay=0;
   if(!wasBoss&&bossDone(d)){toast("Видео вышло. Засчитано для награды.");haptic("success");delay=2700}
   const c=rewardState(k);
   if(c!==wasClean){const T={open:"Все 4 дела закрыты. Награда открыта.",gold:"Заслужил. +60 XP",base:"Тренировка была чистой. +30 XP",broken:"Раньше тренировки. Награда сегодня сгорела."}[c];if(T)setTimeout(()=>toast(T),delay)}
+  const lv1=lvlOf();if(lv1>lv0){const g=(state.gifts||{})[lv1];setTimeout(()=>toast(`Уровень ${lv1}!${g?" Подарок: "+g:""}`),delay+5400);haptic("success")}
   const got=ACH.filter(a=>a.ok()&&!before.has(a.t));if(got.length)setTimeout(()=>toast("Ачивка: "+got[0].t),delay+2700);
   render();save();
 }
@@ -462,15 +469,21 @@ function renderReward(){
   const chips=R.map(x=>`<span class="rq${x.pen?" pen":""}${x.t?" on":""}">${x.t?IC.check:""}${x.id==="train"?(x.tr==="fight"?"Бой":"Зал"):REQ_NAMES[x.id]}</span>`).join("");
   $("reward").innerHTML=`<div class="rtop"><span class="leaf ${st}">${IC.leaf}</span><span class="lbl">${L}</span><button type="button" class="playbtn${st==="open"?"":" quiet"}" id="smoke" title="${esc(prof().reward)}">Взял награду</button></div><div class="rqs">${chips}</div>`;
   if(!confirmPlay){$("confirm").innerHTML="";return}
-  const a=plan(k),b=plan(k,true),nextReal=b.items.find(x=>x.q&&!x.started),newly=b.over.filter(o=>!a.over.some(x=>x.q.id===o.q.id));
-  $("confirm").innerHTML=`<section class="confirm"><b style="font-size:16px">Катка сейчас: ${hhmm()}–${hm(nowMin()+GAME_MIN)}</b>
-    <p>${nextReal?`Дальше всё сдвинется на ${GAME_MIN} минут. «${esc(nextReal.q.name)}» начнётся в ${hm(nextReal.start)}.`:"После катки дел не осталось."}</p>
+  const a=plan(k),b=plan(k,restMin),nextReal=b.items.find(x=>x.q&&!x.started),newly=b.over.filter(o=>!a.over.some(x=>x.q.id===o.q.id));
+  const done=restToday(d);
+  $("confirm").innerHTML=`<section class="confirm"><b style="font-size:16px">Отдых: ${hhmm()}–${hm(nowMin()+restMin)}</b>
+    <div class="opts" style="grid-template-columns:repeat(4,minmax(0,1fr))">${[30,45,60,90].map(m=>`<button type="button" class="opt" data-rm="${m}" aria-pressed="${m===restMin}">${durTxt(m)}</button>`).join("")}</div>
+    <p>${nextReal?`Дальше всё сдвинется. «${esc(nextReal.q.name)}» начнётся в ${hm(nextReal.start)}.`:"После отдыха дел не осталось."}${done?` Сегодня уже отдыхал ${durTxt(done)}.`:""}</p>
+    ${done+restMin>150?`<p class="warn">Это будет больше 2.5 часов отдыха за день.</p>`:""}
     ${newly.length?`<p class="warn">Не влезет до отбоя: ${newly.map(o=>esc(o.q.name)).join(", ")}.</p>`:""}
-    <div class="btns"><button type="button" id="nogame">Не сейчас</button><button type="button" class="pri" id="gogame">Играю</button></div></section>`;
+    <div class="btns"><button type="button" id="nogame">Не сейчас</button><button type="button" class="pri" id="gogame">Отдыхаю</button></div></section>`;
+  $("confirm").querySelectorAll("[data-rm]").forEach(b=>b.onclick=()=>{restMin=+b.dataset.rm;render()});
   $("nogame").onclick=()=>{confirmPlay=false;render()};
-  $("gogame").onclick=()=>{confirmPlay=false;mutate(()=>{d.gl.push(hhmm());d.games=gamesUsed(d)});toast("GL HF. Катка 45 минут.")};
+  $("gogame").onclick=()=>{confirmPlay=false;const m=restMin;mutate(()=>{d.gl.push({at:hhmm(),min:m});d.games=gamesUsed(d)});toast(`Отдых ${durTxt(m)}. Таймер пошёл.`)};
 }
-function askGame(){const d=dayOf(key());if(!bossDone(d)){toast("Дота после видео. Сначала босс.");return}if(debtOf(key())&&!has(d,"vid2")){toast("Сначала долг: второе видео.");return}confirmPlay=true;render();window.scrollTo(0,0)}
+function askGame(){const d=dayOf(key());if(debtOf(key())&&!debtClosed(d)){toast("Штрафной день: отдых после долга и штрафа.");return}confirmPlay=true;render();window.scrollTo(0,0)}
+function endRest(){const d=dayOf(key()),r=restsOf(d),now=nowMin();const i=r.findIndex(x=>toMin(x.at)<=now&&toMin(x.at)+x.min>now);if(i<0)return;
+  r[i]={at:r[i].at,min:Math.max(1,now-toMin(r[i].at))};mutate(()=>{d.gl=r});toast("Отдых закончен. Дальше по плану.")}
 function renderHead(){
   const xp=totalXP(),lvl=Math.floor(xp/300)+1;
   $("day").textContent=new Date().toLocaleDateString("ru-RU",{weekday:"long"});
@@ -480,7 +493,7 @@ function renderHead(){
   const free=p.items.filter(i=>i.gap).reduce((a,i)=>a+Math.max(0,i.end-Math.max(i.start,now)),0),miss=p.over.reduce((a,o)=>a+o.dur,0);
   let segs="",total=0;
   for(const i of p.items){const st=Math.max(i.start,now),en=Math.min(i.end,bed);if(en<=st)continue;const w=(en-st)/span*100;total+=en-st;
-    const c=i.gap?"f":i.game?"g":i.q&&i.q.kind==="video"?"v":i.anchor?"a":"t";segs+=`<i class="${c}" style="width:${w.toFixed(2)}%" title="${esc(i.gap?"Свободно":i.game?"Катка":i.q.name)}"></i>`}
+    const c=i.gap?"f":i.game?"g":i.q&&i.q.kind==="video"?"v":i.anchor?"a":"t";segs+=`<i class="${c}" style="width:${w.toFixed(2)}%" title="${esc(i.gap?"Свободно":i.game?"Отдых":i.q.name)}"></i>`}
   if(miss)segs+=`<i class="o" style="width:${Math.min(30,miss/span*100).toFixed(2)}%"></i>`;
   $("daybar").innerHTML=`<div class="track" role="img" aria-label="План до отбоя">${segs}</div>
     <div class="dline">${miss?`<span class="minus">Не хватает <b>${durTxt(miss)}</b></span>`:`<span class="free">Свободно <b>${durTxt(free)}</b></span>`}<span>До отбоя <b>${durTxt(Math.max(0,bed-now))}</b></span></div>`;
@@ -488,9 +501,9 @@ function renderHead(){
 }
 function nowCard(k,d,p){
   const it=p.items[0],now=nowMin();
-  if(!it)return `<section class="now free"><span class="k">День закрыт</span><h2>Всё сделано</h2><p>Свободное время до ${DAY_END_()}. Потом экран выкл.</p><button type="button" class="ghost" data-game="1">Катка 45 минут</button></section>`;
-  if(it.gap)return `<section class="now free"><span class="k"><span>Свободно</span><span>до ${hm(it.end)}</span></span><h2>${durTxt(it.end-now)} свободно</h2><p>Следом: «${esc((p.items[1]&&p.items[1].q||{}).name||"")}». Катка, ролик на английском или просто отдых.</p>${bossDone(d)&&it.end-now>=GAME_MIN?`<button type="button" class="ghost" data-game="1">Катка 45 минут</button>`:""}</section>`;
-  if(it.game){const left=it.end-now;return `<section class="now free"><span class="k"><span>Катка</span><span>до ${hm(it.end)}</span></span><div class="clock"><b>${left}</b><span>мин осталось</span></div><p>Потом: «${esc((p.items[1]&&p.items[1].q||{}).name||"дел нет")}» в ${p.items[1]?hm(p.items[1].start):""}.</p></section>`}
+  if(!it)return `<section class="now free"><span class="k">День закрыт</span><h2>Всё сделано</h2><p>Свободное время до ${DAY_END_()}. Потом экран выкл.</p><button type="button" class="ghost" data-game="1">Отдохнуть</button></section>`;
+  if(it.gap)return `<section class="now free"><span class="k"><span>Свободно</span><span>до ${hm(it.end)}</span></span><h2>${durTxt(it.end-now)} свободно</h2><p>Следом: «${esc((p.items[1]&&p.items[1].q||{}).name||"")}». Можно отдохнуть или посмотреть ролик на английском.</p>${it.end-now>=30?`<button type="button" class="ghost" data-game="1">Отдохнуть</button>`:""}</section>`;
+  if(it.game){const left=it.end-now;return `<section class="now free"><span class="k"><span>Отдых</span><span>до ${hm(it.end)}</span></span><div class="clock"><b>${left}</b><span>мин осталось</span></div><p>Потом: «${esc((p.items[1]&&p.items[1].q||{}).name||"дел нет")}»${p.items[1]?" в "+hm(p.items[1].start):""}. Сегодня отдыха: ${durTxt(restToday(d))}.</p><button type="button" class="ghost" data-restend="1">Закончил раньше</button></section>`}
   const q=it.q,late=it.late>0,left=it.end-now;
   const kline=`<span class="k"><span>${it.started?"Сейчас":"Начать сейчас"}</span><span>${late?"план был до "+hm(it.pe):"до "+hm(it.end)}</span></span>`;
   const clock=it.started?`<div class="clock"><b>${late?"+"+it.late:left}</b><span>${late?"мин сверх плана":"мин осталось"}</span></div>`:`<div class="clock"><b>${hm(it.start)}–${hm(it.end)}</b></div>`;
@@ -508,7 +521,7 @@ function nowCard(k,d,p){
 }
 function planRow(d,it,opts={}){
   if(it.gap)return `<div class="row gap"><span class="tm">${hm(it.start)}</span><span class="nm"><b>Свободно ${durTxt(it.end-it.start)}</b></span></div>`;
-  if(it.game)return `<div class="row game"><span class="tm">${hm(it.start)}<small>${hm(it.end)}</small></span>${IC.chest}<span class="nm"><b>Катка</b><small>${GAME_MIN} минут</small></span></div>`;
+  if(it.game)return `<div class="row game"><span class="tm">${hm(it.start)}<small>${hm(it.end)}</small></span>${IC.chest}<span class="nm"><b>Отдых</b><small>${durTxt(it.end-it.start)}</small></span></div>`;
   const q=it.q;
   const inReward=q.req&&(q.kind==="video"||q.penalty||(q.id==="gym"?prof().req.train:prof().req[q.id]));
   const right=inReward?`<span class="tok" title="Нужно для награды">${IC.leaf}</span>`:`<span class="dur">${durTxt(durOf(d,q))}</span>`;
@@ -598,10 +611,32 @@ function viewProg(){
       <div class="bars">${bars}</div><span class="empty">Высота это XP за день. Оранжевый значит видео вышло.</span></div>
     <div class="card" style="margin-top:10px"><div class="medal"><div class="m">${cs}</div><div style="display:flex;flex-direction:column;gap:2px"><b style="font-family:var(--display);font-weight:400;font-size:20px">${cr[1]}</b><span style="font-size:13px;color:var(--muted)">Чистая серия: ${cs} дн.${nx?` До ранга «${nx[1]}»: ${nx[0]-cs}.`:" Максимальный ранг."}</span></div></div></div>
     <div class="tiles"><div class="tile"><b>${vids()}</b><span>видео всего</span></div><div class="tile"><b>${countQ(["gym","fight"],7)}</b><span>тренировок за 7 дней</span></div>
-      <div class="tile"><b>${countQ(["cbr"],7)}/7</b><span>теория за неделю</span></div><div class="tile"><b>${countQ(["eng"],7)}/7</b><span>Duolingo за неделю</span></div><div class="tile"><b>${cleanWeek}/7</b><span>чистых дней, награда в среднем в ${avg}</span></div></div>
+      <div class="tile"><b>${countQ(["cbr"],7)}/7</b><span>теория за неделю</span></div><div class="tile"><b>${countQ(["eng"],7)}/7</b><span>Duolingo за неделю</span></div><div class="tile"><b>${cleanWeek}/7</b><span>чистых дней${avg!=="нет"?", награда в среднем в "+avg:""}</span></div></div>
+    <div class="sec"><h3>Подарки за уровни</h3><span>сейчас ур. ${lvlOf()}</span></div>${giftsCard()}
     <div class="sec"><h3>Ачивки</h3><span>${ACH.filter(a=>a.ok()).length} из ${ACH.length}</span></div><div class="ach">${ach}</div>`;
 }
 
+let giftIdeas=null,giftBusy=false;
+function giftsCard(){
+  const G=state.gifts||{},lv=lvlOf(),xp=totalXP(),need=300-xp%300,P=state.prefs;
+  const rows=Object.keys(G).map(Number).sort((a,b)=>a-b).map(l=>`<div><span>Ур. ${l}${l<=lv?" · взят":""}</span><b style="${l<=lv?"color:var(--okl)":""}">${esc(G[l])}</b></div>`).join("");
+  const ideas=giftIdeas?`<div class="list" style="padding:0">${giftIdeas.map((g,i)=>`<div class="card" style="margin:0;gap:6px;background:var(--panel2)"><b>${esc(g.title)}</b><span class="empty" style="color:var(--muted)">${esc(g.what||"")}</span>
+      <div class="mini"><div><span>${esc(g.where||"")}</span><b>${esc(g.price||"")}</b></div></div>
+      <div class="btns">${g.link&&/^https?:\/\//.test(g.link)?`<a class="chip" style="flex:1;display:grid;place-items:center;text-decoration:none;color:var(--fg)" href="${esc(g.link)}" target="_blank" rel="noopener">Открыть</a>`:""}<button type="button" class="pri" data-gpick="${i}">Беру за ур. ${lv+1}</button></div></div>`).join("")}</div>`:"";
+  return `<div class="card"><div class="mini">${rows||'<p class="empty">Подарок за следующий уровень: впиши сам или попроси бота подобрать реальный.</p>'}</div>
+    <span class="empty">До уровня ${lv+1}: ${need} XP. Одно видео даёт около 150 XP.</span>
+    <div class="btns"><button type="button" data-prefs="1">${P?"Мои вкусы":"Мои вкусы, 5 вопросов"}</button><button type="button" class="pri" data-gifts="1" ${giftBusy?"disabled":""}>${giftBusy?"Ищу…":"Подобрать подарок"}</button></div>
+    ${ideas}</div>
+    <form class="add" data-add="gift"><div class="r"><input name="t" maxlength="80" placeholder="Или впиши сам: подарок за ур. ${lv+1}" aria-label="Подарок за уровень ${lv+1}" autocomplete="off"><button type="submit">Записать</button></div></form>`;
+}
+async function findGifts(){
+  if(!state.prefs){openPrefs();return}
+  if(!BOT||typeof fetchGifts!=="function"){toast("Подбор реальных подарков работает в боте в Телеграме.");return}
+  giftBusy=true;giftIdeas=null;render();
+  try{giftIdeas=await fetchGifts(lvlOf()+1);if(!giftIdeas.length)toast("Не нашёл. Попробуй ещё раз.")}
+  catch(e){toast("Не получилось найти. Попробуй позже.")}
+  giftBusy=false;render();
+}
 function render(){
   renderReward();renderHead();
   $("view").innerHTML={today:viewToday,day:viewDay,gym:viewGym,prog:viewProg}[tab]();
@@ -618,6 +653,10 @@ document.addEventListener("click",e=>{
   if(t.dataset.start){startTask(t.dataset.start);return}
   if(t.dataset.focus){openFocus();return}
   if(t.dataset.game){askGame();return}
+  if(t.dataset.restend){endRest();return}
+  if(t.dataset.gifts){findGifts();return}
+  if(t.dataset.prefs){openPrefs();return}
+  if(t.dataset.gpick){const g=giftIdeas[+t.dataset.gpick],l=lvlOf()+1;mutate(()=>{state.gifts=Object.assign({},state.gifts||{},{[l]:(g.title+(g.where?" · "+g.where:"")).slice(0,80)})});giftIdeas=null;render();toast("Подарок за уровень "+l+": "+g.title);return}
   if(t.dataset.proof){toast("Открой чат с ботом и кинь пруф туда.");try{window.Telegram&&Telegram.WebApp.close()}catch(_){}return}
   if(t.id==="smoke"){const d=dayOf(key());mutate(()=>{if(!d.smokes)d.firstSmoke=hhmm();d.smokes=(d.smokes||0)+1});return}
   const d=dayOf(key());
@@ -633,6 +672,7 @@ document.addEventListener("submit",e=>{
   if(kind==="today"||kind==="tomorrow"){const v=f.t.value.trim();if(!v)return;const dd=dayOf(kind==="today"?key():shift(key(),1));
     const c={id:"c"+Date.now().toString(36),name:v.slice(0,80),dur:parseInt(f.dur.value,10)||30};if(f.at.value)c.at=f.at.value;
     mutate(()=>dd.custom.push(c));toast(kind==="today"?(c.at?"Поставил на "+c.at+", остальное сдвинется":"Добавил, план пересчитан"):"Добавил на завтра")}
+  if(kind==="gift"){const v=f.t.value.trim();if(!v)return;const l=lvlOf()+1;mutate(()=>{state.gifts=Object.assign({},state.gifts||{},{[l]:v.slice(0,80)})});toast("Подарок за уровень "+l+" записан");f.reset();return}
   if(kind==="weight"){const kg=parseFloat(f.t.value.replace(",","."));if(!(kg>30&&kg<250)){toast("Напиши вес числом, например 82.5");return}
     mutate(()=>{state.body=state.body.filter(b=>b.d!==key());state.body.push({d:key(),kg:Math.round(kg*10)/10})});toast("Вес записан")}
   if(kind==="lift"){const ex=f.ex.value.trim(),kg=parseFloat(f.kg.value.replace(",",".")),reps=parseInt(f.reps.value,10);
@@ -646,19 +686,23 @@ document.addEventListener("submit",e=>{
 /* ---------- «+»: добавление по окошкам ---------- */
 let W=null;
 const STEPS=["name","when","time","dur"];
+const PSTEPS=["pcity","pbudget","plikes","pfood","pmore"];
+const LIKES=["Вкусная еда","Одежда и кроссовки","Игры и скины","Гаджеты","Развлечения","Спорт и здоровье","Поездки","Уход и барбер"];
+const FOODS=["Бургеры","Суши","Донер и шаурма","Пицца","Стейки","Азиатская","Домашняя","Сладкое"];
+function openPrefs(){const P=state.prefs||{};W={step:"pcity",prefs:{city:P.city||"Dronten",budget:P.budget||25,likes:(P.likes||[]).slice(),foods:(P.foods||[]).slice(),more:P.more||""}};renderSheet()}
 function openSheet(){W={step:"menu",name:"",date:key(),at:"",dur:30};renderSheet()}
 function closeSheet(){W=null;$("sheet").hidden=true;$("sheet").innerHTML=""}
 function wDate(){return W.date===key()?"сегодня":W.date===shift(key(),1)?"завтра":new Date(W.date+"T12:00:00").toLocaleDateString("ru-RU",{weekday:"long",day:"numeric",month:"long"})}
 function renderSheet(){
-  const el=$("sheet");el.hidden=false;const i=STEPS.indexOf(W.step);
-  const dots=i>=0?`<div class="dots">${STEPS.map((_,j)=>`<i class="${j<=i?"on":""}"></i>`).join("")}</div>`:"<span></span>";
+  const el=$("sheet");el.hidden=false;const SS=PSTEPS.includes(W.step)?PSTEPS:STEPS,i=SS.indexOf(W.step);
+  const dots=i>=0?`<div class="dots">${SS.map((_,j)=>`<i class="${j<=i?"on":""}"></i>`).join("")}</div>`:"<span></span>";
   const top=`<div class="sbar">${i>0?`<button type="button" class="x" data-w="back" aria-label="Назад">${IC.back}</button>`:"<span style=\"width:36px\"></span>"}${dots}<button type="button" class="x" data-w="close" aria-label="Закрыть">${IC.x}</button></div>`;
   const pr=(v,cur)=>`aria-pressed="${v===cur}"`;
   let body="";
   if(W.step==="menu")body=`<h2>Что добавить?</h2><div class="menu">
     <button type="button" class="opt" data-w="go:name">${IC.later}<span>Дело<small>На сегодня, завтра или любой день</small></span></button>
     <button type="button" class="opt" data-w="go:weight">${IC.shield}<span>Вес тела<small>Раз в неделю, утром до завтрака</small></span></button>
-    <button type="button" class="opt" data-w="game">${IC.chest}<span>Катка в Доту<small>45 минут, после видео. План сдвинется</small></span></button>
+    <button type="button" class="opt" data-w="game">${IC.chest}<span>Отдых<small>Дота, ролики, что угодно. С таймером</small></span></button>
     <button type="button" class="opt" data-w="go:lift">${IC.star}<span>Подход в зале<small>Упражнение, вес и повторы</small></span></button></div>`;
   if(W.step==="name")body=`<h2>Что нужно сделать?</h2><form data-wf="name"><input name="v" maxlength="80" placeholder="Например: отвезти Audi механику" value="${esc(W.name)}" autocomplete="off" aria-label="Что нужно сделать"></form>
     <button type="button" class="goldbtn" data-w="next">Дальше</button>`;
@@ -676,6 +720,12 @@ function renderSheet(){
       ${[15,30,45,60,90,120].map(m=>`<button type="button" class="opt" data-w="dur:${m}" ${pr(W.dur,m)}>${durTxt(m)}</button>`).join("")}</div>
       <button type="button" class="goldbtn" data-w="save">Добавить в план</button>`;
   if(W.step==="weight")body=`<h2>Вес тела</h2><form data-wf="weight"><input name="v" inputmode="decimal" placeholder="82.5" aria-label="Вес, кг" autocomplete="off"></form><button type="button" class="goldbtn" data-w="saveweight">Записать</button>`;
+  const PR=W.prefs||{},tog=(arr,v)=>`aria-pressed="${arr.includes(v)}"`;
+  if(W.step==="pcity")body=`<h2>Где ты живёшь?</h2><p class="q">Чтобы искать подарки и места рядом.</p><form data-wf="p"><input name="v" maxlength="40" value="${esc(PR.city)}" placeholder="Город" autocomplete="off" aria-label="Город"></form><button type="button" class="goldbtn" data-w="pnext">Дальше</button>`;
+  if(W.step==="pbudget")body=`<h2>Бюджет на подарок за уровень</h2><p class="q">Уровень берётся примерно за 2–3 хороших дня.</p><div class="opts">${[10,25,50,100].map(b=>`<button type="button" class="opt" data-w="pb:${b}" aria-pressed="${PR.budget===b}">до €${b}</button>`).join("")}</div>`;
+  if(W.step==="plikes")body=`<h2>Что тебя реально радует?</h2><p class="q">Выбери всё, что подходит.</p><div class="opts">${LIKES.map(v=>`<button type="button" class="opt" data-w="pl:${esc(v)}" ${tog(PR.likes,v)}>${esc(v)}</button>`).join("")}</div><button type="button" class="goldbtn" data-w="pnext">Дальше</button>`;
+  if(W.step==="pfood")body=`<h2>Любимая еда?</h2><p class="q">Для подарков-ресторанов и доставки.</p><div class="opts">${FOODS.map(v=>`<button type="button" class="opt" data-w="pf:${esc(v)}" ${tog(PR.foods,v)}>${esc(v)}</button>`).join("")}</div><button type="button" class="goldbtn" data-w="pnext">Дальше</button>`;
+  if(W.step==="pmore")body=`<h2>Что ещё любишь?</h2><p class="q">Бренды, хобби, о чём мечтаешь. Можно пропустить.</p><form data-wf="p"><input name="v" maxlength="120" value="${esc(PR.more)}" placeholder="Например: Nike, картинг, Lexus, Dota" autocomplete="off" aria-label="Что ещё любишь"></form><button type="button" class="goldbtn" data-w="psave">Сохранить</button>`;
   if(W.step==="lift")body=`<h2>Подход в зале</h2><form data-wf="lift" style="display:flex;flex-direction:column;gap:8px"><input name="ex" list="exlist2" placeholder="Упражнение" aria-label="Упражнение" autocomplete="off">
       <datalist id="exlist2">${[...new Set(EXERCISES.concat(state.lifts.map(l=>l.ex).filter(Boolean)))].map(e=>`<option value="${esc(e)}">`).join("")}</datalist>
       <div style="display:flex;gap:8px"><input name="kg" inputmode="decimal" placeholder="Вес, кг" aria-label="Вес, кг"><input name="reps" inputmode="numeric" placeholder="Повторы" aria-label="Повторы"></div></form>
@@ -694,7 +744,12 @@ $("sheet").addEventListener("click",e=>{
   const b=e.target.closest("[data-w]");if(!b)return;e.stopPropagation();const a=b.dataset.w;
   if(a==="close")return closeSheet();
   if(a==="game"){closeSheet();return askGame()}
-  if(a==="back"){const i=STEPS.indexOf(W.step);W.step=i>0?STEPS[i-1]:"menu";return renderSheet()}
+  if(a==="back"){const SS=PSTEPS.includes(W.step)?PSTEPS:STEPS,i=SS.indexOf(W.step);W.step=i>0?SS[i-1]:(SS===PSTEPS?W.step:"menu");return renderSheet()}
+  if(a==="pnext"||a==="psave"){const v=$("sheet").querySelector("input[name=v]");if(v){if(W.step==="pcity")W.prefs.city=v.value.trim().slice(0,40)||"Dronten";if(W.step==="pmore")W.prefs.more=v.value.trim().slice(0,120)}
+    if(a==="psave"){const pr=W.prefs;closeSheet();mutate(()=>{state.prefs=pr});toast("Вкусы сохранены. Жми «Подобрать подарок».");return}
+    W.step=PSTEPS[PSTEPS.indexOf(W.step)+1];return renderSheet()}
+  if(a.startsWith("pb:")){W.prefs.budget=+a.slice(3);W.step="plikes";return renderSheet()}
+  if(a.startsWith("pl:")||a.startsWith("pf:")){const arr=a.startsWith("pl:")?W.prefs.likes:W.prefs.foods,v=a.slice(3),k=arr.indexOf(v);if(k>=0)arr.splice(k,1);else arr.push(v);return renderSheet()}
   if(a==="next")return wNext();
   if(a.startsWith("go:")){W.step=a.slice(3);return renderSheet()}
   if(a.startsWith("date:")){W.date=a.slice(5);W.step="time";return renderSheet()}
@@ -709,7 +764,7 @@ $("sheet").addEventListener("click",e=>{
     const L=liftsOf(ex),prev=L.length?Math.max(...L.map(e1rm)):0;closeSheet();
     mutate(()=>state.lifts.push({d:key(),ex:ex.slice(0,40),kg:Math.round(kg*10)/10,reps,clean:!dayOf(key()).firstSmoke}));toast(L.length&&kg*(1+reps/30)>prev?"Новый рекорд в «"+ex+"»":"Подход записан");return}
 });
-$("sheet").addEventListener("submit",e=>{e.preventDefault();e.stopPropagation();const f=e.target.dataset.wf;if(f==="name")wNext();if(f==="weight")$("sheet").querySelector("[data-w=saveweight]").click()});
+$("sheet").addEventListener("submit",e=>{e.preventDefault();e.stopPropagation();const f=e.target.dataset.wf;if(f==="p"){$("sheet").querySelector("[data-w=pnext],[data-w=psave]").click();return}if(f==="name")wNext();if(f==="weight")$("sheet").querySelector("[data-w=saveweight]").click()});
 $("plus").onclick=openSheet;
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&W)closeSheet()});
 
@@ -763,6 +818,7 @@ let st;
 save=()=>{clearTimeout(st);st=setTimeout(async()=>{
   try{const r=await fetch("api/state",{method:"POST",headers:hdr(),body:JSON.stringify(state)});
     if(r.ok){state=norm(await r.json());render()}}catch(e){}},500)};
+async function fetchGifts(level){const r=await fetch("api/gifts",{method:"POST",headers:hdr(),body:JSON.stringify({level})});const v=await r.json().catch(()=>({}));if(!r.ok)throw new Error(v.error||r.status);return v.ideas||[]}
 render();pull();
 document.addEventListener("visibilitychange",()=>{if(!document.hidden)pull()});
 if(tg)tg.onEvent("activated",pull);

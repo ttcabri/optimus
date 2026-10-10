@@ -105,6 +105,17 @@ def quest_messages(day: dict, now_min: int, today: str, wd: int) -> list[str]:
 
     if "wake" not in day.get("done", []) and quest.to_min(P["wake"]) + 15 <= now_min < quest.to_min("12:00"):
         once("wake", "☀️ Подъём. Отметь в квесте, и день пересчитается от сейчас.")
+    # отдых закончился: сразу говорим, что дальше
+    for start, mins in quest.rests_of(day):
+        end = start + mins
+        if end <= now_min < end + 6:
+            nxt = next((it for it in quest.build_plan(day, now_min, wd)["items"] if not it.get("game") and not it.get("gap")), None)
+            once(f"rest:{start}", "⏰ Отдых всё." + (f" Пора: <b>{nxt['name']}</b>, до {quest.hm(nxt['end'])}." if nxt else ""))
+            if nxt:
+                _sent.add(f"{today}:start:{nxt['id']}")
+    rest_total = sum(min(m, max(0, now_min - s)) for s, m in quest.rests_of(day))
+    if rest_total >= 150:
+        once("rest-total", f"🛑 Отдыха сегодня уже {rest_total // 60} ч {rest_total % 60} мин. Хватит, возвращайся к плану.")
     p = quest.build_plan(day, now_min, wd)
     first = next((it for it in p["items"] if not it.get("game")), None)
     if first and first.get("started") and first.get("late", 0) >= 10:
