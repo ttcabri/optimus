@@ -78,27 +78,56 @@ async def send_monday_focus(bot: Bot) -> None:
 
 # --- Квест дня: напоминания приходят только если квест ещё не закрыт ---
 
-QUEST_REMINDERS = [
-    # (час, минута, дни недели или None, проверка "уже сделано", текст)
-    (8, 50, None, lambda d: "cbr" in d["done"], "📘 08:50. Теория CBR, 45 минут. Скрин результата сюда."),
-    (9, 30, None, lambda d: quest.boss_done(d), "🎬 09:30. Видео. Открой квест и жми «Начать фокус». Телефон экраном вниз."),
-    (11, 30, None, lambda d: quest.boss_done(d), "🎬 11:30. Как видео? Если застрял, напиши, на каком шаге."),
-    (14, 0, None, lambda d: quest.boss_done(d), "⏰ 14:00, а видео нет. Без него сегодня максимум 1 катка."),
-    (15, 30, "mon,tue,wed,thu,fri,sat", lambda d: "gym" in d["done"] or "fight" in d["done"], "🥊 15:30. Тренировка. До неё без травы. Фото с тренировки сюда."),
-    (18, 45, None, lambda d: "eng" in d["done"], "🇬🇧 18:45. Английский, 45 минут. Кинь голосовое на английском, разберу."),
-]
+HINTS = {
+    "cbr": "Скрин результата сюда.",
+    "video": "Открой квест и жми «Начать фокус». Телефон экраном вниз.",
+    "gym": "До зала без травы. Селфи из зала сюда.",
+    "fight": "До тренировки без травы. Фото сюда.",
+    "eng": "Кинь голосовое на английском, разберу.",
+    "vid2": "Ссылку на второе видео сюда.",
+}
+_sent: set[str] = set()
 
 
-async def send_quest_reminder(bot: Bot, done_check, text: str) -> None:
+def quest_messages(day: dict, now_min: int, today: str, wd: int) -> list[str]:
+    """Что сказать сейчас по живому плану. Каждое сообщение один раз за день."""
+    out = []
+    if now_min < quest.to_min(quest.DAY_START) or now_min > quest.to_min(quest.DAY_END):
+        return out
+
+    def once(tag, text):
+        k = f"{today}:{tag}"
+        if k not in _sent:
+            _sent.add(k)
+            out.append(text)
+
+    if "wake" not in day.get("done", []) and now_min >= quest.to_min(quest.DAY_START) + 15:
+        once("wake", "☀️ Подъём. Отметь в квесте, и день пересчитается от сейчас.")
+    p = quest.build_plan(day, now_min, wd)
+    first = next((it for it in p["items"] if not it.get("game")), None)
+    if first and first.get("started") and first.get("late", 0) >= 10:
+        once(f"late:{first['id']}", f"⏱ «{first['name']}» идёт на {first['late']} мин дольше плана. Закрывай или режь лишнее, иначе вечер уедет.")
+    elif first and not first.get("started") and not first.get("minor") and first["start"] <= now_min + 2:
+        hint = HINTS.get(first["id"], "")
+        once(f"start:{first['id']}", f"▶️ Пора: <b>{first['name']}</b>, до {quest.hm(first['end'])}. {hint}".strip())
+    if p["over"]:
+        names = ", ".join(o["name"] for o in p["over"])
+        once("over:" + names, f"⚠️ До отбоя не влезает: {names}. Открой квест и реши: сократить, убрать или на завтра.")
+    return out
+
+
+async def send_quest_tick(bot: Bot) -> None:
+    """Каждые 5 минут: сверка с живым планом."""
     try:
         day = await quest.get_day(TELEGRAM_USER_ID)
-        day.setdefault("done", [])
-        if done_check(day):
-            return
-        from handlers.proof import quest_keyboard
-        await bot.send_message(TELEGRAM_USER_ID, text, reply_markup=quest_keyboard())
+        n = quest.now()
+        msgs = quest_messages(day, n.hour * 60 + n.minute, quest.today_key(), quest.js_weekday())
+        if msgs:
+            from handlers.proof import quest_keyboard
+            for m in msgs:
+                await bot.send_message(TELEGRAM_USER_ID, m, reply_markup=quest_keyboard())
     except Exception as e:
-        logger.error(f"Quest reminder error: {e}")
+        logger.error(f"Quest tick error: {e}")
 
 
 async def send_quest_night(bot: Bot) -> None:
@@ -162,15 +191,8 @@ def setup_scheduler(bot: Bot) -> AsyncIOScheduler:
         kwargs={"bot": bot}
     )
 
-    # Квест дня
-    for hour, minute, days, check, text in QUEST_REMINDERS:
-        trigger = {"hour": hour, "minute": minute}
-        if days:
-            trigger["day_of_week"] = days
-        scheduler.add_job(
-            send_quest_reminder, "cron", **trigger,
-            kwargs={"bot": bot, "done_check": check, "text": text},
-        )
+    # Квест дня: живой план, проверка каждые 5 минут
+    scheduler.add_job(send_quest_tick, "cron", minute="*/5", kwargs={"bot": bot})
     scheduler.add_job(send_quest_night, "cron", hour=22, minute=30, kwargs={"bot": bot})
     scheduler.add_job(send_weigh_in, "cron", day_of_week="mon", hour=8, minute=10, kwargs={"bot": bot})
 
