@@ -43,11 +43,9 @@ def hhmm() -> str:
 
 
 def training_id(weekday: int | None = None) -> str | None:
-    """Пн, вт, чт, пт = зал. Ср, сб = единоборства. Вс = отдых."""
+    """Зал пн–сб, воскресенье отдых."""
     w = now().weekday() if weekday is None else weekday
-    if w == 6:
-        return None
-    return "fight" if w in (2, 5) else "gym"
+    return None if w == 6 else "gym"  # зал пн–сб, вс отдых
 
 
 def _day(state: dict, key: str) -> dict:
@@ -297,8 +295,7 @@ PLAN_QUESTS = [
     ("cbr", "Теория на права", 45, None, None, False),
     ("video", "Видео", 110, None, None, False),
     ("lunch", "Обед", 30, None, None, True),
-    ("gym", "Зал", 120, [1, 2, 4, 5], None, False),
-    ("fight", "Единоборства", 120, [3, 6], None, False),
+    ("gym", "Зал", 120, [1, 2, 3, 4, 5, 6], None, False),
     ("walk", "Прогулка", 45, [0], None, False),
     ("_custom", "", 0, None, None, False),
     ("vid2", "Бонус: второе видео", 110, None, None, False),

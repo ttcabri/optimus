@@ -244,8 +244,7 @@ const QUESTS=[
   {id:"cbr",name:"Теория на права",sub:"TheorieExamen.nl: урок и тест",botSub:"TheorieExamen.nl. Скрин результата в бот",dur:45,xp:40,req:1,proof:1},
   {id:"video",name:"Видео",kind:"video",dur:110,req:1},
   {id:"lunch",name:"Обед",sub:"Разогреть заготовку",dur:30,xp:15,minor:1,until:"16:00"},
-  {id:"gym",name:"Зал",sub:"С дорогой. Веса запиши во вкладке «Зал»",botSub:"С дорогой. Селфи из зала в бот",dur:120,xp:50,req:1,proof:1,days:[1,2,4,5],train:1},
-  {id:"fight",name:"Единоборства",sub:"С дорогой",botSub:"С дорогой. Фото с тренировки в бот",dur:120,xp:50,req:1,proof:1,days:[3,6],train:1},
+  {id:"gym",name:"Зал",sub:"С дорогой. Веса запиши во вкладке «Зал»",botSub:"С дорогой. Селфи из зала в бот",dur:120,xp:50,req:1,proof:1,days:[1,2,3,4,5,6],train:1},
   {id:"walk",name:"Прогулка",sub:"День восстановления",dur:45,xp:20,days:[0]},
   {id:"_custom"},
   {id:"vid2",name:"Бонус: второе видео",sub:"Бонус +100 XP",botSub:"Бонус +100 XP. Ссылку кинь боту",dur:110,xp:100,proof:1,kind:"bonus",opt:1},
@@ -296,7 +295,7 @@ function dayOf(k){const d=state.days[k]||(state.days[k]={});d.done=d.done||[];d.
 const peek=k=>state.days[k];
 const has=(d,id)=>!!d&&(d.done||[]).includes(id);
 const bossDone=d=>!!d&&BOSS_IDS.every(b=>has(d,b));
-const trainOf=k=>{const w=dow(k);return w===0?null:([3,6].includes(w)?"fight":"gym")};
+const trainOf=k=>dow(k)===0?null:"gym"; // зал пн–сб, вс отдых
 const subOf=q=>BOT&&q.botSub?q.botSub:(q.sub||"");
 const locked=q=>BOT&&q.proof;
 
@@ -497,7 +496,8 @@ function planRow(d,it,opts={}){
   const sub=q.kind==="video"?`${BOSS_IDS.filter(b=>has(d,b)).length} из 5 шагов · ${durTxt(durOf(d,q))}`:(it.late&&it.started?`Сверх плана ${it.late} мин`:subOf(q));
   const tag=q.kind==="video"?"data-tab-go=\"today\"":`data-t="${esc(q.id)}"`;
   const go=!it.started&&!it.anchor?(q.kind==="video"?`<button type="button" class="x" data-focus="1" aria-label="Делать видео сейчас">${IC.play}</button>`:`<button type="button" class="x" data-start="${esc(q.id)}" aria-label="Делать сейчас">${IC.play}</button>`):"";
-  const extra=go+(q.custom&&opts.edit?`<button type="button" class="x" data-later="${esc(q.id)}" aria-label="Перенести на завтра">${IC.later}</button><button type="button" class="x" data-del="${esc(q.id)}" aria-label="Удалить">${IC.x}</button>`:"");
+  const skipB=!q.custom&&!q.penalty&&q.kind!=="video"&&!it.anchor?`<button type="button" class="x" data-skip="${esc(q.id)}" aria-label="Убрать на сегодня">${IC.x}</button>`:"";
+  const extra=go+skipB+(q.custom&&opts.edit?`<button type="button" class="x" data-later="${esc(q.id)}" aria-label="Перенести на завтра">${IC.later}</button><button type="button" class="x" data-del="${esc(q.id)}" aria-label="Удалить">${IC.x}</button>`:"");
   return `<div style="display:flex;gap:4px;align-items:center"><button type="button" class="row${q.kind==="video"?" boss":""}${it.anchor?" anchor":""}" ${tag}><span class="tm" style="${it.late?"color:var(--red)":""}">${hm(it.start)}<small>${hm(it.end)}</small></span><span class="chk"></span><span class="nm"><b>${esc(q.name)}${it.anchor?'<span class="pin">ЯКОРЬ</span>':""}</b><small>${esc(sub)}</small></span>${right}</button>${extra}</div>`;
 }
 function doneRow(d,q){
@@ -600,7 +600,7 @@ document.addEventListener("click",e=>{
   const d=dayOf(key());
   if(t.dataset.cut){const q=findQ(t.dataset.cut);mutate(()=>{d.dur[t.dataset.cut]=Math.max(15,Math.round(durOf(d,q)/2))});toast("Сократил вдвое");return}
   if(t.dataset.skip){const id=t.dataset.skip,c=d.custom.find(x=>x.id===id);
-    mutate(()=>{if(c){d.custom=d.custom.filter(x=>x!==c);(d.del=d.del||[]).push(id);dayOf(shift(key(),1)).custom.push(c)}else d.skip.push(id)});toast(c?"Перенёс на завтра":"Убрал на сегодня");return}
+    mutate(()=>{if(c){d.custom=d.custom.filter(x=>x!==c);(d.del=d.del||[]).push(id);dayOf(shift(key(),1)).custom.push(c)}else d.skip.push(id)});toast(c?"Перенёс на завтра":"Убрал на сегодня. План пересчитан");return}
   if(t.dataset.del){mutate(()=>{d.custom=d.custom.filter(c=>c.id!==t.dataset.del);d.done=d.done.filter(x=>x!==t.dataset.del);(d.del=d.del||[]).push(t.dataset.del)});return}
   if(t.dataset.later){const c=d.custom.find(c=>c.id===t.dataset.later);if(!c)return;mutate(()=>{d.custom=d.custom.filter(x=>x!==c);(d.del=d.del||[]).push(c.id);dayOf(shift(key(),1)).custom.push(c)});toast("Перенёс на завтра");return}
   if(t.dataset.delon){const[kk,id]=t.dataset.delon.split("|"),dt=dayOf(kk);mutate(()=>{dt.custom=dt.custom.filter(c=>c.id!==id);(dt.del=dt.del||[]).push(id)});return}
