@@ -826,7 +826,7 @@ function dayLog(k){const d=peek(k);if(!d)return [];const out=[];
 let histOpen=null;
 function viewHist(){const k=key(),ks=Object.keys(state.days).filter(x=>x<=k&&dayLog(x).length).sort().reverse().slice(0,60);
   if(!ks.length)return '<p class="empty" style="padding:0 20px">Пока пусто.</p>';
-  return `<div class="sec" style="margin-top:4px"><h3>Все дни</h3><span>${closedStreak()} ${dayW(closedStreak())} подряд всё главное</span></div>`+ks.map(x=>{const L=dayLog(x),R=reqs(x),cl=dayClosed(x),o=histOpen===x||(histOpen===null&&x===ks[0]);
+  return ks.map(x=>{const L=dayLog(x),R=reqs(x),cl=dayClosed(x),o=histOpen===x||(histOpen===null&&x===ks[0]);
     const lbl=x===k?"Сегодня":new Date(x+"T12:00:00").toLocaleDateString("ru-RU",{weekday:"short",day:"numeric",month:"long"});
     return `<div class="hday"><button type="button" data-hday="${x}" aria-expanded="${o}"><span class="nm"><b>${esc(lbl)}</b><br><small>${R.length?(cl?"всё главное закрыто":R.filter(r=>r.t).length+" из "+R.length+" главных"):""}${debtOf(x)?" · штрафной":""}</small></span><span class="rs${cl?" ok":""}">${cl?IC.check:""}</span></button>
       ${o?L.map(e=>`<div class="hev ${e.c}"><time>${esc(e.t)}</time><span>${esc(e.n)}</span><em>${e.m?durTxt(e.m):""}</em></div>`).join("")+(x<k?R.filter(r=>!r.t).map(r=>`<div class="hev skip"><time>✕</time><span>${esc(r.name)}</span><em>не сделано</em></div>`).join(""):""):""}</div>`}).join("")}
@@ -835,7 +835,7 @@ const notifyOn=k=>((state.notify||{})[k])!==false;
 let choreEdit=false,setSub="",rolesOpen=false,homeSeg="food",foodCat="fridge",cookIdeas=null,cookBusy=false,meSeg="goal";
 const WD=["Вс","Пн","Вт","Ср","Чт","Пт","Сб"],WD_ORDER=[1,2,3,4,5,6,0];
 const daysTxt=it=>!it.days||!it.days.length||it.days.length===7?"каждый день":it.days.length===6?"кроме "+WD[[0,1,2,3,4,5,6].find(x=>!it.days.includes(x))].toLowerCase():WD_ORDER.filter(x=>it.days.includes(x)).map(x=>WD[x].toLowerCase()).join(", ");
-const SET_T={profile:"Профиль",routine:"Распорядок",pen:"Штраф",notify:"Уведомления",voice:"Голосовые ответы",memory:"Память бота"};
+const SET_T={hist:"История",profile:"Профиль",routine:"Распорядок",pen:"Штраф",notify:"Уведомления",voice:"Голосовые ответы",memory:"Память бота"};
 const VOICE=[["text","Только текстом"],["voice","Только голосом"],["both","Голосом и текстом"]];
 const voiceMode=()=>{const st=state.settings||{};return st.reply||(st.voice===false?"text":"both")};
 const srow=(attr,title,val)=>`<button type="button" class="hrow go" ${attr}><span class="nm"><b>${esc(title)}</b></span>${val!=null&&val!==""?`<span class="val">${esc(val)}</span>`:""}</button>`;
@@ -848,6 +848,7 @@ function viewSet(){const P=prof(),pen=P.penalty,pi=penItem(),on=NOTIFY.filter(([
       <div class="hrow"><span class="nm"><b>Награда дня</b><small>за все главные дела</small></span><input class="gnum" style="width:150px" data-pf="reward" value="${esc(P.reward||"")}" maxlength="30" aria-label="Награда дня"></div></div>
     <div class="list" style="margin-top:12px">${srow('data-prefs="1"',"Вкусы для подарков",state.prefs?[state.prefs.city,"до €"+state.prefs.budget].filter(Boolean).join(" · "):"не заполнено")}</div>`;
   if(setSub==="routine")return routineCard();
+  if(setSub==="hist")return viewHist();
   if(setSub==="pen"){const mains=ritems().filter(it=>it.main);
     return `<div class="list"><div class="hrow"><span class="nm"><b>Провал, если не сделано</b></span><select data-pen="task" aria-label="Штрафное дело"><option value="">выключен</option>${mains.map(it=>`<option value="${esc(it.id)}"${pen&&pen.task===it.id?" selected":""}>${esc(it.name)}</option>`).join("")}</select></div>
       ${pen?`<div class="hrow"><span class="nm"><b>Штраф, €</b></span><input class="gnum" data-pen="fine" inputmode="numeric" value="${pen.fine||0}" aria-label="Штраф в евро"></div><div class="hrow"><span class="nm"><b>Куда переводить</b></span><input class="gnum" style="width:150px" data-pen="to" value="${esc(pen.to||"")}" maxlength="30" aria-label="Куда переводить"></div>`:""}</div>
@@ -859,7 +860,7 @@ function viewSet(){const P=prof(),pen=P.penalty,pi=penItem(),on=NOTIFY.filter(([
     ${state.home&&state.home.address?`<div class="glabel">Дом на карте</div><div class="list"><div class="hrow"><span class="nm"><b style="font-weight:600">${esc(state.home.address)}</b></span></div></div>`:""}
     <p class="empty" style="padding:8px 20px 0">Править: скажи боту «забудь …» или «запомни …».</p>`;
   return `<div class="glabel">Ты</div><div class="list">${srow('data-sset="profile"',"Профиль",[P.name,P.wake+"–"+P.bed].filter(Boolean).join(" · "))}</div>
-    <div class="glabel">День</div><div class="list">${srow('data-sset="routine"',"Распорядок",ritems().length+" дел")}${srow('data-sset="pen"',"Штраф",pi?pi.name+(pen.fine?" · €"+pen.fine:""):"выключен")}${srow('data-goalnew="1"',"Цель",GOAL()?GOAL().name:"не задана")}</div>
+    <div class="glabel">День</div><div class="list">${srow('data-sset="routine"',"Распорядок",ritems().length+" дел")}${srow('data-sset="pen"',"Штраф",pi?pi.name+(pen.fine?" · €"+pen.fine:""):"выключен")}${srow('data-goalnew="1"',"Цель",GOAL()?GOAL().name:"не задана")}${srow('data-sset="hist"',"История",closedStreak()?closedStreak()+" "+dayW(closedStreak())+" подряд всё закрыто":"по дням")}</div>
     <div class="glabel">Бот</div><div class="list">${srow('data-sset="notify"',"Уведомления",on+" из "+NOTIFY.length)}${srow('data-sset="voice"',"Голосовые ответы",(VOICE.find(([k])=>k===voiceMode())||[,""])[1].toLowerCase())}${srow('data-sset="memory"',"Память",(notes.length+ins.length)+" записей")}</div>`}
 function routineCard(){
   return `<div class="list">${ritems().map(it=>`<button type="button" class="hrow go" data-redit="${esc(it.id)}"><span class="nm"><b>${esc(it.name)}${it.main?' <span class="pin">ГЛАВНОЕ</span>':""}</b><small>${durTxt(it.dur||30)} · ${daysTxt(it)}${it.at?" · "+(it.at==="end"?"перед сном":"в "+it.at):""}${it.proof||(it.steps||[]).some(x=>x.proof)?" · пруф":""}${it.goal==="body"?" · тело":""}${GOAL()&&GOAL().habit===it.id?" · цель":""}</small></span></button>`).join("")}</div>
@@ -921,15 +922,14 @@ function viewHome(){
     ${homeSeg==="people"?`<div class="subh"><button type="button" class="bk" data-gear="1" aria-label="Назад">${IC.back}</button><h2>Жильцы и правила</h2></div>`:`<div class="segc" role="tablist" style="grid-template-columns:repeat(4,minmax(0,1fr))">${segs.map(([id,t])=>`<button type="button" role="tab" data-hseg="${id}" aria-selected="${homeSeg===id}">${t}</button>`).join("")}</div>`}${body}`;
 }
 function viewMe(){
-  if(!["set","body","hist"].includes(meSeg))meSeg="goal";
-  const segs=[["goal",GOAL()?GOAL().name:"Цель"],["body","Тело"],["hist","История"]];
+  if(!["set","body"].includes(meSeg))meSeg="goal";
+  const segs=[["goal",GOAL()?GOAL().name:"Цель"],["body","Тело"]];
   let body="";
-  if(meSeg==="hist")body=viewHist();
   if(meSeg==="goal")body=viewGoal();
   if(meSeg==="body")body=viewGym();
   if(meSeg==="set")body=viewSet();
   return (meSeg==="set"?`<div class="subh"><button type="button" class="bk" data-setback="1" aria-label="Назад">${IC.back}</button><h2>${esc(SET_T[setSub]||"Настройки")}</h2></div>`
-    :`<div class="segc" role="tablist" style="grid-template-columns:repeat(3,minmax(0,1fr))">${segs.map(([id,t])=>`<button type="button" role="tab" data-meseg="${id}" aria-selected="${meSeg===id}">${esc(t)}</button>`).join("")}</div>`)+body;
+    :`<div class="segc" role="tablist" style="grid-template-columns:repeat(2,minmax(0,1fr))">${segs.map(([id,t])=>`<button type="button" role="tab" data-meseg="${id}" aria-selected="${meSeg===id}">${esc(t)}</button>`).join("")}</div>`)+body;
 }
 function rungState(r){const open=rungOpen(r),claimed=rungClaimed(r);
   return claimed?"got":open?"open":"locked"}
