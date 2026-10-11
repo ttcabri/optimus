@@ -187,6 +187,8 @@ def run(state: dict, name: str, a: dict) -> str | None:
             if a.get("value") is not None:
                 G = dict(state.get("goals") or {})
                 G["subs" if g.get("kind") == "chan" else "val"] = a["value"]
+                if g.get("kind") != "chan":  # история цифры для графика
+                    G["valLog"] = [x for x in G.get("valLog") or [] if x.get("d") != today][-59:] + [{"d": today, "v": a["value"]}]
                 state["goals"] = G
         state["profile"] = dict(state.get("profile") or {}, routine=P["routine"], penalty=P.get("penalty"), goal=g, u=int(time.time() * 1000))
         return f"цель: {g['name']}" + (f", считаем {g['unit']}" if g.get("unit") else "") + (f", привычка {g['habit']}" if g.get("habit") else "") if g else "цель убрана"
