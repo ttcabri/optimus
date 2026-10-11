@@ -1,0 +1,92 @@
+"""Утренняя сводка: одно сообщение (текст + голос) вместо россыпи утренних уведомлений."""
+import logging
+
+from aiogram import Bot
+from aiogram.types import BufferedInputFile
+
+import database
+from services import house, quest, theory
+
+logger = logging.getLogger(__name__)
+DAYS = ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"]
+
+
+def notify(state: dict) -> dict:
+    """Какие уведомления присылать. Меняются в приложении: Я → Настройки."""
+    n = {"morning": True, "voice": True, "pora": True, "rest": True, "evening": True, "week": True}
+    n.update({k: bool(v) for k, v in (state.get("notify") or {}).items() if k in n})
+    return n
+
+
+def facts(state: dict, day: dict, uid) -> str:
+    """Голые факты на сегодня. Из них модель пишет живой текст, а если модель упала, шлём их как есть."""
+    now = quest.now()
+    p = quest.build_plan(day, max(now.hour * 60 + now.minute, quest.to_min(quest.prof(day)["wake"])))
+    lines = [f"{DAYS[now.weekday()].capitalize()}, {now.strftime('%d.%m')}."]
+    if day.get("_debt"):
+        lines.append("Штрафной день: два видео и €5 в safemoney.")
+    items = [it for it in p["items"] if not it.get("game")][:6]
+    if items:
+        lines.append("План: " + "; ".join(f"{quest.hm(it['start'])} {it['name']}" for it in items))
+    if p["over"]:
+        lines.append("Не влезает: " + ", ".join(o["name"] for o in p["over"]))
+    lines.append("Тема теории: " + theory.stage_name(day.get("_theory_i", 0)))
+    h = state.get("house")
+    if isinstance(h, dict):
+        exp = house.expiring(h)
+        if exp:
+            lines.append("Скоро испортится: " + ", ".join(x["name"] for x in exp))
+        free = [c["name"] for c in house.due_chores(h) if c.get("who") is None]
+        if free:
+            lines.append("По дому пора, никто не взял: " + ", ".join(free))
+    if now.weekday() == 0:
+        lines.append("Понедельник: взвесься до завтрака и напиши «вес 82.5».")
+    streak, k = 0, now.date()
+    from datetime import timedelta
+    k -= timedelta(days=1)
+    while quest.boss_done(state.get("days", {}).get(k.strftime("%Y-%m-%d"))):
+        streak += 1
+        k -= timedelta(days=1)
+    lines.append(f"Серия дней с видео: {streak}.")
+    return "\n".join(lines)
+
+
+async def write(text_facts: str) -> str:
+    from services import claude
+    try:
+        r = await claude.client.messages.create(
+            model="claude-haiku-4-5", max_tokens=400,
+            messages=[{"role": "user", "content": (
+                "Ты помощник Андрея. Напиши ему утреннюю сводку на день по фактам ниже. "
+                "Бодро и по-дружески, по-русски, 5–8 коротких строк, без воды. Начни с короткого приветствия. "
+                "Главное: что сделать первым, ключевые дела дня по времени, что по дому, тема теории. "
+                "Одна фраза поддержки в конце, без пафоса. Без длинных тире, без markdown, можно 1–2 эмодзи.\n\n" + text_facts)}])
+        text = "".join(b.text for b in r.content if b.type == "text").strip()
+        return text or text_facts
+    except Exception as e:
+        logger.error(f"morning write error: {e}")
+        return "☀️ Доброе утро!\n" + text_facts
+
+
+async def maybe_send(bot: Bot, uid: int) -> None:
+    """Раз в день, после времени подъёма. Отметку храним в состоянии, чтобы после перезапуска не прислать дважды."""
+    state = await database.get_quest_state(uid)
+    n = notify(state)
+    today = quest.today_key()
+    day = state.get("days", {}).get(today) or {}
+    now = quest.now()
+    wake = quest.to_min(quest.prof(state)["wake"])
+    if not n["morning"] or day.get("mSent") or not (wake <= now.hour * 60 + now.minute < wake + 180):
+        return
+    state.setdefault("days", {}).setdefault(today, {})["mSent"] = True
+    await database.save_quest_state(uid, state)
+    full = await quest.get_day(uid)
+    text = await write(facts(state, full, uid))
+    from handlers.proof import quest_keyboard
+    if n["voice"]:
+        from services import tts
+        audio = await tts.speak(text)
+        if audio:
+            await bot.send_voice(uid, BufferedInputFile(audio, "morning.ogg"))
+    import html
+    await bot.send_message(uid, html.escape(text), reply_markup=quest_keyboard())

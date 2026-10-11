@@ -356,7 +356,7 @@ def merge_incoming(server: dict, incoming: dict) -> dict:
             if r.get("id") not in byid or r.get("sent"):
                 byid[r.get("id")] = r
         incoming["reminders"] = list(byid.values())
-    for k in ("prefs", "gifts", "claims", "goals"):
+    for k in ("prefs", "gifts", "claims", "goals", "notify", "tgoals"):
         if not incoming.get(k) and server.get(k):
             incoming[k] = server[k]
     if not incoming.get("profile") and server.get("profile"):
@@ -380,6 +380,8 @@ def merge_incoming(server: dict, incoming: dict) -> dict:
             iday["ev"] = sorted((iday.get("ev") or []) + [e for e in sday["ev"] if tuple(e) not in seen], key=lambda e: e[0])[-200:]
         if sday.get("span"):
             iday["span"] = {**sday["span"], **(iday.get("span") or {})}
+        if sday.get("mSent"):  # утренняя сводка уже ушла: не слать повторно из-за старой копии в приложении
+            iday["mSent"] = True
         # трава, отмеченная в боте
         if sday.get("smokes", 0) > iday.get("smokes", 0):
             iday["smokes"] = sday["smokes"]

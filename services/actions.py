@@ -90,6 +90,9 @@ TOOLS = [
     {"name": "house_note",
      "description": "Память ДОМА, общая для всех, кто там живёт: правила и факты о жилье (мусор вывозят по четвергам, стиралка в подвале, код домофона нет, хозяин такой-то). Личное об Андрее сюда не пиши, это remember. remove=true удаляет запись по тексту.",
      "input_schema": {"type": "object", "properties": {"text": {"type": "string"}, "remove": {"type": "boolean"}}, "required": ["text"]}},
+    {"name": "goal_flag",
+     "description": "Отметить разовый результат для целей: cbr = сдал теорию CBR, license = получил права, earned = первые деньги с YouTube, house = подписал договор на жильё. Только если он прямо сказал, что это произошло.",
+     "input_schema": {"type": "object", "properties": {"flag": {"type": "string", "enum": ["cbr", "license", "earned", "house"]}}, "required": ["flag"]}},
     {"name": "take_reward", "description": "Отметить, что Андрей взял награду дня. Только если он прямо сказал, что взял.",
      "input_schema": {"type": "object", "properties": {}}},
 ]
@@ -388,6 +391,14 @@ def run(state: dict, name: str, a: dict) -> str | None:
             if "договор" in res.lower() and a.get("done", True) is not False:
                 state["goals"] = dict(state.get("goals") or {}, house=True)  # цель «подписал договор» в Прогрессе
             return res
+
+    if name == "goal_flag":
+        f = a.get("flag")
+        if f not in ("cbr", "license", "earned", "house"):
+            return "нет такого флага"
+        state["goals"] = dict(state.get("goals") or {}, **{f: True})
+        return {"cbr": "отмечено: теория CBR сдана", "license": "отмечено: права получены",
+                "earned": "отмечено: первые деньги с YouTube", "house": "отмечено: договор на жильё"}[f] + ". Ступень с подарком открыта, если она есть."
 
     if name == "take_reward":
         if not td.get("smokes"):

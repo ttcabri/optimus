@@ -47,23 +47,24 @@ def quest_messages(day: dict, now_min: int, today: str, wd: int) -> list[str]:
             _sent.add(k)
             out.append(text)
 
-    if "wake" not in day.get("done", []) and quest.to_min(P["wake"]) + 15 <= now_min < quest.to_min("12:00"):
-        once("wake", "☀️ Подъём. Отметь в квесте, и день пересчитается от сейчас.")
+    n = day.get("_notify") or {}
+    pora, rest = n.get("pora", True), n.get("rest", True)
+    # подъём, холодильник и взвешивание теперь в утренней сводке (services/morning.py)
     # отдых закончился: сразу говорим, что дальше
-    for start, mins in quest.rests_of(day):
+    for start, mins in (quest.rests_of(day) if rest else []):
         end = start + mins
         if end <= now_min < end + 6:
             nxt = next((it for it in quest.build_plan(day, now_min, wd)["items"] if not it.get("game") and not it.get("gap")), None)
             once(f"rest:{start}", "⏰ Отдых всё." + (f" Пора: <b>{nxt['name']}</b>, до {quest.hm(nxt['end'])}." if nxt else ""))
             if nxt:
                 _sent.add(f"{today}:start:{nxt['id']}")
-    if day.get("_expiring") and now_min >= quest.to_min(P["wake"]) + 30:
-        once("fridge", "🧊 Скоро испортится: " + ", ".join(day["_expiring"]) + ". Съешь сегодня или пусти в заготовку.")
     rest_total = sum(min(m, max(0, now_min - s)) for s, m in quest.rests_of(day))
-    if rest_total >= 150:
+    if rest and rest_total >= 150:
         once("rest-total", f"🛑 Отдыха сегодня уже {rest_total // 60} ч {rest_total % 60} мин. Хватит, возвращайся к плану.")
     p = quest.build_plan(day, now_min, wd)
     first = next((it for it in p["items"] if not it.get("game")), None)
+    if not pora:
+        return out
     if first and first.get("started") and first.get("late", 0) >= 10:
         once(f"late:{first['id']}", f"⏱ «{first['name']}» идёт на {first['late']} мин дольше плана. Закрывай или режь лишнее, иначе вечер уедет.")
     elif first and not first.get("started") and (not first.get("minor") or str(first["id"]).startswith("ch_")) and first["start"] <= now_min + 2 \
@@ -82,7 +83,10 @@ def quest_messages(day: dict, now_min: int, today: str, wd: int) -> list[str]:
 async def send_quest_tick(bot: Bot) -> None:
     """Каждые 5 минут: сверка с живым планом."""
     try:
+        from services import morning
+        await morning.maybe_send(bot, TELEGRAM_USER_ID)
         day = await quest.get_day(TELEGRAM_USER_ID)
+        day["_notify"] = morning.notify(await database.get_quest_state(TELEGRAM_USER_ID))
         n = quest.now()
         msgs = quest_messages(day, n.hour * 60 + n.minute, quest.today_key(), quest.js_weekday())
         if msgs:
@@ -117,6 +121,9 @@ async def send_reminders(bot: Bot) -> None:
 async def send_quest_night(bot: Bot) -> None:
     """22:30 — итог дня и экран выкл."""
     try:
+        from services import morning
+        if not morning.notify(await database.get_quest_state(TELEGRAM_USER_ID))["evening"]:
+            return
         day = await quest.get_day(TELEGRAM_USER_ID)
         text = (
             "🌙 <b>22:30. Итог дня</b>\n\n" + quest.day_summary(day)
@@ -129,17 +136,12 @@ async def send_quest_night(bot: Bot) -> None:
         logger.error(f"Quest night error: {e}")
 
 
-async def send_weigh_in(bot: Bot) -> None:
-    """Понедельник 08:10 — взвешивание."""
-    try:
-        await bot.send_message(TELEGRAM_USER_ID, "⚖️ Понедельник. Встань на весы до завтрака и напиши: <code>вес 82.5</code>")
-    except Exception as e:
-        logger.error(f"Weigh-in error: {e}")
-
-
 async def send_quest_week(bot: Bot) -> None:
     """Воскресенье 21:00 — итог недели по квесту."""
     try:
+        from services import morning
+        if not morning.notify(await database.get_quest_state(TELEGRAM_USER_ID))["week"]:
+            return
         state = await database.get_quest_state(TELEGRAM_USER_ID)
         all_days = state.get("days", {})
         today = quest.now().date()
@@ -172,6 +174,5 @@ def setup_scheduler(bot: Bot) -> AsyncIOScheduler:
     scheduler.add_job(send_reminders, "cron", minute="*", kwargs={"bot": bot})
     scheduler.add_job(send_quest_night, "cron", hour=22, minute=30, kwargs={"bot": bot})
     scheduler.add_job(send_quest_week, "cron", day_of_week="sun", hour=21, minute=0, kwargs={"bot": bot})
-    scheduler.add_job(send_weigh_in, "cron", day_of_week="mon", hour=8, minute=10, kwargs={"bot": bot})
 
     return scheduler
