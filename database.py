@@ -49,6 +49,19 @@ CREATE TABLE IF NOT EXISTS quest_state (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Дом живёт отдельно от личного квеста: общий для всех участников
+CREATE TABLE IF NOT EXISTS households (
+    id TEXT PRIMARY KEY,
+    data TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS household_members (
+    telegram_id INTEGER PRIMARY KEY,
+    house_id TEXT,
+    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS weekly_commitments (
     id INTEGER PRIMARY KEY,
     telegram_id INTEGER,
@@ -274,13 +287,10 @@ async def get_commitments(telegram_id: int, week: str) -> list[aiosqlite.Row]:
 
 # --- quest_state (Квест дня, Mini App) ---
 
-async def get_quest_state(telegram_id: int) -> dict:
+async def _personal_state(db, telegram_id: int) -> dict:
     import json
-    async with aiosqlite.connect(DATABASE_PATH) as db:
-        cursor = await db.execute(
-            "SELECT state FROM quest_state WHERE telegram_id = ?", (telegram_id,)
-        )
-        row = await cursor.fetchone()
+    cursor = await db.execute("SELECT state FROM quest_state WHERE telegram_id = ?", (telegram_id,))
+    row = await cursor.fetchone()
     if row and row[0]:
         try:
             data = json.loads(row[0])
@@ -291,12 +301,91 @@ async def get_quest_state(telegram_id: int) -> dict:
     return {"days": {}}
 
 
-async def save_quest_state(telegram_id: int, state: dict) -> None:
+async def _write_personal(db, telegram_id: int, state: dict) -> None:
     import json
+    await db.execute(
+        "INSERT INTO quest_state (telegram_id, state, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) "
+        "ON CONFLICT(telegram_id) DO UPDATE SET state = excluded.state, updated_at = CURRENT_TIMESTAMP",
+        (telegram_id, json.dumps(state, ensure_ascii=False)),
+    )
+
+
+async def house_id_of(db, telegram_id: int) -> str | None:
+    cursor = await db.execute("SELECT house_id FROM household_members WHERE telegram_id = ?", (telegram_id,))
+    row = await cursor.fetchone()
+    return row[0] if row else None
+
+
+async def get_house(db, house_id: str) -> dict | None:
+    import json
+    cursor = await db.execute("SELECT data FROM households WHERE id = ?", (house_id,))
+    row = await cursor.fetchone()
+    try:
+        return json.loads(row[0]) if row and row[0] else None
+    except ValueError:
+        return None
+
+
+async def put_house(db, house_id: str, data: dict) -> None:
+    import json
+    await db.execute(
+        "INSERT INTO households (id, data, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) "
+        "ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = CURRENT_TIMESTAMP",
+        (house_id, json.dumps(data, ensure_ascii=False)),
+    )
+
+
+async def join_house(telegram_id: int, house_id: str) -> None:
     async with aiosqlite.connect(DATABASE_PATH) as db:
         await db.execute(
-            "INSERT INTO quest_state (telegram_id, state, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) "
-            "ON CONFLICT(telegram_id) DO UPDATE SET state = excluded.state, updated_at = CURRENT_TIMESTAMP",
-            (telegram_id, json.dumps(state, ensure_ascii=False)),
-        )
+            "INSERT INTO household_members (telegram_id, house_id) VALUES (?, ?) "
+            "ON CONFLICT(telegram_id) DO UPDATE SET house_id = excluded.house_id", (telegram_id, house_id))
+        await db.commit()
+
+
+async def get_quest_state(telegram_id: int) -> dict:
+    """Личный квест + дом, к которому человек привязан (дом хранится отдельно и общий для всех жильцов)."""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        state = await _personal_state(db, telegram_id)
+        hid = await house_id_of(db, telegram_id)
+        if not hid and isinstance(state.get("house"), dict):
+            # переезд со старого формата: дом лежал внутри личного состояния
+            hid = state["house"].get("id") or f"house_{telegram_id}"
+            if hid == "house_me":
+                hid = f"house_{telegram_id}"
+            state["house"]["id"] = hid
+            await put_house(db, hid, state["house"])
+            await db.execute("INSERT OR REPLACE INTO household_members (telegram_id, house_id) VALUES (?, ?)", (telegram_id, hid))
+            house_data = state.pop("house")
+            await _write_personal(db, telegram_id, state)
+            await db.commit()
+            state["house"] = house_data
+        elif hid:
+            state.pop("house", None)
+            h = await get_house(db, hid)
+            if h:
+                state["house"] = h
+        else:
+            state.pop("house", None)
+    if isinstance(state.get("house"), dict):
+        from services import house as house_svc
+        house_svc.get(state, telegram_id)  # нормализует поля и привязывает «me» к настоящему id
+    return state
+
+
+async def save_quest_state(telegram_id: int, state: dict) -> None:
+    """Личное пишем в quest_state, дом сливаем с сохранённым домом (его могли поменять другие жильцы)."""
+    from services import house as house_svc
+    state = dict(state)
+    incoming_house = state.pop("house", None)
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await _write_personal(db, telegram_id, state)
+        if isinstance(incoming_house, dict):
+            hid = await house_id_of(db, telegram_id)
+            if not hid:
+                hid = incoming_house.get("id") if incoming_house.get("id") not in (None, "house_me") else f"house_{telegram_id}"
+                await db.execute("INSERT OR REPLACE INTO household_members (telegram_id, house_id) VALUES (?, ?)", (telegram_id, hid))
+            stored = await get_house(db, hid)
+            merged = house_svc.merge(stored, dict(incoming_house, id=hid))
+            await put_house(db, hid, merged)
         await db.commit()
