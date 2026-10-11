@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 
 from services import quest
 
-CATS = {"fridge": "Холодильник", "pantry": "Припасы", "home": "Бытовое"}
+CATS = {"fridge": "Холодильник", "pantry": "Кладовка", "home": "Хозтовары"}
 LEVELS = {"ok": "есть", "low": "мало", "out": "нет"}
 
 # Сколько дней живёт в холодильнике после покупки (по умолчанию 5)

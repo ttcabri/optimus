@@ -35,7 +35,7 @@ button{cursor:pointer}
 .pills{display:flex;gap:8px;flex-shrink:0}
 .pill{display:flex;align-items:center;gap:6px;height:38px;white-space:nowrap;flex-shrink:0;padding:0 12px;border-radius:19px;background:var(--panel);border:1px solid var(--line2);font-family:var(--display);font-size:16px;color:var(--fg)}
 .pill svg{width:18px;height:18px}
-.pill.fire{color:#ff8a5c}.pill.fire.zero{color:var(--dim)}
+.pill.fire{color:#ff8a5c}.pill.gear{padding:0 10px;color:var(--muted)}.pill.gear.on{color:var(--gold);border-color:var(--gold)}.pill.fire.zero{color:var(--dim)}
 .pill.navplus{min-width:58px;display:grid;place-items:center;background:none;border:none;padding:0}
 .navplus span{width:54px;height:54px;margin-top:-22px;border-radius:50%;background:var(--gold);color:var(--ink);display:grid;place-items:center;box-shadow:0 6px 18px rgba(224,164,86,.3);border:4px solid #1c1511}
 .rqlist{display:flex;flex-direction:column;gap:6px}
@@ -212,8 +212,9 @@ nav.tabs .ico{position:relative;display:grid}
 .empty{font-size:13px;color:var(--dim);margin:0}
 
 nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:6;display:flex;justify-content:center;background:#1c1511;border-top:1px solid #33261f;padding:8px 4px calc(10px + env(safe-area-inset-bottom,0px))}
-nav.tabs .in{display:flex;justify-content:space-around;width:100%;max-width:520px}
-nav.tabs button{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:60px;min-height:48px;background:none;border:none;color:var(--dim);font-size:12px;font-weight:700;padding:0 2px}
+nav.tabs .in{display:grid;grid-template-columns:1fr 1fr auto 1fr 1fr;justify-items:center;width:100%;max-width:520px}
+nav.tabs .in [data-tab="me"]{grid-column:4 / span 2}
+nav.tabs button{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:72px;min-height:48px;background:none;border:none;color:var(--dim);font-size:12px;font-weight:700;padding:0 2px}
 nav.tabs button[aria-selected="true"]{color:var(--gold);font-weight:800}
 
 .focus{position:fixed;inset:0;z-index:20;background:#120d0b;display:flex;flex-direction:column;padding:calc(16px + env(safe-area-inset-top,0px)) 16px calc(24px + env(safe-area-inset-bottom,0px));overflow-y:auto}
@@ -251,9 +252,8 @@ nav.tabs button[aria-selected="true"]{color:var(--gold);font-weight:800}
 
 <nav class="tabs" aria-label="Разделы"><div class="in" role="tablist">
   <button type="button" role="tab" data-tab="today" aria-selected="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l3 6 6 1-4.5 4.5L18 20l-6-3-6 3 1.5-6.5L3 9l6-1z"/></svg>Сегодня</button>
-  <button type="button" role="tab" data-tab="chan" aria-selected="false"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="4"/><path d="M10 9.5v5l4.5-2.5z" fill="currentColor"/></svg>Канал</button>
-  <button type="button" class="navplus" id="plus" aria-label="Добавить"><span><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span></button>
   <button type="button" role="tab" data-tab="home" aria-selected="false"><span class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg><i class="badge" id="homebadge" hidden></i></span>Дом</button>
+  <button type="button" class="navplus" id="plus" aria-label="Добавить"><span><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span></button>
   <button type="button" role="tab" data-tab="me" aria-selected="false"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>Я</button>
 </div></nav>
 
@@ -444,7 +444,7 @@ function plan(k,extraGame){
 /* ---------- дом ---------- */
 // Хозяйство с участниками и должностями. Записи с id и u (время правки), удалённые id в del.
 // Бот сливает по u, так что правки из чата и из приложения не теряются.
-const HCATS={fridge:"Холодильник",pantry:"Припасы",home:"Бытовое"},HLVL={ok:"есть",low:"мало",out:"нет"};
+const HCATS={fridge:"Холодильник",pantry:"Кладовка",home:"Хозтовары"},HLVL={ok:"есть",low:"мало",out:"нет"};
 const SHELF=[["фарш",1],["рыба",1],["курин",2],["курица",2],["мясо",3],["говяд",3],["свинин",3],["заготов",3],["молоко",5],["кефир",5],["творог",5],["сметан",7],["йогурт",7],["ветчин",5],["колбас",7],["сыр",14],["яйц",21],["масло слив",21],["зелень",4],["салат",3],["овощ",5],["помидор",5],["огур",5],["фрукт",6],["банан",4]];
 const HOME_WORDS=["мыло","гель","порошок","бумаг","губк","шампун","зубн","средство","пакет","салфет","кондиционер","отбел","дезодор"];
 const guessCat=n=>{n=n.toLowerCase();return HOME_WORDS.some(w=>n.includes(w))?"home":SHELF.some(([w])=>n.includes(w))?"fridge":"pantry"};
@@ -572,14 +572,15 @@ function startTask(id){const d=dayOf(key());mutate(()=>{d.cur={id,at:hhmm()};log
 const nextStep=d=>VIDEO_STEPS.find(s=>!has(d,s.id));
 
 /* ---------- отрисовка ---------- */
+const GEAR='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>';
 const FIRE='<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 22c4.4 0 7.5-3 7.5-7.2 0-4.1-2.8-6.3-4.2-10.3-1.9 1.7-3 3.6-3.1 5.8-.9-1-1.6-2.2-1.8-3.9C7.4 8.4 4.5 11.3 4.5 14.8 4.5 19 7.6 22 12 22z"/></svg>';
-const TITLES={today:"Сегодня",chan:"Канал",home:"Дом",me:"Я"};
+const TITLES={today:"Сегодня",home:"Дом",me:"Я"};
 function renderReward(){
   const k=key(),d=dayOf(k),R=reqs(k),st=rewardState(k),n=R.filter(x=>x.t).length,vs=videoStreak();
   const sub=tab==="today"?new Date().toLocaleDateString("ru-RU",{weekday:"long",day:"numeric",month:"long"}):"";
   const leafTxt=st==="open"||st==="gold"?IC.check:`${n}/${R.length}`;
   $("appbar").innerHTML=`<div class="tt"><h1>${TITLES[tab]}</h1>${sub?`<span class="sub">${esc(sub)}</span>`:""}</div>
-    <div class="pills"><button type="button" class="pill fire${vs?"":" zero"}" data-tab-go="me" data-meseg="prog" aria-label="Серия ${vs} дней">${FIRE}${vs}</button>
+    <div class="pills">${tab==="home"||tab==="me"?`<button type="button" class="pill gear${(tab==="home"?homeSeg==="people":meSeg==="set")?" on":""}" data-gear="1" aria-label="${tab==="home"?"Жильцы и правила":"Настройки"}">${GEAR}</button>`:""}<button type="button" class="pill fire${vs?"":" zero"}" data-tab-go="me" data-meseg="prog" aria-label="Серия ${vs} дней">${FIRE}${vs}</button>
     <button type="button" class="pill leaf${st==="open"||st==="gold"?" open":""}${debtOf(k)&&!debtClosed(d)?" pen":""}" id="rewardpill" aria-label="Награда дня">${IC.leaf}${leafTxt}</button></div>`;
   if(!confirmPlay){$("confirm").innerHTML="";return}
   const a=plan(k),b=plan(k,restMin),nextReal=b.items.find(x=>x.q&&!x.started),newly=b.over.filter(o=>!a.over.some(x=>x.q.id===o.q.id));
@@ -727,20 +728,17 @@ function viewChan(){
   const goals=GOALS.filter(r=>r.grp==="Канал");
   return `<section class="hero"><div class="hl2"><span class="flame yt"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg></span><div><b>${subs.toLocaleString("ru-RU")}</b><small>подписчиков</small>${dS?`<small class="delta">${dS>0?"+":""}${dS} за неделю</small>`:""}<small class="dim">${log.length?"обновлено "+dd(log[log.length-1].d):"цифры ещё не внесены"}</small></div></div>
       ${nxt?ring(Math.min(1,subs/nxt),(nxt-subs).toLocaleString("ru-RU"),"до "+nxt.toLocaleString("ru-RU")):""}</section>
-    <div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><b>Видео сегодня</b><span style="font-size:13px;font-weight:700;color:${done?"var(--okl)":"var(--muted)"}">${done?"вышло":`шаг ${si+1} из ${VIDEO_STEPS.length}`}</span></div>
-      ${done?(has(d,"vid2")?`<p class="empty">Два видео за день. Мощно.</p>`:`<p class="empty">Готово. Следующее завтра, серия ${videoStreak()} ${videoStreak()===1?"день":"дн."}</p>`):`<p class="empty">Дальше: ${esc(step.name)}</p><button type="button" class="goldbtn" data-focus="1" style="height:52px;display:flex;align-items:center;justify-content:center;gap:8px">${IC.play}Делать видео</button>`}</div>
     ${timeCard()}
-    <div class="tiles"><div class="tile"><b>${vidsIn(7)}/7</b><span>видео за неделю</span></div><div class="tile"><b>${vidsIn(30)}</b><span>видео за 30 дней</span></div>
-      <div class="tile"><b>${vids()}</b><span>видео всего</span></div><div class="tile"><b>${(G.maxViews||0).toLocaleString("ru-RU")}</b><span>лучшее видео, просмотров</span></div></div>
+    <div class="tiles"><div class="tile"><b>${vidsIn(7)}/7</b><span>видео за неделю</span></div><div class="tile"><b>${vidsIn(30)}</b><span>видео за 30 дней</span></div></div>
     <div class="sec"><h3>Цели канала</h3><span>подарки за результат</span></div>
     <div class="list">${goals.map(rungRow).join("")}</div>
     <div class="segfoot"><button type="button" class="line" data-chan="1">Обновить цифры канала</button></div>
     ${log.length>1?`<div class="sec"><h3>История</h3></div><div class="card"><div class="mini">${log.slice(-6).reverse().map(x=>`<div><span>${dd(x.d)}</span><b>${x.subs.toLocaleString("ru-RU")} подп.${x.views?" · "+x.views.toLocaleString("ru-RU"):""}</b></div>`).join("")}</div></div>`:""}`;
 }
-let rolesOpen=false,homeSeg="food",foodCat="fridge",cookIdeas=null,cookBusy=false,meSeg="body";
+let rolesOpen=false,homeSeg="food",foodCat="fridge",cookIdeas=null,cookBusy=false,meSeg="chan";
 function viewHome(){
   const h=houseOf(),k=key(),exp=expiringH(h),due=h.chores.filter(c=>choreDue(c,k)),sl=shopListH(h);
-  const segs=[["food","Еда"],["shop","Покупки"+(sl.length?" "+sl.length:"")],["chores","Дела"+(due.length?" "+due.length:"")],["more","Ещё"]];
+  const segs=[["food","Запасы"],["shop","Покупки"+(sl.length?" "+sl.length:"")],["chores","Быт"+(due.length?" "+due.length:"")],["more","Проекты"]];
   let body="";
   if(homeSeg==="food"){
     const its=h.items.filter(x=>x.cat===foodCat).sort((a,b)=>(a.until||"9").localeCompare(b.until||"9")||a.name.localeCompare(b.name));
@@ -771,7 +769,11 @@ function viewHome(){
     body=h.projects.map(p=>{const dn=p.steps.filter(x=>x.done).length;
       return `<div class="sec"><h3>${esc(p.name)}</h3><span>${dn} из ${p.steps.length}</span></div><div class="list">${p.steps.map(st=>`<div class="hrow"><button type="button" class="chk${st.done?" on":""}" data-step="${p.id}:${st.id}" aria-label="${esc(st.t)}">${st.done?IC.check:""}</button><span class="nm"><b style="${st.done?"text-decoration:line-through;color:var(--dim)":""}">${esc(st.t)}</b></span></div>`).join("")}</div>
         <form class="add" data-add="step" data-pid="${p.id}"><div class="r"><input name="t" maxlength="100" placeholder="Добавить шаг" aria-label="Новый шаг" autocomplete="off"><button type="submit">+</button></div></form>`}).join("")
-      +`<div class="sec"><h3>Память дома</h3><span>общая для всех</span></div><div class="list">${h.notes.map(n=>`<div class="hrow"><span class="nm"><b style="font-weight:600">${esc(n.t)}</b></span><button type="button" class="x" data-ndel="${n.id}" aria-label="Удалить">${IC.x}</button></div>`).join("")||'<p class="empty" style="padding:0 4px">Правила и факты о жилье: когда вывоз мусора, где стиралка, контакты хозяина.</p>'}</div>
+      +`<p class="empty" style="padding:12px 20px 0">Новый проект (ремонт, мебель, поездка) можно попросить у бота: «заведи проект …».</p>`;
+  }
+  if(homeSeg==="people"){
+    const owner=true;
+    body=`<div class="sec" style="margin-top:0"><h3>Память дома</h3><span>общая для всех</span></div><div class="list">${h.notes.map(n=>`<div class="hrow"><span class="nm"><b style="font-weight:600">${esc(n.t)}</b></span><button type="button" class="x" data-ndel="${n.id}" aria-label="Удалить">${IC.x}</button></div>`).join("")||'<p class="empty" style="padding:0 4px">Правила и факты о жилье: когда вывоз мусора, где стиралка, контакты хозяина.</p>'}</div>
       <form class="add" data-add="hnote"><div class="r"><input name="t" maxlength="200" placeholder="Например: мусор вывозят по четвергам" aria-label="Запись в память дома" autocomplete="off"><button type="submit">+</button></div></form>
       <div class="sec"><h3>Люди и должности</h3><span>${h.members.length} чел.</span></div>
       <div class="list">${h.members.map(m=>`<div class="hrow"><span class="nm"><b>${esc(m.name||"Участник")}</b><small>${esc((h.roles.find(r=>r.id===m.role)||{}).name||m.role)}</small></span></div>`).join("")}</div>
@@ -782,11 +784,12 @@ function viewHome(){
   return `<section class="card"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><b>${att?att+" требует внимания":"Всё в порядке"}</b><span style="font-size:13px;font-weight:700;color:var(--muted)">${h.items.length} в учёте</span></div>
       ${exp.length?`<p class="empty" style="color:var(--red)">Скоро испортится: ${exp.map(x=>esc(x.name)).join(", ")}</p>`:""}
       ${due.length?`<p class="empty">Пора: ${due.map(c=>esc(c.name)).join(", ")}</p>`:""}</section>
-    <div class="segc" role="tablist" style="grid-template-columns:repeat(4,minmax(0,1fr))">${segs.map(([id,t])=>`<button type="button" role="tab" data-hseg="${id}" aria-selected="${homeSeg===id}">${t}</button>`).join("")}</div>${body}`;
+    ${homeSeg==="people"?`<div class="sec"><h3>Жильцы и правила</h3><button type="button" data-gear="1">назад</button></div>`:`<div class="segc" role="tablist" style="grid-template-columns:repeat(4,minmax(0,1fr))">${segs.map(([id,t])=>`<button type="button" role="tab" data-hseg="${id}" aria-selected="${homeSeg===id}">${t}</button>`).join("")}</div>`}${body}`;
 }
 function viewMe(){
-  const segs=[["body","Тело"],["prog","Прогресс"],["set","Настройки"]];
+  const segs=[["chan","Канал"],["body","Тело"],["prog","Цели"]];
   let body="";
+  if(meSeg==="chan")body=viewChan();
   if(meSeg==="body")body=viewGym();
   if(meSeg==="prog")body=viewProg();
   if(meSeg==="set"){const P=prof(),notes=state.notes||[],temp=(state.temp||[]).filter(x=>x.until>=key());
@@ -800,7 +803,8 @@ function viewMe(){
       ${temp.map(n=>`<div class="hrow"><span class="nm"><b style="font-weight:600">${esc(n.t)}</b><small>временно, до ${ddmm(n.until)}</small></span></div>`).join("")}</div>
       <p class="empty" style="padding:10px 20px 0">Поправить или удалить: скажи боту «забудь …» или «запомни …».</p>
       ${state.home&&state.home.address?`<div class="sec"><h3>Дом на карте</h3></div><div class="card"><p class="empty">${esc(state.home.address)}</p></div>`:""}`}
-  return `<div class="segc" role="tablist">${segs.map(([id,t])=>`<button type="button" role="tab" data-meseg="${id}" aria-selected="${meSeg===id}">${t}</button>`).join("")}</div>${body}`;
+  return (meSeg==="set"?`<div class="sec" style="margin-top:4px"><h3>Настройки</h3><button type="button" data-gear="1">назад</button></div>`
+    :`<div class="segc" role="tablist">${segs.map(([id,t])=>`<button type="button" role="tab" data-meseg="${id}" aria-selected="${meSeg===id}">${t}</button>`).join("")}</div>`)+body;
 }
 let progSeg="streak";
 function rungState(r){const open=rungOpen(r),claimed=rungClaimed(r);
@@ -852,7 +856,7 @@ async function findGifts(id){
 }
 function render(){
   renderReward();renderHead();
-  $("view").innerHTML={today:viewToday,chan:viewChan,home:viewHome,me:viewMe}[tab]();updBadge();
+  $("view").innerHTML={today:viewToday,home:viewHome,me:viewMe}[tab]();updBadge();
   document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-selected",String(b.dataset.tab===tab)));
   if(!$("focus").hidden)renderFocus();
 }
@@ -895,6 +899,7 @@ document.addEventListener("click",e=>{
     if(st)mutate(()=>{st.done=!st.done;touch(st);if(st.done&&/договор/i.test(st.t))state.goals=Object.assign({},goalsSt(),{house:true})});return}
   if(t.dataset.perm){const [rid,pk]=t.dataset.perm.split(":"),r=houseOf().roles.find(x=>x.id===rid);
     if(r&&!r.fixed)mutate(()=>{r.perms=r.perms.includes(pk)?r.perms.filter(x=>x!==pk):r.perms.concat([pk]);touch(r)});return}
+  if(t.dataset.gear){if(tab==="home")homeSeg=homeSeg==="people"?"food":"people";else meSeg=meSeg==="set"?"chan":"set";render();window.scrollTo(0,0);return}
   if(t.dataset.roles){rolesOpen=!rolesOpen;render();return}
   if(t.dataset.invite){toast("Приглашения по ссылке сделаем следующим шагом.");return}
   if(t.dataset.cook){cook();return}

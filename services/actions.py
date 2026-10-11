@@ -67,7 +67,7 @@ TOOLS = [
      "description": "Запомнить домашний адрес для расчёта дороги. Вызывай, когда он называет, где живёт, или переезжает. Если он говорит «я дома» и есть свежая геолокация, передай address=here.",
      "input_schema": {"type": "object", "properties": {"address": {"type": "string"}}, "required": ["address"]}},
     {"name": "house_add",
-     "description": "Купил или положил продукты/вещи домой. items: [{name, cat: fridge|pantry|home, days: сколько дней хранится (только холодильник, если знаешь точнее), qty: «2 кг» и т.п.}]. fridge = свежее со сроком, pantry = крупы, макароны, консервы, специи, масло, home = бытовое (мыло, порошок, бумага).",
+     "description": "Купил или положил продукты/вещи домой. items: [{name, cat: fridge|pantry|home, days: сколько дней хранится (только холодильник, если знаешь точнее), qty: «2 кг» и т.п.}]. fridge = Холодильник (свежее со сроком), pantry = Кладовка (крупы, макароны, консервы, специи, масло), home = Хозтовары (мыло, порошок, бумага).",
      "input_schema": {"type": "object", "properties": {"items": {"type": "array", "items": {"type": "object", "properties": {
          "name": {"type": "string"}, "cat": {"type": "string", "enum": ["fridge", "pantry", "home"]}, "days": {"type": "integer"}, "qty": {"type": "string"}}, "required": ["name"]}}},
          "required": ["items"]}},
