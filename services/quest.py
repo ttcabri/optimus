@@ -317,6 +317,16 @@ def merge_incoming(server: dict, incoming: dict) -> dict:
     incoming.setdefault("lifts", server.get("lifts", []))
     have_l = {(x.get("d"), x.get("ex"), x.get("kg"), x.get("reps")) for x in incoming["lifts"]}
     incoming["lifts"] += [x for x in server.get("lifts", []) if (x.get("d"), x.get("ex"), x.get("kg"), x.get("reps")) not in have_l]
+    # то, что ведёт только бот: приложение это не меняет, берём с сервера
+    for k in ("notes", "theory", "settings"):
+        if server.get(k) is not None:
+            incoming[k] = server[k]
+    if server.get("reminders") or incoming.get("reminders"):
+        byid = {r.get("id"): r for r in incoming.get("reminders") or []}
+        for r in server.get("reminders") or []:
+            if r.get("id") not in byid or r.get("sent"):
+                byid[r.get("id")] = r
+        incoming["reminders"] = list(byid.values())
     for k in ("prefs", "gifts", "claims", "goals"):
         if not incoming.get(k) and server.get(k):
             incoming[k] = server[k]

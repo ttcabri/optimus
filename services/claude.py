@@ -118,7 +118,7 @@ async def get_ai_response(telegram_id: int, user_message: str, voice: bool = Fal
 
     changed = False
     reply = ""
-    for _ in range(4):
+    for _ in range(6):
         response = await client.messages.create(
             model=CHAT_MODEL, max_tokens=1200, system=system, messages=messages, tools=TOOLS + _actions_tools(),
         )
@@ -129,8 +129,13 @@ async def get_ai_response(telegram_id: int, user_message: str, voice: bool = Fal
         messages.append({"role": "assistant", "content": [b.model_dump() for b in response.content]})
         results = []
         for b in uses:
-            results.append({"type": "tool_result", "tool_use_id": b.id, "content": _run_tool(state, b.name, b.input or {})})
-            changed = True
+            if b.name == "web_lookup":
+                from services import websearch
+                res = await websearch.look_up(str((b.input or {}).get("query", "")))
+            else:
+                res = _run_tool(state, b.name, b.input or {})
+                changed = True
+            results.append({"type": "tool_result", "tool_use_id": b.id, "content": res})
         messages.append({"role": "user", "content": results})
 
     if changed:

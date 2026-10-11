@@ -52,6 +52,14 @@ TOOLS = [
          "ex": {"type": "string"}, "kg": {"type": "number"}, "reps": {"type": "integer"}}, "required": ["ex", "kg", "reps"]}},
     {"name": "set_channel", "description": "Обновить цифры канала: подписчики и/или просмотры лучшего видео.",
      "input_schema": {"type": "object", "properties": {"subs": {"type": "integer"}, "best_views": {"type": "integer"}}}},
+    {"name": "set_reminder",
+     "description": "Напоминание сообщением в Telegram в нужное время. day: today/tomorrow/YYYY-MM-DD, at: HH:MM. Ставь, когда он просит напомнить, и к важным делам с конкретным временем.",
+     "input_schema": {"type": "object", "properties": {"text": {"type": "string"}, "at": {"type": "string"}, "day": {"type": "string"}}, "required": ["text", "at"]}},
+    {"name": "delete_reminder", "description": "Удалить напоминание по id.",
+     "input_schema": {"type": "object", "properties": {"id": {"type": "string"}}, "required": ["id"]}},
+    {"name": "web_lookup",
+     "description": "Поиск в интернете: часы работы магазина, адрес, цена, расписание, любой свежий факт. Используй, когда для решения нужен факт из мира (например, до скольки работает Kruidvat в Дронтене).",
+     "input_schema": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}},
     {"name": "take_reward", "description": "Отметить, что Андрей взял награду дня. Только если он прямо сказал, что взял.",
      "input_schema": {"type": "object", "properties": {}}},
 ]
@@ -265,6 +273,22 @@ def run(state: dict, name: str, a: dict) -> str | None:
         state["chanLog"] = (log + [{"d": today, "subs": g.get("subs", 0), "views": g.get("maxViews", 0)}])[-60:]
         return f"канал: {g.get('subs', 0)} подписчиков, лучшее видео {g.get('maxViews', 0)}"
 
+    if name == "set_reminder":
+        t = _at(a.get("at"))
+        if not t:
+            return "нужно время HH:MM"
+        k = _key(a.get("day"))
+        if k == today and quest.to_min(t) < quest.to_min(quest.hhmm()):
+            return f"{t} уже прошло, выбери время позже"
+        r = {"id": "r" + _new_id()[1:], "d": k, "at": t, "text": str(a.get("text") or "")[:200], "sent": False}
+        state["reminders"] = [x for x in state.get("reminders") or [] if not x.get("sent") or x.get("d", "") >= today] + [r]
+        return f"напомню {k} в {t}: {r['text']} (id {r['id']})"
+
+    if name == "delete_reminder":
+        before = len(state.get("reminders") or [])
+        state["reminders"] = [x for x in state.get("reminders") or [] if x.get("id") != a.get("id")]
+        return "удалено" if len(state["reminders"]) < before else "нет такого"
+
     if name == "take_reward":
         if not td.get("smokes"):
             td["firstSmoke"] = quest.hhmm()
@@ -292,6 +316,22 @@ def plan_context(state: dict) -> str:
             lines.append(f"- {it['id']}: {it['name']} {quest.hm(it['start'])}–{quest.hm(it['end'])}" + (" (идёт сейчас)" if it.get("started") else ""))
     for o in p["over"]:
         lines.append(f"- {o['id']}: {o['name']} (не влезает до отбоя)")
+    n = quest.now()
+    now_m = n.hour * 60 + n.minute
+    P = quest.prof(day)
+    spans = sorted((it["start"], it["end"]) for it in p["items"] if not it.get("gap"))
+    free, cur = [], max(now_m, quest.to_min(P["wake"]))
+    for s0, e0 in spans:
+        if s0 - cur >= 20:
+            free.append(f"{quest.hm(cur)}–{quest.hm(s0)}")
+        cur = max(cur, e0)
+    bed = quest.bed_min(P) - 45
+    if bed - cur >= 20:
+        free.append(f"{quest.hm(cur)}–{quest.hm(bed)}")
+    lines.append("СВОБОДНЫЕ ОКНА СЕГОДНЯ: " + (", ".join(free) if free else "нет, день забит"))
+    rem = [r for r in state.get("reminders") or [] if not r.get("sent")]
+    if rem:
+        lines.append("НАПОМИНАНИЯ: " + "; ".join(f"{r['id']}: {r['d']} {r['at']} {r['text']}" for r in rem))
     done = day.get("done", [])
     if done:
         lines.append("Сделано: " + ", ".join(f"{_name(state, x)} в {day['at'].get(x, '?')}" for x in done))

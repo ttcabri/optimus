@@ -1,3 +1,4 @@
+import html
 import logging
 from datetime import date, timedelta
 
@@ -82,6 +83,27 @@ async def send_quest_tick(bot: Bot) -> None:
         logger.error(f"Quest tick error: {e}")
 
 
+async def send_reminders(bot: Bot) -> None:
+    """Каждую минуту: напоминания, которые поставил помощник."""
+    try:
+        state = await database.get_quest_state(TELEGRAM_USER_ID)
+        rem = state.get("reminders") or []
+        today, now_t = quest.today_key(), quest.hhmm()
+        due = [r for r in rem if not r.get("sent") and (r.get("d", "") < today or (r.get("d") == today and r.get("at", "99") <= now_t))]
+        if not due:
+            return
+        for r in due:
+            r["sent"] = True
+        fresh = await database.get_quest_state(TELEGRAM_USER_ID)
+        fresh["reminders"] = rem
+        await database.save_quest_state(TELEGRAM_USER_ID, fresh)
+        from handlers.proof import quest_keyboard
+        for r in due:
+            await bot.send_message(TELEGRAM_USER_ID, f"⏰ <b>Напоминание</b>\n{html.escape(r.get('text', ''))}", reply_markup=quest_keyboard())
+    except Exception as e:
+        logger.error(f"Reminders error: {e}")
+
+
 async def send_quest_night(bot: Bot) -> None:
     """22:30 — итог дня и экран выкл."""
     try:
@@ -137,6 +159,7 @@ def setup_scheduler(bot: Bot) -> AsyncIOScheduler:
 
     # Квест дня: живой план, проверка каждые 5 минут
     scheduler.add_job(send_quest_tick, "cron", minute="*/5", kwargs={"bot": bot})
+    scheduler.add_job(send_reminders, "cron", minute="*", kwargs={"bot": bot})
     scheduler.add_job(send_quest_night, "cron", hour=22, minute=30, kwargs={"bot": bot})
     scheduler.add_job(send_quest_week, "cron", day_of_week="sun", hour=21, minute=0, kwargs={"bot": bot})
     scheduler.add_job(send_weigh_in, "cron", day_of_week="mon", hour=8, minute=10, kwargs={"bot": bot})
