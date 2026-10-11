@@ -349,8 +349,48 @@ function queue(k){
 const isDone=(d,q)=>q.kind==="video"?bossDone(d):has(d,q.id);
 function durOf(d,q){
   if(d.dur[q.id])return d.dur[q.id];
-  if(q.kind==="video"){const left=BOSS_IDS.filter(b=>!has(d,b)).length;return Math.max(20,Math.round(q.dur*left/5))}
-  return q.dur||30;
+  const L=learned()[q.kind==="video"?"video":q.id],base=L?L.min:(q.dur||30);
+  if(q.kind==="video"){const left=BOSS_IDS.filter(b=>!has(d,b)).length;return Math.max(20,Math.round(base*left/5))}
+  return base;
+}
+
+/* ---------- замеры времени ---------- */
+// Каждое нажатие пишется в журнал дня (d.ev). Для закрытого дела считаем, сколько оно заняло (d.span).
+// План берёт медиану последних замеров, когда их набралось 3.
+function logEv(d,e,id){d.ev=(d.ev||[]).concat([[hhmm(),e,id||""]]).slice(-200)}
+function restOverlap(d,a,b){return restsOf(d).reduce((n,r)=>{const s=toMin(r.at),e=s+r.min;return n+Math.max(0,Math.min(b,e)-Math.max(a,s))},0)}
+function recSpan(d,id){
+  const now=nowMin(),isStep=BOSS_IDS.includes(id);
+  let s=null,g=1;
+  if(d.cur&&(d.cur.id===id||(isStep&&d.cur.id==="video"))){s=toMin(d.cur.at);g=0}
+  // последнее событие перед этим: закрытое дело или конец отдыха
+  const marks=Object.entries(d.at).filter(([k])=>k!==id).map(([,t])=>toMin(t)).concat(restsOf(d).map(r=>toMin(r.at)+r.min)).filter(t=>t<=now);
+  const last=marks.length?Math.max(...marks):null;
+  if(last!=null&&(s==null||last>s))s=last;
+  if(s==null||s>now)return;
+  const m=now-s-restOverlap(d,s,now);
+  if(m<1)return;
+  d.span=Object.assign({},d.span||{},{[id]:{s:hm(s),e:hm(now),m,g}});
+}
+const BASE_DUR=Object.fromEntries(QUESTS.filter(q=>q.dur).map(q=>[q.id,q.dur]));
+function median(a){const b=a.slice().sort((x,y)=>x-y),n=b.length;return n?(n%2?b[(n-1)/2]:(b[n/2-1]+b[n/2])/2):0}
+let _learnKey="",_learn={};
+function learned(){
+  const ks=Object.keys(state.days).sort().slice(-40),sig=ks.map(k=>k+JSON.stringify(state.days[k].span||{})).join("|");
+  if(sig===_learnKey)return _learn;
+  const vals={};
+  for(const k of ks){const sp=state.days[k].span||{};
+    for(const [id,v] of Object.entries(sp)){if(!BASE_DUR[id]||id==="video")continue;
+      if(v.g&&v.m>BASE_DUR[id]*2.5)continue; // угаданный старт и слишком долго: скорее был перерыв
+      (vals[id]=vals[id]||[]).push(v.m)}
+    if(BOSS_IDS.every(b=>sp[b]))(vals.video=vals.video||[]).push(BOSS_IDS.reduce((n,b)=>n+sp[b].m,0));
+    for(const b of BOSS_IDS)if(sp[b])(vals[b]=vals[b]||[]).push(sp[b].m);
+  }
+  const out={};
+  for(const [id,arr] of Object.entries(vals)){const last=arr.slice(-10);if(last.length<3)continue;
+    const m0=median(last),ok=last.filter(x=>x<=m0*2.5&&x>=m0*0.3);if(ok.length<3)continue;
+    out[id]={min:Math.max(5,Math.round(median(ok)/5)*5),n:ok.length}}
+  _learnKey=sig;_learn=out;return out;
 }
 
 /* ---------- живой план ---------- */
@@ -465,10 +505,10 @@ function toggle(id){
   const q=findQ(id),d=dayOf(key());
   if(q&&locked(q)&&!has(d,id)){toast("Это закрывается пруфом. Кинь его боту.");haptic("warning");return}
   mutate(()=>{const i=d.done.indexOf(id);
-    if(i>=0){if(q&&locked(q))return;d.done.splice(i,1);delete d.at[id]}
-    else{d.done.push(id);d.at[id]=hhmm();if(d.cur&&(d.cur.id===id||(d.cur.id==="video"&&bossDone(d))))delete d.cur}});
+    if(i>=0){if(q&&locked(q))return;d.done.splice(i,1);delete d.at[id];if(d.span)delete d.span[id];logEv(d,"undo",id)}
+    else{recSpan(d,id);d.done.push(id);d.at[id]=hhmm();logEv(d,"done",id);if(d.cur&&(d.cur.id===id||(d.cur.id==="video"&&bossDone(d))))delete d.cur}});
 }
-function startTask(id){const d=dayOf(key());mutate(()=>{d.cur={id,at:hhmm()}});const q=findQ(id);if(q)toast("Начал: "+q.name+". Остальное сдвинулось")}
+function startTask(id){const d=dayOf(key());mutate(()=>{d.cur={id,at:hhmm()};logEv(d,"start",id)});const q=findQ(id);if(q)toast("Начал: "+q.name+". Остальное сдвинулось")}
 const nextStep=d=>VIDEO_STEPS.find(s=>!has(d,s.id));
 
 /* ---------- отрисовка ---------- */
@@ -492,7 +532,7 @@ function renderReward(){
     <div class="btns"><button type="button" id="nogame">Не сейчас</button><button type="button" class="pri" id="gogame">Отдыхаю</button></div></section>`;
   $("confirm").querySelectorAll("[data-rm]").forEach(b=>b.onclick=()=>{restMin=+b.dataset.rm;render()});
   $("nogame").onclick=()=>{confirmPlay=false;render()};
-  $("gogame").onclick=()=>{confirmPlay=false;const m=restMin;mutate(()=>{d.gl.push({at:hhmm(),min:m});d.games=gamesUsed(d)});toast(`Отдых ${durTxt(m)}. Таймер пошёл.`)};
+  $("gogame").onclick=()=>{confirmPlay=false;const m=restMin;mutate(()=>{d.gl.push({at:hhmm(),min:m});d.games=gamesUsed(d);logEv(d,"rest",String(m))});toast(`Отдых ${durTxt(m)}. Таймер пошёл.`)};
 }
 function askGame(){const d=dayOf(key());if(debtOf(key())&&!debtClosed(d)){toast("Штрафной день: отдых после долга и штрафа.");return}confirmPlay=true;render();window.scrollTo(0,0)}
 function endRest(){const d=dayOf(key()),r=restsOf(d),now=nowMin();const i=r.findIndex(x=>toMin(x.at)<=now&&toMin(x.at)+x.min>now);if(i<0)return;
@@ -599,7 +639,7 @@ function viewGym(){
       <div class="mini">${L.slice(-4).reverse().map(l=>`<div><span>${dd(l.d)}${l.clean?" · чистый":""}</span><b>${l.kg} × ${l.reps}</b></div>`).join("")}</div></div>`}).join("");
   const cleanW=state.lifts.filter(l=>l.ex&&l.clean).length,allW=state.lifts.filter(l=>l.ex).length;
   return `<div class="card"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><b>Сегодня</b><span style="font-size:13px;font-weight:700;color:var(--muted)">${tr?(tr==="gym"?"Зал":"Единоборства"):"День отдыха"}</span></div>
-      <div class="mini"><div><span>Тренировка</span><b>${tr?(has(d,tr)?"сделана":"ещё нет"):"не нужна"}</b></div><div><span>Награда дня</span><b>${{pending:"копим",open:"открыта",base:"тренировка чистая",gold:"заслужил",broken:"сгорела"}[rewardState(k)]}</b></div><div><span>Тренировок за 7 дней</span><b>${countQ(["gym","fight"],7)}</b></div></div></div>
+      <div class="mini">${learned().gym?`<div><span>Зал у тебя обычно</span><b>${durTxt(learned().gym.min)}</b></div>`:""}<div><span>Тренировка</span><b>${tr?(has(d,tr)?"сделана":"ещё нет"):"не нужна"}</b></div><div><span>Награда дня</span><b>${{pending:"копим",open:"открыта",base:"тренировка чистая",gold:"заслужил",broken:"сгорела"}[rewardState(k)]}</b></div><div><span>Тренировок за 7 дней</span><b>${countQ(["gym","fight"],7)}</b></div></div></div>
     <div class="sec"><h3>Вес тела</h3><button type="button" data-goalkg="1">${goal?"цель "+goal+" кг":"задать цель"}</button></div><div class="card">${bodyCard}</div>
     <form class="add" data-add="weight"><div class="r"><input name="t" inputmode="decimal" placeholder="Вес, кг (например 82.5)" aria-label="Вес в кг" autocomplete="off"><button type="submit">Записать</button></div></form>
     <div class="sec"><h3>Рабочие веса</h3><span>${allW?`чистых подходов ${cleanW} из ${allW}`:""}</span></div>
@@ -608,6 +648,14 @@ function viewGym(){
       <div class="r"><input name="kg" inputmode="decimal" placeholder="Вес, кг" aria-label="Вес, кг" style="flex:1"><input name="reps" inputmode="numeric" placeholder="Повторы" aria-label="Повторы" style="flex:1"></div>
       <button type="submit">Записать подход</button></form>
     ${exCards||'<p class="empty" style="padding:10px 20px 0">Записывай лучший рабочий подход по каждому упражнению. Приложение покажет рекорды и рост.</p>'}`;
+}
+function timeCard(){
+  const L=learned(),v=L.video,steps=VIDEO_STEPS.filter(x=>L[x.id]);
+  let n=0;for(const k of Object.keys(state.days)){const sp=state.days[k].span||{};if(BOSS_IDS.every(b=>sp[b]))n++}
+  if(!v&&!steps.length)return `<div class="card" style="margin-top:10px"><b>Время на видео</b><p class="empty">${n?`Замеров: ${n} из 3.`:"Пока нет замеров."} Жми «Начать фокус» в начале и отмечай шаги сразу, как закончил. С трёх видео план возьмёт твоё реальное время.</p></div>`;
+  return `<div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><b>Время на видео</b>${v?`<span style="font-size:13px;font-weight:700;color:var(--muted)">обычно ${durTxt(v.min)}</span>`:""}</div>
+    <div class="mini">${steps.map(x=>`<div><span>${esc(x.name)}</span><b>${durTxt(L[x.id].min)}</b></div>`).join("")}</div>
+    <p class="empty">По последним замерам, медиана. План дня уже считает так.</p></div>`;
 }
 function viewChan(){
   const k=key(),d=dayOf(k),G=goalsSt(),log=state.chanLog||[],subs=G.subs||0;
@@ -621,6 +669,7 @@ function viewChan(){
       ${nxt?ring(Math.min(1,subs/nxt),(nxt-subs).toLocaleString("ru-RU"),"до "+nxt.toLocaleString("ru-RU")):""}</section>
     <div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><b>Видео сегодня</b><span style="font-size:13px;font-weight:700;color:${done?"var(--okl)":"var(--muted)"}">${done?"вышло":`шаг ${si+1} из ${VIDEO_STEPS.length}`}</span></div>
       ${done?(has(d,"vid2")?`<p class="empty">Два видео за день. Мощно.</p>`:`<p class="empty">Готово. Следующее завтра, серия ${videoStreak()} ${videoStreak()===1?"день":"дн."}</p>`):`<p class="empty">Дальше: ${esc(step.name)}</p><button type="button" class="goldbtn" data-focus="1" style="height:52px;display:flex;align-items:center;justify-content:center;gap:8px">${IC.play}Делать видео</button>`}</div>
+    ${timeCard()}
     <div class="tiles"><div class="tile"><b>${vidsIn(7)}/7</b><span>видео за неделю</span></div><div class="tile"><b>${vidsIn(30)}</b><span>видео за 30 дней</span></div>
       <div class="tile"><b>${vids()}</b><span>видео всего</span></div><div class="tile"><b>${(G.maxViews||0).toLocaleString("ru-RU")}</b><span>лучшее видео, просмотров</span></div></div>
     <div class="sec"><h3>Цели канала</h3><span>подарки за результат</span></div>
@@ -705,7 +754,7 @@ document.addEventListener("click",e=>{
   const d=dayOf(key());
   if(t.dataset.cut){const q=findQ(t.dataset.cut);mutate(()=>{d.dur[t.dataset.cut]=Math.max(15,Math.round(durOf(d,q)/2))});toast("Сократил вдвое");return}
   if(t.dataset.skip){const id=t.dataset.skip,c=d.custom.find(x=>x.id===id);
-    mutate(()=>{if(c){d.custom=d.custom.filter(x=>x!==c);(d.del=d.del||[]).push(id);dayOf(shift(key(),1)).custom.push(c)}else d.skip.push(id)});toast(c?"Перенёс на завтра":"Убрал на сегодня. План пересчитан");return}
+    mutate(()=>{if(c){d.custom=d.custom.filter(x=>x!==c);(d.del=d.del||[]).push(id);dayOf(shift(key(),1)).custom.push(c);logEv(d,"move",id)}else{d.skip.push(id);logEv(d,"skip",id)}});toast(c?"Перенёс на завтра":"Убрал на сегодня. План пересчитан");return}
   if(t.dataset.del){mutate(()=>{d.custom=d.custom.filter(c=>c.id!==t.dataset.del);d.done=d.done.filter(x=>x!==t.dataset.del);(d.del=d.del||[]).push(t.dataset.del)});return}
   if(t.dataset.later){const c=d.custom.find(c=>c.id===t.dataset.later);if(!c)return;mutate(()=>{d.custom=d.custom.filter(x=>x!==c);(d.del=d.del||[]).push(c.id);dayOf(shift(key(),1)).custom.push(c)});toast("Перенёс на завтра");return}
   if(t.dataset.delon){const[kk,id]=t.dataset.delon.split("|"),dt=dayOf(kk);mutate(()=>{dt.custom=dt.custom.filter(c=>c.id!==id);(dt.del=dt.del||[]).push(id)});return}
@@ -812,7 +861,7 @@ $("sheet").addEventListener("click",e=>{
   if(a==="claim"){const r=findRung(W.rung);closeSheet();mutate(()=>{state.claims=Object.assign({},state.claims||{},{[claimKey(r)]:key()})});toast("Кайфуй. Ты это заработал.");return}
   if(a==="flag"){const r=findRung(W.rung);closeSheet();mutate(()=>{state.goals=Object.assign({},goalsSt(),{[r.flag]:true})});return}
   if(a==="tochan"){W={step:"chan"};return renderSheet()}
-  if(a==="take"){const d=dayOf(key());closeSheet();mutate(()=>{if(!d.smokes)d.firstSmoke=hhmm();d.smokes=(d.smokes||0)+1});return}
+  if(a==="take"){const d=dayOf(key());closeSheet();mutate(()=>{if(!d.smokes)d.firstSmoke=hhmm();d.smokes=(d.smokes||0)+1;logEv(d,"reward","")});return}
   if(a.startsWith("gpick:")){const x=giftIdeas[+a.slice(6)],id=W.rung;closeSheet();giftIdeas=null;mutate(()=>{state.gifts=Object.assign({},state.gifts||{},{[id]:(x.title+(x.where?" · "+x.where:"")).slice(0,80)})});toast("Подарок записан: "+x.title);return}
   if(a==="csave"){const f=$("sheet").querySelector("form"),n=x=>parseInt(String(x).replace(/\D/g,""),10)||0,subs=n(f.subs.value),views=n(f.views.value);
     closeSheet();mutate(()=>{state.goals=Object.assign({},goalsSt(),{subs,maxViews:Math.max(views,goalsSt().maxViews||0)});

@@ -154,12 +154,81 @@ def reward_line(day: dict, weekday: int | None = None) -> str:
     return head + "\n" + marks
 
 
+# --- Замеры времени (та же логика, что в webapp/index.html) ---
+
+def log_ev(day: dict, e: str, qid: str = "") -> None:
+    day["ev"] = (day.get("ev") or []) + [[hhmm(), e, qid]]
+    day["ev"] = day["ev"][-200:]
+
+
+def _rest_overlap(day: dict, a: int, b: int) -> int:
+    return sum(max(0, min(b, s + m) - max(a, s)) for s, m in rests_of(day))
+
+
+def record_span(day: dict, qid: str) -> None:
+    """Сколько заняло дело: от «начал» (или прошлого закрытого дела) до сейчас, минус отдых."""
+    n = now()
+    now_m = n.hour * 60 + n.minute
+    s, g = None, 1
+    cur = day.get("cur") or {}
+    if cur.get("id") == qid or (qid in BOSS_IDS and cur.get("id") == "video"):
+        s, g = to_min(cur["at"]), 0
+    marks = [to_min(t) for k, t in (day.get("at") or {}).items() if k != qid]
+    marks += [st + m for st, m in rests_of(day)]
+    marks = [t for t in marks if t <= now_m]
+    if marks and (s is None or max(marks) > s):
+        s = max(marks)
+    if s is None or s > now_m:
+        return
+    m = now_m - s - _rest_overlap(day, s, now_m)
+    if m < 1:
+        return
+    day["span"] = dict(day.get("span") or {}, **{qid: {"s": hm(s), "e": hm(now_m), "m": m, "g": g}})
+
+
+def learned(state: dict) -> dict:
+    """Медиана последних 10 замеров по каждому делу, если набралось 3 нормальных."""
+    base = {q[0]: q[2] for q in PLAN_QUESTS}
+    vals: dict[str, list[int]] = {}
+    for k in sorted(state.get("days", {}))[-40:]:
+        sp = state["days"][k].get("span") or {}
+        for qid, v in sp.items():
+            if qid not in base or qid == "video":
+                continue
+            if v.get("g") and v.get("m", 0) > base[qid] * 2.5:
+                continue
+            vals.setdefault(qid, []).append(v["m"])
+        if all(b in sp for b in BOSS_IDS):
+            vals.setdefault("video", []).append(sum(sp[b]["m"] for b in BOSS_IDS))
+        for b in BOSS_IDS:
+            if b in sp:
+                vals.setdefault(b, []).append(sp[b]["m"])
+    out = {}
+    for qid, arr in vals.items():
+        last = arr[-10:]
+        if len(last) < 3:
+            continue
+        m0 = _median(last)
+        ok = [x for x in last if m0 * 0.3 <= x <= m0 * 2.5]
+        if len(ok) < 3:
+            continue
+        out[qid] = {"min": max(5, int(round(_median(ok) / 5) * 5)), "n": len(ok)}
+    return out
+
+
+def _median(a: list) -> float:
+    b = sorted(a)
+    n = len(b)
+    return b[(n - 1) // 2] if n % 2 else (b[n // 2 - 1] + b[n // 2]) / 2
+
+
 async def get_day(telegram_id: int) -> dict:
     state = await database.get_quest_state(telegram_id)
     day = _day(state, today_key())
     day["_debt"] = has_debt(state)
     day["_profile"] = state.get("profile")
     day["_theory_i"] = (state.get("theory") or {}).get("i", 0)
+    day["_learn"] = learned(state)
     return day
 
 
@@ -169,8 +238,13 @@ async def mark_done(telegram_id: int, ids: list[str]) -> dict:
     t = hhmm()
     for i in ids:
         if i not in day["done"]:
+            record_span(day, i)
             day["done"].append(i)
             day["at"][i] = t
+            log_ev(day, "done", i)
+    cur = day.get("cur") or {}
+    if cur.get("id") in ids or (cur.get("id") == "video" and boss_done(day)):
+        day.pop("cur", None)
     await database.save_quest_state(telegram_id, state)
     day["_debt"] = has_debt(state)
     day["_profile"] = state.get("profile")
@@ -241,6 +315,8 @@ def merge_incoming(server: dict, incoming: dict) -> dict:
         return server
     incoming.setdefault("body", server.get("body", []))
     incoming.setdefault("lifts", server.get("lifts", []))
+    have_l = {(x.get("d"), x.get("ex"), x.get("kg"), x.get("reps")) for x in incoming["lifts"]}
+    incoming["lifts"] += [x for x in server.get("lifts", []) if (x.get("d"), x.get("ex"), x.get("kg"), x.get("reps")) not in have_l]
     for k in ("prefs", "gifts", "claims", "goals"):
         if not incoming.get(k) and server.get(k):
             incoming[k] = server[k]
@@ -259,6 +335,12 @@ def merge_incoming(server: dict, incoming: dict) -> dict:
                 iday["done"].append(q)
                 if q in sday.get("at", {}):
                     iday["at"][q] = sday["at"][q]
+        # журнал и замеры, записанные ботом
+        if sday.get("ev"):
+            seen = {tuple(e) for e in iday.get("ev") or []}
+            iday["ev"] = sorted((iday.get("ev") or []) + [e for e in sday["ev"] if tuple(e) not in seen], key=lambda e: e[0])[-200:]
+        if sday.get("span"):
+            iday["span"] = {**sday["span"], **(iday.get("span") or {})}
         # трава, отмеченная в боте
         if sday.get("smokes", 0) > iday.get("smokes", 0):
             iday["smokes"] = sday["smokes"]
@@ -382,6 +464,7 @@ def build_plan(day: dict, now_min: int | None = None, wd: int | None = None) -> 
     done = set(day.get("done", []))
     skip = set(day.get("skip", []))
     dur_over = day.get("dur", {})
+    learn = day.get("_learn") or {}
 
     def is_done(qid):
         return boss_done(day) if qid == "video" else qid in done
@@ -389,6 +472,8 @@ def build_plan(day: dict, now_min: int | None = None, wd: int | None = None) -> 
     def dur_of(qid, base):
         if qid in dur_over:
             return dur_over[qid]
+        if qid in learn:
+            base = learn[qid]["min"]
         if qid == "video":
             left = sum(1 for b in BOSS_IDS if b not in done)
             return max(20, round(base * left / 5))

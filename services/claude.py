@@ -41,7 +41,7 @@ def reply_mode(state: dict) -> str:
 
 
 async def build_context_block(telegram_id: int, state: dict, day: dict) -> str:
-    from services import quest, theory
+    from services import actions, quest, theory
     n = quest.now()
     notes = state.get("notes") or []
     goals = state.get("goals") or {}
@@ -50,6 +50,7 @@ async def build_context_block(telegram_id: int, state: dict, day: dict) -> str:
         "=== КОНТЕКСТ ===\n"
         f"Сейчас: {n.strftime('%H:%M, %A %d.%m.%Y')} (Нидерланды)\n\n"
         f"СЕГОДНЯ В КВЕСТЕ:\n{re.sub(r'<[^>]+>', '', quest.day_summary(day))}\n\n"
+        f"{actions.plan_context(state)}\n\n"
         f"КАНАЛ: подписчиков {goals.get('subs', 0)}, лучшее видео {goals.get('maxViews', 0)} просмотров\n"
         + (f"ВЕС: {body[-1]['kg']} кг ({body[-1]['d']})" + (f", цель {goals['goalKg']} кг" if goals.get("goalKg") else "") + "\n" if body else "")
         + f"\nТЕОРИЯ CBR:\n{theory.context(state)}\n\n"
@@ -60,7 +61,10 @@ async def build_context_block(telegram_id: int, state: dict, day: dict) -> str:
 
 
 def _run_tool(state: dict, name: str, args: dict) -> str:
-    from services import theory
+    from services import actions, theory
+    res = actions.run(state, name, args)
+    if res is not None:
+        return res
     if name == "remember":
         fact = str(args.get("fact", "")).strip()[:200]
         if fact:
@@ -83,6 +87,11 @@ def _run_tool(state: dict, name: str, args: dict) -> str:
     if name == "set_theory_topic":
         return "теперь: " + theory.set_topic(state, int(args.get("n", 1)) - 1)
     return "неизвестный инструмент"
+
+
+def _actions_tools() -> list:
+    from services import actions
+    return actions.TOOLS
 
 
 async def get_ai_response(telegram_id: int, user_message: str, voice: bool = False) -> str:
@@ -111,7 +120,7 @@ async def get_ai_response(telegram_id: int, user_message: str, voice: bool = Fal
     reply = ""
     for _ in range(4):
         response = await client.messages.create(
-            model=CHAT_MODEL, max_tokens=1200, system=system, messages=messages, tools=TOOLS,
+            model=CHAT_MODEL, max_tokens=1200, system=system, messages=messages, tools=TOOLS + _actions_tools(),
         )
         reply = "".join(b.text for b in response.content if b.type == "text").strip()
         uses = [b for b in response.content if b.type == "tool_use"]
@@ -125,11 +134,9 @@ async def get_ai_response(telegram_id: int, user_message: str, voice: bool = Fal
         messages.append({"role": "user", "content": results})
 
     if changed:
+        # пока модель думала, приложение могло что-то сохранить: сливаем, а не затираем
         fresh = await database.get_quest_state(telegram_id)
-        for k in ("notes", "theory", "settings"):
-            if k in state:
-                fresh[k] = state[k]
-        await database.save_quest_state(telegram_id, fresh)
+        await database.save_quest_state(telegram_id, quest.merge_incoming(fresh, state))
     reply = reply or "Записал."
     await database.add_message(telegram_id, "user", text_in)
     await database.add_message(telegram_id, "assistant", reply)
