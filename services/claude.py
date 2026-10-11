@@ -186,7 +186,19 @@ async def get_ai_response(telegram_id: int, user_message: str, voice: bool = Fal
         messages.append({"role": "assistant", "content": [b.model_dump() for b in response.content]})
         results = []
         for b in uses:
-            if b.name == "web_lookup":
+            if b.name == "read_history":
+                from datetime import timedelta
+                n = max(1, min(int((b.input or {}).get("days") or 7), 60))
+                since = (quest.now() - timedelta(days=n - 1)).strftime("%Y-%m-%d")
+                rows = await database.get_log(telegram_id, since)
+                lines, day = [], None
+                for d, t, ev, name, m in rows:
+                    if d != day:
+                        day = d
+                        lines.append(d + ":")
+                    lines.append(f"  {t} {EV_RU.get(ev, ev)} {name}" + (f" ({m} мин)" if m else ""))
+                res = "\n".join(lines) or "в журнале пусто за этот период"
+            elif b.name == "web_lookup":
                 from services import websearch
                 res = await websearch.look_up(str((b.input or {}).get("query", "")))
             elif b.name == "travel_time":
@@ -279,6 +291,9 @@ async def learn_facts(telegram_id: int, user: str, reply: str) -> None:
     except Exception as e:
         logger.error(f"learn_facts error: {e}")
 
+
+EV_RU = {"done": "сделал", "undo": "снял отметку", "start": "начал", "skip": "убрал на сегодня", "rest": "отдых",
+         "reward": "взял награду", "add": "добавил", "move": "перенёс"}
 
 PROOF_PROMPT = """Ты проверяешь пруф выполнения дела. Человек прислал фото.
 Подпись к фото: "{caption}"

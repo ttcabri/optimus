@@ -185,6 +185,25 @@ nav.tabs .ico{position:relative;display:grid}
 .chip .dot{display:inline-block;width:7px;height:7px;margin-left:6px;border-radius:50%;background:var(--red);vertical-align:2px}
 .segc button{height:38px;border:none;border-radius:10px;background:transparent;color:var(--muted);font-weight:800;font-size:14px}
 .segc button[aria-selected="true"]{background:var(--panel2);color:var(--fg);box-shadow:inset 0 0 0 1px var(--line2)}
+.lad{margin:4px 16px 0;display:flex;flex-direction:column}
+.ls{display:grid;grid-template-columns:24px minmax(0,1fr) auto;gap:12px;align-items:center;padding:9px 0;position:relative;background:none;border:none;color:inherit;text-align:left;width:100%;font:inherit}
+.ls:not(:last-child)::after{content:"";position:absolute;left:11px;top:calc(50% + 11px);height:calc(100% - 22px);width:2px;background:var(--line)}
+.ls .nd{width:24px;height:24px;border-radius:50%;border:2px solid var(--line2);background:var(--bg);display:grid;place-items:center}
+.ls .nd svg{width:13px;height:13px}
+.ls.got .nd{background:var(--ok);border-color:var(--ok)}.ls.open .nd{background:var(--gold);border-color:var(--gold)}
+.ls .tx{display:flex;flex-direction:column;min-width:0}
+.ls .tx b{font-size:16px;font-weight:800}.ls .tx b small{font-size:12px;font-weight:700;color:var(--muted)}
+.ls .tx span{font-size:13px;color:#d9c9b9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ls .tx span.no{color:var(--dim)}
+.ls.got .tx{opacity:.6}
+.ls .eur{font-size:13px;font-weight:800;color:var(--muted)}.ls.open .eur{color:var(--gold)}
+.lse{display:grid;grid-template-columns:64px minmax(0,1fr) 56px 32px;gap:6px;align-items:center;margin:0 16px 6px}
+.lse input{height:38px;border-radius:10px;border:1px solid var(--line2);background:var(--panel2);color:var(--fg);font:inherit;font-weight:700;padding:0 8px;min-width:0;width:100%}
+.hday{display:flex;flex-direction:column;gap:0;margin:0 16px 8px;border-radius:16px;background:var(--panel);overflow:hidden}
+.hday>button{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px 14px;background:none;border:none;color:inherit;font:inherit;text-align:left}
+.hday>button b{font-size:15px}.hday>button small{font-size:12px;font-weight:700;color:var(--muted)}
+.hev{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:8px;padding:6px 14px;font-size:14px;border-top:1px solid var(--line)}
+.hev time{color:var(--muted);font-weight:700;font-variant-numeric:tabular-nums}.hev em{font-style:normal;font-size:12px;color:var(--dim);font-weight:700}
+.hev.skip span{color:var(--dim);text-decoration:line-through}.hev.rest span,.hev.rew span{color:var(--gold)}
 .lrow{display:flex;align-items:center;gap:12px;width:100%;padding:12px 14px;border-radius:16px;background:var(--panel);border:1px solid transparent;text-align:left;color:inherit}
 .lrow.open{border-color:var(--gold);background:#2a2014}
 .lrow.got{opacity:.6}
@@ -538,10 +557,12 @@ const TPL={
   goal:{name:()=>GOAL().name,unit:()=>GOAL().unit||"",val:()=>goalsSt().val??0,dir:()=>1,
     suggest:v=>{const b=Math.max(5,v||0);return [2,4,8,16].map((m,i)=>({at:nice(b*m),budget:[15,25,50,100][i]}))}}
 };
+// ступени: у цели (body/chan/goal) и у серии привычки (h_body, h_chan, h_goal: пороги в днях)
+const sugOf=gid=>gid.startsWith("h_")?HABIT_N.map(h=>({at:h.n,budget:h.budget})):TPL[gid].suggest(TPL[gid].val());
 function goalOf(gid){state.tgoals=state.tgoals||{};let g=state.tgoals[gid];
-  if(!g||!Array.isArray(g.steps)){g=state.tgoals[gid]={steps:TPL[gid].suggest(TPL[gid].val()).map(x=>({id:hid("t"),...x}))}}
+  if(!g||!Array.isArray(g.steps)){g=state.tgoals[gid]={steps:sugOf(gid).map(x=>({id:hid("t"),...x}))}}
   return g}
-const tdir=gid=>TPL[gid].dir();
+const tdir=gid=>gid.startsWith("h_")?1:TPL[gid].dir();
 const reached=(gid,at)=>{const v=TPL[gid].val();return v!=null&&(tdir(gid)>0?v>=at:v<=at)};
 const fmtN=n=>Number(n).toLocaleString("ru-RU");
 function stepLabel(gid,st){return st.label||(gid==="body"?st.at+" кг":fmtN(st.at)+" "+TPL[gid].unit())}
@@ -554,7 +575,7 @@ function goalRungs(){const out=[];for(const gid of gids()){if(gid==="body"&&!goa
 const HABIT_N=[{n:7,budget:10},{n:14,budget:25},{n:30,budget:50}];
 function habitRungs(){const out=[];
   for(const [gid,it] of [["body",bodyHabit()],[gk(),goalHabit()]]){if(!gid||!it)continue;const hs=habitStreak(it.id);
-    for(const h of HABIT_N)out.push({id:"h_"+gid+"_"+h.n,n:h.n,t:`${it.name}: ${h.n} дней подряд`,grp:TPL[gid].name(),budget:h.budget,ok:()=>hs.n>=h.n,ck:"h_"+gid+"_"+h.n+"@"+hs.start,prog:()=>`${Math.min(hs.n,h.n)} из ${h.n}`})}
+    for(const st of goalOf("h_"+gid).steps)out.push({id:"h_"+gid+"_"+st.id,n:st.at,t:`${it.name}: ${st.at} дней подряд`,grp:TPL[gid].name(),budget:st.budget,ok:()=>hs.n>=st.at,ck:"h_"+gid+"_"+st.id+"@"+hs.start,prog:()=>`${Math.min(hs.n,st.at)} из ${st.at}`})}
   return out}
 // разовые результаты внутри цели (флажок «достиг»)
 const FLAGS=()=>gk()==="chan"?[{id:"g_money",t:"Первые деньги с YouTube",grp:"Канал",budget:300,ok:()=>!!goalsSt().earned,flag:"earned"}]:[];
@@ -596,11 +617,11 @@ const GEAR='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-wi
 const FIRE='<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 22c4.4 0 7.5-3 7.5-7.2 0-4.1-2.8-6.3-4.2-10.3-1.9 1.7-3 3.6-3.1 5.8-.9-1-1.6-2.2-1.8-3.9C7.4 8.4 4.5 11.3 4.5 14.8 4.5 19 7.6 22 12 22z"/></svg>';
 const TITLES={today:"Сегодня",home:"Дом",me:"Я"};
 function renderReward(){
-  const k=key(),d=dayOf(k),R=reqs(k),st=rewardState(k),n=R.filter(x=>x.t).length,vs=closedStreak();
+  const k=key(),d=dayOf(k),R=reqs(k),st=rewardState(k),n=R.filter(x=>x.t).length,gh=goalHabit(),vs=gh?habitStreak(gh.id).n:0;
   const sub=tab==="today"?new Date().toLocaleDateString("ru-RU",{weekday:"long",day:"numeric",month:"long"}):"";
   const leafTxt=st!=="pending"?IC.check:`${n}/${R.length}`;
   $("appbar").innerHTML=`<div class="tt"><h1>${TITLES[tab]}</h1>${sub?`<span class="sub">${esc(sub)}</span>`:""}</div>
-    <div class="pills">${tab==="home"||tab==="me"?`<button type="button" class="pill gear${(tab==="home"?homeSeg==="people":meSeg==="set")?" on":""}" data-gear="1" aria-label="${tab==="home"?"Жильцы и правила":"Настройки"}">${GEAR}</button>`:""}<button type="button" class="pill fire${vs?"":" zero"}" data-hist="1" aria-label="Дней подряд всё закрыто: ${vs}. История">${FIRE}${vs}</button>
+    <div class="pills">${tab==="home"||tab==="me"?`<button type="button" class="pill gear${(tab==="home"?homeSeg==="people":meSeg==="set")?" on":""}" data-gear="1" aria-label="${tab==="home"?"Жильцы и правила":"Настройки"}">${GEAR}</button>`:""}<button type="button" class="pill fire${vs?"":" zero"}" data-tab-go="me" data-meseg="goal" aria-label="Серия цели: ${vs}">${FIRE}${vs}</button>
     <button type="button" class="pill leaf${st!=="pending"?" open":""}${debtOf(k)&&!debtClosed(d)?" pen":""}" id="rewardpill" aria-label="Награда дня">${IC.leaf}${leafTxt}</button></div>`;
   if(!confirmPlay){$("confirm").innerHTML="";return}
   const a=plan(k),b=plan(k,restMin),nextReal=b.items.find(x=>x.q&&!x.started),newly=b.over.filter(o=>!a.over.some(x=>x.q.id===o.q.id));
@@ -698,19 +719,17 @@ function viewToday(){
     :(hidden||done.length||up.length)?`<button type="button" class="line" data-dayopen="1">Весь день${hidden?` · ещё ${hidden}`:""}${done.length?` · сделано ${done.length}`:""}</button>`:"";
   return nowCard(k,d,p)+overCard(p)+
     `<div class="sec"><h3>Дальше</h3><span>до ${DAY_END_()}</span></div>
-     <div class="list">${shown.map(it=>planRow(d,it,{edit:dayOpen})).join("")||'<p class="empty">Больше ничего. Нажми «+», если что-то появилось.</p>'}</div>
+     <div class="list">${shown.map(it=>planRow(d,it,{edit:dayOpen})).join("")||'<p class="empty">Больше ничего.</p>'}</div>
      ${dayOpen?`${done.length?`<div class="sec"><h3>Сделано</h3><span>${done.length}</span></div><div class="list">${done.map(q=>doneRow(d,q)).join("")}</div>`:""}
        <div class="sec"><h3>Запланировано вперёд</h3><span>${up.length} дел</span></div>
-       <div class="list">${tl||'<p class="empty">Нажми «+», выбери день, и дело встанет в план того дня.</p>'}</div>`:""}
+       <div class="list">${tl||'<p class="empty">Пусто.</p>'}</div>`:""}
      <div class="segfoot">${more}</div>`;
 }
 // Серия привычки: огонь, 7 дней, ступени-подарки за 7/14/30 дней подряд
 function habitCard(gid,it){if(!it)return "";const hs=habitStreak(it.id),k=key(),days=Array.from({length:7},(_,i)=>shift(k,i-6));
   const wins=days.map(x=>`<div class="win${itemDone(peek(x),it)?" on":""}${x===k?" today":""}"${onDay(it,dow(x))?"":' style="opacity:.35"'}><i></i><span>${new Date(x+"T12:00:00").toLocaleDateString("ru-RU",{weekday:"short"})}</span></div>`).join("");
-  const R=habitRungs().filter(r=>r.id.startsWith("h_"+gid+"_"));
-  return `<div class="sec"><h3>Серия: ${esc(it.name)}</h3><span>${hs.n} ${hs.n===1?"день":hs.n>1&&hs.n<5?"дня":"дней"} подряд</span></div>
-    <div class="wins" style="margin:0 16px">${wins}</div><div class="list" style="margin-top:8px">${R.map(rungRow).join("")}</div>
-    <p class="empty" style="padding:6px 20px 0">Дни, когда дела нет по распорядку, серию не рвут. Пропуск обнуляет серию, подарки за новую серию открываются заново.</p>`}
+  return `<div class="sec"><h3>🔥 ${esc(it.name)}</h3><span>${hs.n} ${dayW(hs.n)} подряд</span></div>
+    <div class="wins" style="margin:0 16px">${wins}</div>${ladder("h_"+gid,"Подарки за серию")}`}
 function viewGym(){
   const k=key(),d=dayOf(k),bh=bodyHabit(),trToday=bh&&onDay(bh,dow(k));
   const body=state.body.slice(-6);
@@ -718,7 +737,7 @@ function viewGym(){
   const dd=x=>String(x).slice(5).split("-").reverse().join(".");
   const goal=goalsSt().goalKg||prof().goalKg,cur=body.length?body[body.length-1].kg:null;
   const bodyCard=body.length?`${goal?`<span style="font-size:13px;font-weight:700;color:var(--muted)">Цель ${goal} кг · осталось ${Math.abs(Math.round((goal-cur)*10)/10)} кг</span>`:""}<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span class="big">${body[body.length-1].kg} кг</span>${dl!==null?`<span style="font-size:13px;font-weight:700;color:var(--muted)">${dl>0?"+":""}${dl} кг с ${dd(body[0].d)}</span>`:""}</div>
-    <div class="mini">${body.slice().reverse().map(b=>`<div><span>${dd(b.d)}</span><b>${b.kg} кг</b></div>`).join("")}</div>`:'<p class="empty">Взвешивайся раз в неделю, в понедельник утром до завтрака.</p>';
+    <div class="mini">${body.slice().reverse().map(b=>`<div><span>${dd(b.d)}</span><b>${b.kg} кг</b></div>`).join("")}</div>`:'<p class="empty">Пока нет записей.</p>';
   const exs=[...new Set(state.lifts.filter(l=>l.ex).map(l=>l.ex))];
   const exCards=exs.map(ex=>{const L=liftsOf(ex),last=L[L.length-1],best=L.reduce((a,l)=>e1rm(l)>e1rm(a)?l:a,L[0]),first=L[0];
     const isPR=L.length>1&&last===best;
@@ -729,11 +748,11 @@ function viewGym(){
   const cleanW=state.lifts.filter(l=>l.ex&&l.clean).length,allW=state.lifts.filter(l=>l.ex).length;
   const hero=goalHero("body",'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 5v14M18 5v14M6 12h12M3 8v8M21 8v8"/></svg>',
     goal?`кг · цель ${goal} кг`:"кг · задай цель по весу");
-  return hero+`<div class="segfoot" style="padding:10px 16px 0"><button type="button" class="line" data-goalkg="1">${goal?"Цель по весу: "+goal+" кг":"Задать цель по весу"}</button></div>${goal?goalSteps("body"):""}
+  return hero+`<div class="segfoot" style="padding:10px 16px 0"><button type="button" class="line" data-goalkg="1">${goal?"Цель по весу: "+goal+" кг":"Задать цель по весу"}</button></div>${goal?ladder("body","Подарки"):""}
     ${bh?`<div class="card" style="margin-top:12px"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><b>Сегодня</b><span style="font-size:13px;font-weight:700;color:var(--muted)">${trToday?esc(bh.name):"День отдыха"}</span></div>
       <div class="mini">${learned()[bh.id]?`<div><span>${esc(bh.name)} у тебя обычно</span><b>${durTxt(learned()[bh.id].min)}</b></div>`:""}<div><span>${esc(bh.name)}</span><b>${trToday?(itemDone(d,bh)?"сделано":"ещё нет"):"не нужно"}</b></div></div></div>
-      ${habitCard("body",bh)}`:`<p class="empty" style="padding:12px 20px 0">Отметь в распорядке дело для тела (зал, бег, растяжка): у него будет своя серия. Я → ⚙ → Распорядок.</p>`}
-    <div class="card" style="margin-top:12px"><b>Личный советчик</b><p class="empty">Спроси бота про питание, тренировки, сон и вес: «что съесть после зала», «составь меню на 2 дня из того, что есть дома». Он видит твой вес, цель и запасы.</p></div>
+      ${habitCard("body",bh)}`:`<p class="empty" style="padding:12px 20px 0">Дело для тела отмечается в ⚙ → Распорядок.</p>`}
+
     <div class="sec"><h3>Вес тела</h3></div><div class="card">${bodyCard}</div>
     <form class="add" data-add="weight"><div class="r"><input name="t" inputmode="decimal" placeholder="Вес, кг (например 82.5)" aria-label="Вес в кг" autocomplete="off"><button type="submit">Записать</button></div></form>
     <div class="sec"><h3>Рабочие веса</h3><span>${allW?`чистых подходов ${cleanW} из ${allW}`:""}</span></div>
@@ -741,15 +760,15 @@ function viewGym(){
       <datalist id="exlist">${[...new Set(EXERCISES.concat(exs))].map(e=>`<option value="${esc(e)}">`).join("")}</datalist>
       <div class="r"><input name="kg" inputmode="decimal" placeholder="Вес, кг" aria-label="Вес, кг" style="flex:1"><input name="reps" inputmode="numeric" placeholder="Повторы" aria-label="Повторы" style="flex:1"></div>
       <button type="submit">Записать подход</button></form>
-    ${exCards||'<p class="empty" style="padding:10px 20px 0">Записывай лучший рабочий подход по каждому упражнению. Приложение покажет рекорды и рост.</p>'}`;
+    ${exCards||'<p class="empty" style="padding:10px 20px 0">Пока нет подходов.</p>'}`;
 }
 function timeCard(it){
   if(!it||!it.steps)return "";const L=learned(),v=L[it.id],steps=it.steps.filter(x=>L[x.id]),st=stepIds(it);
   let n=0;for(const k of Object.keys(state.days)){const sp=state.days[k].span||{};if(st.every(b=>sp[b]))n++}
-  if(!v&&!steps.length)return `<div class="card" style="margin-top:10px"><b>Время: ${esc(it.name.toLowerCase())}</b><p class="empty">${n?`Замеров: ${n} из 3.`:"Пока нет замеров."} Жми «Начать фокус» в начале и отмечай шаги сразу, как закончил. С трёх замеров план возьмёт твоё реальное время.</p></div>`;
+  if(!v&&!steps.length)return `<div class="card" style="margin-top:10px"><b>Время: ${esc(it.name.toLowerCase())}</b><p class="empty">${n?`Замеров: ${n} из 3.`:"Пока нет замеров."} Жми «Начать фокус» и отмечай шаги.</p></div>`;
   return `<div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><b>Время: ${esc(it.name.toLowerCase())}</b>${v?`<span style="font-size:13px;font-weight:700;color:var(--muted)">обычно ${durTxt(v.min)}</span>`:""}</div>
     <div class="mini">${steps.map(x=>`<div><span>${esc(x.name)}</span><b>${durTxt(L[x.id].min)}</b></div>`).join("")}</div>
-    <p class="empty">По последним замерам, медиана. План дня уже считает так.</p></div>`;
+    <p class="empty">Медиана последних замеров.</p></div>`;
 }
 let goalEdit=false;
 function goalHero(gid,icon,sub){const T=TPL[gid],v=T.val(),steps=goalOf(gid).steps.slice().sort((a,b)=>tdir(gid)*(a.at-b.at));
@@ -760,18 +779,19 @@ function goalHero(gid,icon,sub){const T=TPL[gid],v=T.val(),steps=goalOf(gid).ste
     ringH=ring(pct,fmtN(left),"до "+(gid==="body"?nx.at+" кг":fmtN(nx.at)))}
   else if(!nx&&steps.length)ringH=ring(1,"✓","все ступени");
   return `<section class="hero"><div class="hl2"><span class="flame${gid==="chan"?" yt":""}">${icon}</span><div><b>${v==null?"—":gid==="body"?v:fmtN(v)}</b><small>${esc(sub)}</small></div></div>${ringH}</section>`}
-function goalSteps(gid){const T=TPL[gid],g=goalOf(gid),steps=g.steps.slice().sort((a,b)=>tdir(gid)*(a.at-b.at));
-  if(!goalEdit)return `<div class="sec"><h3>Ступени и подарки</h3><button type="button" data-gedit="1">изменить</button></div>
-    <div class="list">${steps.map(st=>rungRow(findRung("t_"+gid+"_"+st.id))).join("")||'<p class="empty" style="padding:0 4px">Ступеней нет. Нажми «изменить» и добавь.</p>'}</div>`;
-  return `<div class="sec"><h3>Ступени</h3><button type="button" data-gedit="0">готово</button></div>
-    <div class="list">${steps.map(st=>`<div class="hrow"><span class="nm"><b>${esc(stepLabel(gid,st))}</b></span>
-      <input class="gnum" data-gat="${gid}:${st.id}" inputmode="decimal" value="${st.at}" aria-label="Порог"><span class="dur">€</span><input class="gnum" data-gbud="${gid}:${st.id}" inputmode="numeric" value="${st.budget}" aria-label="Бюджет, €">
-      <button type="button" class="x" data-gdel="${gid}:${st.id}" aria-label="Удалить ступень">${IC.x}</button></div>`).join("")}</div>
-    <div class="segfoot" style="display:flex;gap:8px"><button type="button" class="line" data-gadd="${gid}">+ ступень</button><button type="button" class="line" data-gsug="${gid}">Предложить заново</button></div>
-    <p class="empty" style="padding:8px 20px 0">Порог и бюджет подарка можно менять. Подарок выбираешь, нажав на ступень.</p>`}
+const dayW=n=>n===1?"день":n>1&&n<5?"дня":"дней";
+function ladder(store,title){
+  const g=goalOf(store),hab=store.startsWith("h_"),gid=hab?store.slice(2):store,steps=g.steps.slice().sort((a,b)=>tdir(store)*(a.at-b.at)),pre=hab?"h_"+gid+"_":"t_"+gid+"_";
+  const lbl=st=>hab?`${st.at} <small>${dayW(st.at)}</small>`:gid==="body"?`${st.at} <small>кг</small>`:`${fmtN(st.at)} <small>${esc(TPL[gid].unit())}</small>`;
+  if(goalEdit!==store)return `<div class="sec"><h3>${title}</h3><button type="button" data-gedit="${store}">изменить</button></div>
+    <div class="lad">${steps.map(st=>{const r=findRung(pre+st.id);if(!r)return "";const s=rungState(r),gf=(state.gifts||{})[r.id];
+      return `<button type="button" class="ls ${s}" data-gift="${r.id}"><span class="nd">${s==="got"?IC.check:s==="open"?IC.star:""}</span><span class="tx"><b>${lbl(st)}</b><span class="${gf?"":"no"}">${gf?esc(gf):s==="open"?"открыто, забирай":"подарок не выбран"}</span></span><span class="eur">€${st.budget}</span></button>`}).join("")||'<p class="empty">Пусто. Нажми «изменить».</p>'}</div>`;
+  return `<div class="sec"><h3>${title}</h3><button type="button" data-gedit="">готово</button></div>
+    ${steps.map(st=>`<div class="lse"><input data-gat="${store}:${st.id}" inputmode="decimal" value="${st.at}" aria-label="Порог"><input data-ggift="${pre+st.id}" maxlength="80" value="${esc((state.gifts||{})[pre+st.id]||"")}" placeholder="подарок" aria-label="Подарок"><input data-gbud="${store}:${st.id}" inputmode="numeric" value="${st.budget}" aria-label="Бюджет, €"><button type="button" class="x" data-gdel="${store}:${st.id}" aria-label="Удалить">${IC.x}</button></div>`).join("")}
+    <div class="segfoot" style="display:flex;gap:8px"><button type="button" class="line" data-gadd="${store}">+ ступень</button><button type="button" class="line" data-gsug="${store}">Заново</button></div>`}
 function viewGoal(){
   const g=GOAL();
-  if(!g)return `<section class="card"><b>Цель пока не задана</b><p class="empty">Одна текущая цель: канал, рисование, деньги, что угодно. У неё цифра, ступени с подарками и привычка из распорядка со своей серией.</p><button type="button" class="goldbtn" data-goalnew="1">Задать цель</button></section>`;
+  if(!g)return `<section class="card"><b>Цель пока не задана</b><p class="empty">Канал, рисование, деньги, что угодно.</p><button type="button" class="goldbtn" data-goalnew="1">Задать цель</button></section>`;
   const gid=gk(),k=key(),hb=goalHabit(),log=state.chanLog||[],G=goalsSt();
   const dd=x=>String(x).slice(5).split("-").reverse().join(".");
   const ago=gid==="chan"?log.filter(x=>x.d<=shift(k,-6)).pop():null,dS=ago&&log.length?(G.subs||0)-ago.subs:null;
@@ -779,27 +799,45 @@ function viewGoal(){
   const icon=gid==="chan"?'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>':'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/></svg>';
   return goalHero(gid,icon,TPL[gid].unit()+(dS?` · ${dS>0?"+":""}${dS} за неделю`:"")+(gid==="chan"&&!log.length?" · цифры не внесены":""))
     +`<div class="segfoot" style="padding:10px 16px 0;display:flex;gap:8px"><button type="button" class="line" data-${gid==="chan"?"chan":"gval"}="1">Обновить цифру</button><button type="button" class="line" data-goalnew="1">Сменить цель</button></div>
-    ${goalSteps(gid)}
-    ${FLAGS().length?`<div class="list" style="margin-top:8px">${FLAGS().map(rungRow).join("")}</div>`:""}
-    ${hb?habitCard(gid,hb):`<p class="empty" style="padding:12px 20px 0">Привычка не выбрана. Нажми «Сменить цель» и выбери дело из распорядка, которое ведёт к цели.</p>`}
+    ${hb?habitCard(gid,hb):`<p class="empty" style="padding:12px 20px 0">Привычка не выбрана.</p>`}
+    ${ladder(gid,"Подарки за цифру")}
+    ${FLAGS().length?`<div class="lad">${FLAGS().map(r=>{const s=rungState(r),gf=(state.gifts||{})[r.id];return `<button type="button" class="ls ${s}" data-gift="${r.id}"><span class="nd">${s==="got"?IC.check:IC.star}</span><span class="tx"><b>${esc(r.t)}</b><span class="${gf?"":"no"}">${gf?esc(gf):"подарок не выбран"}</span></span><span class="eur">€${r.budget}</span></button>`}).join("")}</div>`:""}
     ${timeCard(hb)}
     ${hb?`<div class="tiles"><div class="tile"><b>${doneIn(7)}/7</b><span>${esc(hb.name.toLowerCase())} за неделю</span></div><div class="tile"><b>${doneIn(30)}</b><span>за 30 дней</span></div></div>`:""}
     ${gid==="chan"&&log.length>1?`<div class="sec"><h3>История</h3></div><div class="card"><div class="mini">${log.slice(-6).reverse().map(x=>`<div><span>${dd(x.d)}</span><b>${x.subs.toLocaleString("ru-RU")} подп.${x.views?" · "+x.views.toLocaleString("ru-RU"):""}</b></div>`).join("")}</div></div>`:""}`;
 }
+// История: каждый день, что и во сколько сделано, сколько заняло, что убрал, отдых и награда
+function nameOf(id,d){if(id==="vid2")return (penItem()||{}).bonus||"Повтор";if(id==="fine")return "Штраф";if(id==="buy")return "Покупки";
+  if(id.startsWith("ch_")){const c=houseOf().chores.find(x=>"ch_"+x.id===id);return c?c.name:"Дело по дому"}
+  const c=(d.custom||[]).find(x=>x.id===id);if(c)return c.name;const it=ritem(id);if(it)return it.name;
+  const p=parentOf(id);if(p){const s=p.steps.find(x=>x.id===id);return p.name+": "+s.name}return id}
+function dayLog(k){const d=peek(k);if(!d)return [];const out=[];
+  for(const [id,t] of Object.entries(d.at||{}))out.push({t,c:"",n:nameOf(id,d),m:((d.span||{})[id]||{}).m});
+  for(const r of restsOf(d))out.push({t:r.at,c:"rest",n:"Отдых",m:r.min});
+  if(d.firstSmoke)out.push({t:d.firstSmoke,c:"rew",n:"Награда: "+(prof().reward||"взял")});
+  for(const id of d.skip||[])out.push({t:((d.ev||[]).find(e=>e[1]==="skip"&&e[2]===id)||["—"])[0],c:"skip",n:nameOf(id,d)});
+  return out.sort((a,b)=>String(a.t).localeCompare(String(b.t)))}
+let histOpen=null;
+function viewHist(){const k=key(),ks=Object.keys(state.days).filter(x=>x<=k&&dayLog(x).length).sort().reverse().slice(0,60);
+  if(!ks.length)return '<p class="empty" style="padding:0 20px">Пока пусто.</p>';
+  return `<div class="sec" style="margin-top:4px"><h3>Все дни</h3><span>${closedStreak()} ${dayW(closedStreak())} подряд всё главное</span></div>`+ks.map(x=>{const L=dayLog(x),R=reqs(x),cl=dayClosed(x),o=histOpen===x||(histOpen===null&&x===ks[0]);
+    const lbl=x===k?"Сегодня":new Date(x+"T12:00:00").toLocaleDateString("ru-RU",{weekday:"short",day:"numeric",month:"long"});
+    return `<div class="hday"><button type="button" data-hday="${x}" aria-expanded="${o}"><span class="nm"><b>${esc(lbl)}</b><br><small>${R.length?(cl?"всё главное закрыто":R.filter(r=>r.t).length+" из "+R.length+" главных"):""}${debtOf(x)?" · штрафной":""}</small></span><span class="rs${cl?" ok":""}">${cl?IC.check:""}</span></button>
+      ${o?L.map(e=>`<div class="hev ${e.c}"><time>${esc(e.t)}</time><span>${esc(e.n)}</span><em>${e.m?durTxt(e.m):""}</em></div>`).join("")+(x<k?R.filter(r=>!r.t).map(r=>`<div class="hev skip"><time>✕</time><span>${esc(r.name)}</span><em>не сделано</em></div>`).join(""):""):""}</div>`}).join("")}
 const NOTIFY=[["morning","Утренняя сводка","план дня, дом, теория, после подъёма"],["voice","Сводка голосом","голосовое вместе с текстом"],["pora","«Пора» по делам","когда начинается дело из плана"],["rest","Отдых","отдых закончился, отдыха много"],["evening","Итог дня","в 22:30"],["week","Итог недели","воскресенье 21:00"]];
 const notifyOn=k=>((state.notify||{})[k])!==false;
 let rolesOpen=false,homeSeg="food",foodCat="fridge",cookIdeas=null,cookBusy=false,meSeg="goal";
 const WD=["Вс","Пн","Вт","Ср","Чт","Пт","Сб"],WD_ORDER=[1,2,3,4,5,6,0];
 const daysTxt=it=>!it.days||!it.days.length||it.days.length===7?"каждый день":it.days.length===6?"кроме "+WD[[0,1,2,3,4,5,6].find(x=>!it.days.includes(x))].toLowerCase():WD_ORDER.filter(x=>it.days.includes(x)).map(x=>WD[x].toLowerCase()).join(", ");
 function routineCard(){const P=prof(),pen=P.penalty,mains=ritems().filter(it=>it.main);
-  return `<div class="sec"><h3>Распорядок</h3><span>из этого собирается каждый день</span></div>
+  return `<div class="sec"><h3>Распорядок</h3></div>
     <div class="list">${ritems().map(it=>`<button type="button" class="hrow" data-redit="${esc(it.id)}" style="text-align:left;border:none;color:inherit;font:inherit"><span class="nm"><b>${esc(it.name)}${it.main?' <span class="pin">ГЛАВНОЕ</span>':""}</b><small>${durTxt(it.dur||30)} · ${daysTxt(it)}${it.at?" · "+(it.at==="end"?"перед отбоем":"в "+it.at):""}${it.proof||(it.steps||[]).some(x=>x.proof)?" · пруф":""}${it.goal==="body"?" · тело":""}${GOAL()&&GOAL().habit===it.id?" · цель":""}</small></span></button>`).join("")}</div>
     <div class="segfoot"><button type="button" class="line" data-redit="+">+ Дело в распорядок</button></div>
     <div class="card" style="margin-top:10px"><b>Награда и штраф</b><div class="mini">
       <div><span>Награда дня</span><input class="gnum" style="width:120px" data-pf="reward" value="${esc(P.reward||"")}" aria-label="Награда дня" maxlength="30"></div>
       <div><span>Провал, если не сделано</span><select data-pen="task" aria-label="Штрафное дело"><option value="">штраф выключен</option>${mains.map(it=>`<option value="${esc(it.id)}"${pen&&pen.task===it.id?" selected":""}>${esc(it.name)}</option>`).join("")}</select></div>
       ${pen?`<div><span>Штраф, €</span><input class="gnum" data-pen="fine" inputmode="numeric" value="${pen.fine||0}" aria-label="Штраф в евро"></div><div><span>Куда переводить</span><input class="gnum" style="width:120px" data-pen="to" value="${esc(pen.to||"")}" aria-label="Куда переводить штраф" maxlength="30"></div>`:""}</div>
-      <p class="empty">${pen?`День без «${esc((ritem(pen.task)||{}).name||"")}»: завтра долг, повторить его${pen.fine?` и €${pen.fine} в ${esc(pen.to||"копилку")}`:""}. Пока долг не закрыт, отдыха нет.`:"Без штрафа пропуск просто рвёт серию."}</p></div>`}
+</div>`}
 function viewHome(){
   const h=houseOf(),k=key(),exp=expiringH(h),due=h.chores.filter(c=>choreDue(c,k)),sl=shopListH(h);
   const outN=h.items.filter(x=>x.level==="out").length,stepsLeft=h.projects.reduce((n,p)=>n+p.steps.filter(x=>!x.done).length,0);
@@ -812,16 +850,16 @@ function viewHome(){
     body=`<div class="cats" style="margin:0 16px 10px">${Object.entries(HCATS).map(([c,t])=>`<button type="button" class="chip" data-hcat="${c}" aria-pressed="${foodCat===c}">${t} ${h.items.filter(x=>x.cat===c).length}${c==="fridge"&&exp.length?'<i class="dot"></i>':""}</button>`).join("")}</div>
       <div class="list">${its.map(x=>{const dl=x.until?daysLeft(x.until):null;
         const sub=x.cat==="fridge"&&x.until&&x.level!=="out"?(dl<0?`<small class="bad">просрочено ${ddmm(x.until)}</small>`:dl<=1?`<small class="bad">${dl===0?"сегодня последний день":"до завтра"}</small>`:`<small>до ${ddmm(x.until)}</small>`):(x.qty?`<small>${esc(x.qty)}</small>`:"");
-        return `<div class="hrow"><span class="nm"><b>${esc(x.name)}</b>${sub}</span><button type="button" class="lvl ${x.level}" data-hlvl="${x.id}">${HLVL[x.level]||"есть"}</button><button type="button" class="x" data-hdel="${x.id}" aria-label="Убрать">${IC.x}</button></div>`}).join("")||'<p class="empty" style="padding:0 4px">Пусто. Скажи боту «купил курицу, рис, яйца» или кинь фото чека.</p>'}</div>
+        return `<div class="hrow"><span class="nm"><b>${esc(x.name)}</b>${sub}</span><button type="button" class="lvl ${x.level}" data-hlvl="${x.id}">${HLVL[x.level]||"есть"}</button><button type="button" class="x" data-hdel="${x.id}" aria-label="Убрать">${IC.x}</button></div>`}).join("")||'<p class="empty" style="padding:0 4px">Пусто. Можно кинуть боту фото чека.</p>'}</div>
       <form class="add" data-add="hitem"><div class="r"><input name="t" maxlength="60" placeholder="Добавить в «${HCATS[foodCat]}»" aria-label="Что добавить" autocomplete="off"><button type="submit">+</button></div></form>
       <div class="sec"><h3>Что приготовить</h3><button type="button" data-cook="1">${cookBusy?"думаю…":"подобрать"}</button></div>
-      ${cookIdeas?`<div class="list">${cookIdeas.map(c=>`<div class="idea"><b>${esc(c.name)}${c.prep?' <span class="pin">ЗАГОТОВКА</span>':""}</b><small style="color:var(--muted);font-weight:700">${esc(c.uses||"")}${c.time?" · "+esc(String(c.time))+" мин":""}</small>${c.buy?`<small style="color:var(--gold);font-weight:700">Докупить: ${esc(c.buy)}</small>`:""}</div>`).join("")}</div>`:'<p class="empty" style="padding:0 20px">Бот предложит блюда из того, что есть, сначала из того, что скоро испортится.</p>'}`;
+      ${cookIdeas?`<div class="list">${cookIdeas.map(c=>`<div class="idea"><b>${esc(c.name)}${c.prep?' <span class="pin">ЗАГОТОВКА</span>':""}</b><small style="color:var(--muted);font-weight:700">${esc(c.uses||"")}${c.time?" · "+esc(String(c.time))+" мин":""}</small>${c.buy?`<small style="color:var(--gold);font-weight:700">Докупить: ${esc(c.buy)}</small>`:""}</div>`).join("")}</div>`:'<p class="empty" style="padding:0 20px">Из того, что есть дома.</p>'}`;
   }
   if(homeSeg==="shop"){
     const free=sl.filter(({x})=>x.who==null).length;
-    body=`${free?`<div class="segfoot" style="padding:0 16px 10px"><button type="button" class="line" data-take="shopall:1">Взять всё на себя (${free})</button></div>`:""}<div class="list">${sl.map(({kind,x})=>`<div class="hrow"><button type="button" class="chk" data-bought="${kind}:${x.id}" aria-label="Купил «${esc(x.name)}»"></button><span class="nm"><b>${esc(x.name)}</b><small>${kind==="item"?(x.level==="out"?"кончилось":"мало")+" · "+HCATS[x.cat].toLowerCase():"добавлено вручную"}${x.who!=null?" · взял "+whoName(x.who):""}</small></span>${x.who==null?`<button type="button" class="chip take" data-take="${kind}:${x.id}">Взять</button>`:isMe(x.who)?`<button type="button" class="chip" data-untake="${kind}:${x.id}">Отдать</button>`:""}${kind==="shop"?`<button type="button" class="x" data-sdel="${x.id}" aria-label="Убрать">${IC.x}</button>`:""}</div>`).join("")||'<p class="empty" style="padding:0 4px">Список пуст. Всё, что «мало» или «нет», появится тут само.</p>'}</div>
+    body=`${free?`<div class="segfoot" style="padding:0 16px 10px"><button type="button" class="line" data-take="shopall:1">Взять всё на себя (${free})</button></div>`:""}<div class="list">${sl.map(({kind,x})=>`<div class="hrow"><button type="button" class="chk" data-bought="${kind}:${x.id}" aria-label="Купил «${esc(x.name)}»"></button><span class="nm"><b>${esc(x.name)}</b><small>${kind==="item"?(x.level==="out"?"кончилось":"мало")+" · "+HCATS[x.cat].toLowerCase():"добавлено вручную"}${x.who!=null?" · взял "+whoName(x.who):""}</small></span>${x.who==null?`<button type="button" class="chip take" data-take="${kind}:${x.id}">Взять</button>`:isMe(x.who)?`<button type="button" class="chip" data-untake="${kind}:${x.id}">Отдать</button>`:""}${kind==="shop"?`<button type="button" class="x" data-sdel="${x.id}" aria-label="Убрать">${IC.x}</button>`:""}</div>`).join("")||'<p class="empty" style="padding:0 4px">Пусто.</p>'}</div>
       <form class="add" data-add="shop"><div class="r"><input name="t" maxlength="60" placeholder="Добавить в покупки" aria-label="Что купить" autocomplete="off"><button type="submit">+</button></div></form>
-      ${sl.length?'<p class="empty" style="padding:10px 20px 0">Взял покупки, и у тебя в плане появится «Купить: …». Закрыл его, и всё взятое вернётся в «есть». Можно отмечать и по одной.</p>':""}`;
+      ${sl.length?'':""}`;
   }
   if(homeSeg==="chores"){
     const rows=h.chores.slice().sort((a,b)=>(choreDue(b,k)-choreDue(a,k))||(addDays(a.last||k,a.every)).localeCompare(addDays(b.last||k,b.every)));
@@ -832,18 +870,18 @@ function viewHome(){
       return `<div class="hrow"><button type="button" class="chk${today?" on":""}" data-chore="${c.id}" aria-label="Сделал «${esc(c.name)}»">${today?IC.check:""}</button><span class="nm"><b>${esc(c.name)}</b><small class="${isDue&&c.who==null?"bad":""}">${today?"сделано сегодня":isDue?(dl<0?"просрочено на "+(-dl)+" дн":"пора"):"через "+dl+" дн"}${who} · раз в ${c.every} дн · ${durTxt(c.dur||20)}</small></span>${take}<button type="button" class="x" data-cdel="${c.id}" aria-label="Удалить">${IC.x}</button></div>`}).join("")}</div>
       <form class="add" data-add="chore"><div class="r"><input name="t" maxlength="50" placeholder="Новое дело, например «Полить цветы»" aria-label="Новое домашнее дело" autocomplete="off"></div>
         <div class="r"><select name="every" aria-label="Как часто">${[[1,"каждый день"],[2,"раз в 2 дня"],[3,"раз в 3 дня"],[7,"раз в неделю"],[14,"раз в 2 недели"],[30,"раз в месяц"]].map(([v,t])=>`<option value="${v}"${v===7?" selected":""}>${t}</option>`).join("")}</select><button type="submit">Добавить</button></div></form>
-      <p class="empty" style="padding:10px 20px 0">Подошло дело: нажми «Взять», и оно встанет в твой план в свободное окно. Сделал, и оно закроется тут, а отсчёт начнётся заново.</p>`;
+      `;
   }
   if(homeSeg==="more"){
     const owner=true;
     body=h.projects.map(p=>{const dn=p.steps.filter(x=>x.done).length;
       return `<div class="sec"><h3>${esc(p.name)}</h3><span>${dn} из ${p.steps.length}</span></div><div class="list">${p.steps.map(st=>`<div class="hrow"><button type="button" class="chk${st.done?" on":""}" data-step="${p.id}:${st.id}" aria-label="${esc(st.t)}">${st.done?IC.check:""}</button><span class="nm"><b style="${st.done?"text-decoration:line-through;color:var(--dim)":""}">${esc(st.t)}</b></span></div>`).join("")}</div>
         <form class="add" data-add="step" data-pid="${p.id}"><div class="r"><input name="t" maxlength="100" placeholder="Добавить шаг" aria-label="Новый шаг" autocomplete="off"><button type="submit">+</button></div></form>`}).join("")
-      +`<p class="empty" style="padding:12px 20px 0">Новый проект (ремонт, мебель, поездка) можно попросить у бота: «заведи проект …».</p>`;
+      +`<p class="empty" style="padding:12px 20px 0">Новый проект: скажи боту «заведи проект …».</p>`;
   }
   if(homeSeg==="people"){
     const owner=true;
-    body=`<div class="sec" style="margin-top:0"><h3>Память дома</h3><span>общая для всех</span></div><div class="list">${h.notes.map(n=>`<div class="hrow"><span class="nm"><b style="font-weight:600">${esc(n.t)}</b></span><button type="button" class="x" data-ndel="${n.id}" aria-label="Удалить">${IC.x}</button></div>`).join("")||'<p class="empty" style="padding:0 4px">Правила и факты о жилье: когда вывоз мусора, где стиралка, контакты хозяина.</p>'}</div>
+    body=`<div class="sec" style="margin-top:0"><h3>Память дома</h3><span>общая для всех</span></div><div class="list">${h.notes.map(n=>`<div class="hrow"><span class="nm"><b style="font-weight:600">${esc(n.t)}</b></span><button type="button" class="x" data-ndel="${n.id}" aria-label="Удалить">${IC.x}</button></div>`).join("")||'<p class="empty" style="padding:0 4px">Пусто.</p>'}</div>
       <form class="add" data-add="hnote"><div class="r"><input name="t" maxlength="200" placeholder="Например: мусор вывозят по четвергам" aria-label="Запись в память дома" autocomplete="off"><button type="submit">+</button></div></form>
       <div class="sec"><h3>Люди и должности</h3><span>${h.members.length} чел.</span></div>
       <div class="list">${h.members.map(m=>`<div class="hrow"><span class="nm"><b>${esc(m.name||"Участник")}</b><small>${esc((h.roles.find(r=>r.id===m.role)||{}).name||m.role)}</small></span></div>`).join("")}</div>
@@ -857,9 +895,10 @@ function viewHome(){
     ${homeSeg==="people"?`<div class="sec"><h3>Жильцы и правила</h3><button type="button" data-gear="1">назад</button></div>`:`<div class="segc" role="tablist" style="grid-template-columns:repeat(4,minmax(0,1fr))">${segs.map(([id,t])=>`<button type="button" role="tab" data-hseg="${id}" aria-selected="${homeSeg===id}">${t}</button>`).join("")}</div>`}${body}`;
 }
 function viewMe(){
-  if(meSeg!=="set"&&meSeg!=="body")meSeg="goal";
-  const segs=[["goal",GOAL()?GOAL().name:"Цель"],["body","Тело"]];
+  if(!["set","body","hist"].includes(meSeg))meSeg="goal";
+  const segs=[["goal",GOAL()?GOAL().name:"Цель"],["body","Тело"],["hist","История"]];
   let body="";
+  if(meSeg==="hist")body=viewHist();
   if(meSeg==="goal")body=viewGoal();
   if(meSeg==="body")body=viewGym();
   if(meSeg==="set"){const P=prof(),notes=state.notes||[],temp=(state.temp||[]).filter(x=>x.until>=key());
@@ -874,10 +913,10 @@ function viewMe(){
       <div class="sec"><h3>Что бот помнит</h3><span>${notes.length}</span></div>
       <div class="list">${notes.map(n=>`<div class="hrow"><span class="nm"><b style="font-weight:600">${esc(n)}</b></span></div>`).join("")||'<p class="empty" style="padding:0 4px">Пока ничего.</p>'}
       ${temp.map(n=>`<div class="hrow"><span class="nm"><b style="font-weight:600">${esc(n.t)}</b><small>временно, до ${ddmm(n.until)}</small></span></div>`).join("")}</div>
-      <p class="empty" style="padding:10px 20px 0">Поправить или удалить: скажи боту «забудь …» или «запомни …».</p>
+      <p class="empty" style="padding:10px 20px 0">Править: «забудь …» или «запомни …» боту.</p>
       ${state.home&&state.home.address?`<div class="sec"><h3>Дом на карте</h3></div><div class="card"><p class="empty">${esc(state.home.address)}</p></div>`:""}`}
   return (meSeg==="set"?`<div class="sec" style="margin-top:4px"><h3>Настройки</h3><button type="button" data-gear="1">назад</button></div>`
-    :`<div class="segc" role="tablist" style="grid-template-columns:repeat(2,minmax(0,1fr))">${segs.map(([id,t])=>`<button type="button" role="tab" data-meseg="${id}" aria-selected="${meSeg===id}">${esc(t)}</button>`).join("")}</div>`)+body;
+    :`<div class="segc" role="tablist" style="grid-template-columns:repeat(3,minmax(0,1fr))">${segs.map(([id,t])=>`<button type="button" role="tab" data-meseg="${id}" aria-selected="${meSeg===id}">${esc(t)}</button>`).join("")}</div>`)+body;
 }
 function rungState(r){const open=rungOpen(r),claimed=rungClaimed(r);
   return claimed?"got":open?"open":"locked"}
@@ -913,6 +952,8 @@ document.addEventListener("change",e=>{
   const gi=e.target.closest("input[data-gat],input[data-gbud]");
   if(gi){const [gid,sid]=(gi.dataset.gat||gi.dataset.gbud).split(":"),st=goalOf(gid).steps.find(x=>x.id===sid),n=parseFloat(String(gi.value).replace(",","."));
     if(st&&n>0)mutate(()=>{if(gi.dataset.gat)st.at=n;else st.budget=Math.round(n)});return}
+  const gg=e.target.closest("input[data-ggift]");
+  if(gg){const id=gg.dataset.ggift,v=gg.value.trim().slice(0,80);mutate(()=>{state.gifts=Object.assign({},state.gifts||{},{[id]:v})});return}
   const pn=e.target.closest("[data-pen]");
   if(pn){const P=prof(),f=pn.dataset.pen,v=pn.value.trim();
     mutate(()=>{if(f==="task")setProf({penalty:v?Object.assign({fine:5,to:"копилку"},P.penalty||{},{task:v}):null});
@@ -932,8 +973,8 @@ document.addEventListener("click",e=>{
   if(t.dataset.t){toggle(t.dataset.t);return}
   if(t.dataset.start){startTask(t.dataset.start);return}
   if(t.dataset.focus){openFocus(t.dataset.focus);return}
-  if(t.dataset.hist){W={step:"hist",open:null};renderSheet();return}
   if(t.dataset.redit){openRoutine(t.dataset.redit);return}
+  if(t.dataset.hday){const x=t.dataset.hday,ks=Object.keys(state.days).sort().reverse();histOpen=histOpen===x||(histOpen===null&&x===ks.find(y=>y<=key()&&dayLog(y).length))?"":x;render();return}
   if(t.dataset.goalnew){const g=GOAL()||{};W={step:"goalnew",g:{name:g.name||"",unit:g.unit||"",habit:g.habit||""}};renderSheet();return}
   if(t.dataset.gval){W={step:"gval"};renderSheet();return}
   if(t.dataset.game){askGame();return}
@@ -962,12 +1003,12 @@ document.addEventListener("click",e=>{
   if(t.dataset.perm){const [rid,pk]=t.dataset.perm.split(":"),r=houseOf().roles.find(x=>x.id===rid);
     if(r&&!r.fixed)mutate(()=>{r.perms=r.perms.includes(pk)?r.perms.filter(x=>x!==pk):r.perms.concat([pk]);touch(r)});return}
   if(t.dataset.gear){if(tab==="home")homeSeg=homeSeg==="people"?"food":"people";else meSeg=meSeg==="set"?"goal":"set";render();window.scrollTo(0,0);return}
-  if(t.dataset.gedit){goalEdit=t.dataset.gedit==="1";render();return}
+  if(t.dataset.gedit!==undefined){goalEdit=t.dataset.gedit||false;render();return}
   if(t.dataset.gdel){const [gid,sid]=t.dataset.gdel.split(":"),g=goalOf(gid);mutate(()=>{g.steps=g.steps.filter(x=>x.id!==sid)});return}
-  if(t.dataset.gadd){const gid=t.dataset.gadd,g=goalOf(gid),last=g.steps.slice().sort((a,b)=>tdir(gid)*(a.at-b.at)).pop(),v=TPL[gid].val()||0;
-    const at=last?Math.round(last.at+(last.at-(gid==="body"?v:0))*(gid==="body"?0.5:1)):(gid==="body"?v:100);
+  if(t.dataset.gadd){const gid=t.dataset.gadd,g=goalOf(gid),last=g.steps.slice().sort((a,b)=>tdir(gid)*(a.at-b.at)).pop(),v=gid.startsWith("h_")?0:(TPL[gid].val()||0);
+    const at=last?Math.round(last.at+(last.at-(gid==="body"?v:0))*(gid==="body"?0.5:1)):(gid==="body"?v:gid.startsWith("h_")?7:100);
     mutate(()=>g.steps.push({id:hid("t"),at,budget:last?last.budget:20}));return}
-  if(t.dataset.gsug){const gid=t.dataset.gsug;mutate(()=>{state.tgoals[gid]={steps:TPL[gid].suggest(TPL[gid].val()).map(x=>({id:hid("t"),...x}))}});toast("Ступени предложены заново");return}
+  if(t.dataset.gsug){const gid=t.dataset.gsug;mutate(()=>{state.tgoals[gid]={steps:sugOf(gid).map(x=>({id:hid("t"),...x}))}});toast("Ступени заново");return}
   if(t.dataset.notify){const k=t.dataset.notify;mutate(()=>{state.notify=Object.assign({},state.notify,{[k]:!notifyOn(k)})});return}
   if(t.dataset.roles){rolesOpen=!rolesOpen;render();return}
   if(t.dataset.invite){toast("Приглашения по ссылке сделаем следующим шагом.");return}
@@ -1049,17 +1090,17 @@ function renderSheet(){
       <button type="button" class="goldbtn" data-w="save">Добавить в план</button>`;
   if(W.step==="weight")body=`<h2>Вес тела</h2><form data-wf="weight"><input name="v" inputmode="decimal" placeholder="82.5" aria-label="Вес, кг" autocomplete="off"></form><button type="button" class="goldbtn" data-w="saveweight">Записать</button>`;
   const PR=W.prefs||{},tog=(arr,v)=>`aria-pressed="${arr.includes(v)}"`;
-  if(W.step==="pcity")body=`<h2>Где ты живёшь?</h2><p class="q">Чтобы искать подарки и места рядом.</p><form data-wf="p"><input name="v" maxlength="40" value="${esc(PR.city)}" placeholder="Город" autocomplete="off" aria-label="Город"></form><button type="button" class="goldbtn" data-w="pnext">Дальше</button>`;
-  if(W.step==="pbudget")body=`<h2>Бюджет на подарок за уровень</h2><p class="q">Уровень берётся примерно за 2–3 хороших дня.</p><div class="opts">${[10,25,50,100].map(b=>`<button type="button" class="opt" data-w="pb:${b}" aria-pressed="${PR.budget===b}">до €${b}</button>`).join("")}</div>`;
+  if(W.step==="pcity")body=`<h2>Где ты живёшь?</h2><form data-wf="p"><input name="v" maxlength="40" value="${esc(PR.city)}" placeholder="Город" autocomplete="off" aria-label="Город"></form><button type="button" class="goldbtn" data-w="pnext">Дальше</button>`;
+  if(W.step==="pbudget")body=`<h2>Бюджет на подарок за уровень</h2><div class="opts">${[10,25,50,100].map(b=>`<button type="button" class="opt" data-w="pb:${b}" aria-pressed="${PR.budget===b}">до €${b}</button>`).join("")}</div>`;
   if(W.step==="plikes")body=`<h2>Что тебя реально радует?</h2><p class="q">Выбери всё, что подходит.</p><div class="opts">${LIKES.map(v=>`<button type="button" class="opt" data-w="pl:${esc(v)}" ${tog(PR.likes,v)}>${esc(v)}</button>`).join("")}</div><button type="button" class="goldbtn" data-w="pnext">Дальше</button>`;
-  if(W.step==="pfood")body=`<h2>Любимая еда?</h2><p class="q">Для подарков-ресторанов и доставки.</p><div class="opts">${FOODS.map(v=>`<button type="button" class="opt" data-w="pf:${esc(v)}" ${tog(PR.foods,v)}>${esc(v)}</button>`).join("")}</div><button type="button" class="goldbtn" data-w="pnext">Дальше</button>`;
-  if(W.step==="pmore")body=`<h2>Что ещё любишь?</h2><p class="q">Бренды, хобби, о чём мечтаешь. Можно пропустить.</p><form data-wf="p"><input name="v" maxlength="120" value="${esc(PR.more)}" placeholder="Например: Nike, картинг, Lexus, Dota" autocomplete="off" aria-label="Что ещё любишь"></form><button type="button" class="goldbtn" data-w="psave">Сохранить</button>`;
+  if(W.step==="pfood")body=`<h2>Любимая еда?</h2><div class="opts">${FOODS.map(v=>`<button type="button" class="opt" data-w="pf:${esc(v)}" ${tog(PR.foods,v)}>${esc(v)}</button>`).join("")}</div><button type="button" class="goldbtn" data-w="pnext">Дальше</button>`;
+  if(W.step==="pmore")body=`<h2>Что ещё любишь?</h2><p class="q">Можно пропустить.</p><form data-wf="p"><input name="v" maxlength="120" value="${esc(PR.more)}" placeholder="Например: Nike, картинг, Lexus, Dota" autocomplete="off" aria-label="Что ещё любишь"></form><button type="button" class="goldbtn" data-w="psave">Сохранить</button>`;
   if(W.step==="gift"){const r=findRung(W.rung),g=(state.gifts||{})[r.id]||"";
     const ideas=giftBusy?'<p class="empty">Ищу…</p>':giftIdeas?giftIdeas.map((x,i)=>`<div class="card" style="margin:0;gap:6px;background:var(--panel)"><b>${esc(x.title)}</b><span class="empty" style="color:var(--muted)">${esc(x.what||"")}</span><div class="mini"><div><span>${esc(x.where||"")}</span><b>${esc(x.price||"")}</b></div></div><div class="btns">${x.link&&/^https?:\/\//.test(x.link)?`<a class="chip" style="flex:1;display:grid;place-items:center;text-decoration:none;color:var(--fg)" href="${esc(x.link)}" target="_blank" rel="noopener">Открыть</a>`:""}<button type="button" class="pri" data-w="gpick:${i}">Беру</button></div></div>`).join(""):"";
     const rs=rungState(r),extra=(rs==="open"?`<button type="button" class="goldbtn" data-w="claim">Забрал подарок</button>`:"")+(r.flag&&rs==="locked"?`<button type="button" class="line" data-w="flag">Цель достигнута, отметить</button>`:"")+(r.grp==="Канал"&&!r.flag&&rs==="locked"?`<button type="button" class="line" data-w="tochan">Обновить цифры канала</button>`:"")+(r.id==="g_weight"&&rs==="locked"?`<button type="button" class="line" data-w="togoal">${goalsSt().goalKg?"Сменить цель по весу":"Задать цель по весу"}</button>`:"");
     body=`<h2>${esc(r.t)}</h2><p class="q">Бюджет до €${r.budget} · ${esc(rungSub(r))}</p>${extra}<form data-wf="g"><input name="v" maxlength="80" value="${esc(g)}" placeholder="Впиши сам, что купишь" autocomplete="off" aria-label="Подарок"></form>
       <div class="btns"><button type="button" data-w="gfind">Подобрать реальный</button><button type="button" class="pri" data-w="gsave">Сохранить</button></div>${ideas}`}
-  if(W.step==="chan"){const G=goalsSt();body=`<h2>Цифры канала</h2><p class="q">Раз в неделю из YouTube Studio. Или напиши боту: подписчики 120.</p><form data-wf="c" style="display:flex;flex-direction:column;gap:8px">
+  if(W.step==="chan"){const G=goalsSt();body=`<h2>Цифры канала</h2><p class="q">Из YouTube Studio.</p><form data-wf="c" style="display:flex;flex-direction:column;gap:8px">
       <input name="subs" inputmode="numeric" value="${G.subs||""}" placeholder="Подписчиков" aria-label="Подписчиков"><input name="views" inputmode="numeric" value="${G.maxViews||""}" placeholder="Просмотров у лучшего видео" aria-label="Просмотров у лучшего видео"></form><button type="button" class="goldbtn" data-w="csave">Сохранить</button>`}
   if(W.step==="goalkg"){const G=goalsSt();body=`<h2>Цель по весу</h2><p class="q">${curKg()!=null?"Сейчас "+curKg()+" кг. ":""}Когда дойдёшь, откроется подарок до €50.</p><form data-wf="gk"><input name="v" inputmode="decimal" value="${G.goalKg||""}" placeholder="Например 78" aria-label="Цель, кг" autocomplete="off"></form><button type="button" class="goldbtn" data-w="gksave">Сохранить</button>`}
   if(W.step==="reward"){const k=key(),R=reqs(k),st=rewardState(k);
@@ -1067,13 +1108,7 @@ function renderSheet(){
     body=`<h2>Награда дня: ${esc(prof().reward||"награда")}</h2><p class="q">${T}</p>
       <div class="rqlist">${R.map(x=>`<div class="${x.t?"on":""}"><span class="c">${x.t?IC.check:""}</span>${esc(x.name)}${x.t&&x.t!=="skip"?`<span style="margin-left:auto;font-size:12px;color:var(--dim)">${esc(x.t)}</span>`:x.t==="skip"?`<span style="margin-left:auto;font-size:12px;color:var(--dim)">убрано</span>`:""}</div>`).join("")}</div>
       ${st==="open"?`<button type="button" class="goldbtn" data-w="take">Взял награду</button>`:st==="pending"?`<button type="button" class="line" data-w="take">Взял раньше</button>`:""}`}
-  if(W.step==="hist"){const k=key(),days=Array.from({length:14},(_,i)=>shift(k,-i)),cs=closedStreak();
-    body=`<h2>История</h2><p class="q">${cs?`${cs} ${cs===1?"день":cs<5?"дня":"дней"} подряд всё главное закрыто 🔥`:"Закрой все главные дела сегодня, и серия начнётся."}</p>
-      <div class="list" style="padding:0;gap:6px">${days.map(x=>{const R=reqs(x),d=peek(x),cl=dayClosed(x),open=W.open===x,n=R.filter(r=>r.t).length,used=d&&((d.done||[]).length||d.firstSmoke);
-        const lbl=x===k?"Сегодня":new Date(x+"T12:00:00").toLocaleDateString("ru-RU",{weekday:"short",day:"numeric",month:"short"});
-        return `<button type="button" class="hrow" data-w="hday:${x}" style="border:none;color:inherit;font:inherit;text-align:left;flex-wrap:wrap"><span class="nm"><b>${esc(lbl)}</b><small class="${!cl&&x<k&&used?"bad":""}">${!used&&x<k?"не пользовался":cl?"всё закрыто":`${n} из ${R.length}`}${debtOf(x)?" · штрафной":""}${d&&d.firstSmoke?" · награда в "+d.firstSmoke:""}</small></span><span class="rs${cl?" ok":""}">${cl?IC.check:""}</span>
-          ${open?`<div class="rqlist" style="width:100%">${R.map(r=>`<div class="${r.t?"on":""}"><span class="c">${r.t?IC.check:""}</span>${esc(r.name)}${r.t&&r.t!=="skip"?`<span style="margin-left:auto;font-size:12px;color:var(--dim)">${esc(r.t)}</span>`:""}</div>`).join("")}${(d&&d.custom||[]).map(c=>`<div class="${has(d,c.id)?"on":""}"><span class="c">${has(d,c.id)?IC.check:""}</span>${esc(c.name)}</div>`).join("")}</div>`:""}</button>`}).join("")}</div>`}
-  if(W.step==="house")body=`<h2>В дом</h2><p class="q">Что купил или что кончилось. Купленное встанет в запасы, кончившееся в покупки.</p>
+  if(W.step==="house")body=`<h2>В дом</h2>
       <form data-wf="house"><input name="v" maxlength="60" placeholder="Например: молоко" autocomplete="off" aria-label="Что"></form>
       <div class="btns"><button type="button" data-w="hout">Кончилось</button><button type="button" class="pri" data-w="hbuy">Купил</button></div>`;
   if(W.step==="ritem"){const it=W.it,isNew=W.isNew,pi=penItem();
@@ -1089,10 +1124,10 @@ function renderSheet(){
       <button type="button" class="goldbtn" data-w="rsave">Сохранить</button>
       ${isNew?"":`<button type="button" class="line" data-w="rdel"${pi&&pi.id===it.id?" disabled":""}>${pi&&pi.id===it.id?"Это штрафное дело: сначала смени штраф":"Убрать из распорядка"}</button>`}`}
   if(W.step==="goalnew"){const g=W.g;
-    body=`<h2>Текущая цель</h2><p class="q">Одна цель кроме тела. Канал, рисование, деньги, книги: что угодно.</p>
+    body=`<h2>Текущая цель</h2>
       <form data-wf="goal" style="display:flex;flex-direction:column;gap:8px"><input name="name" maxlength="40" value="${esc(g.name)}" placeholder="Название: например Рисование" autocomplete="off" aria-label="Название цели">
       <input name="unit" maxlength="30" value="${esc(g.unit)}" placeholder="Что считаем: картин, подписчиков, €" autocomplete="off" aria-label="Что считаем"></form>
-      <p class="q" style="margin:0">Привычка: какое дело из распорядка ведёт к цели</p>
+      <p class="q" style="margin:0">Привычка из распорядка</p>
       <div class="perm">${ritems().filter(it=>!it.minor).map(it=>`<button type="button" class="chip" data-w="ghab:${esc(it.id)}" aria-pressed="${g.habit===it.id}">${esc(it.name)}</button>`).join("")||'<span class="empty">Сначала добавь дело в распорядок.</span>'}</div>
       <button type="button" class="goldbtn" data-w="gnsave">Сохранить</button>${GOAL()?`<button type="button" class="line" data-w="gnclear">Убрать цель</button>`:""}`}
   if(W.step==="gval")body=`<h2>${esc(GOAL().name)}</h2><p class="q">Сколько сейчас${GOAL().unit?" ("+esc(GOAL().unit)+")":""}? Или скажи боту.</p><form data-wf="gval"><input name="v" inputmode="decimal" value="${goalsSt().val??""}" aria-label="Текущая цифра" autocomplete="off"></form><button type="button" class="goldbtn" data-w="gvsave">Сохранить</button>`;
@@ -1124,7 +1159,6 @@ $("sheet").addEventListener("click",e=>{
   if(a==="flag"){const r=findRung(W.rung);closeSheet();mutate(()=>{state.goals=Object.assign({},goalsSt(),{[r.flag]:true})});return}
   if(a==="tochan"){W={step:"chan"};return renderSheet()}
   if(a==="take"){const d=dayOf(key());closeSheet();mutate(()=>{if(!d.smokes)d.firstSmoke=hhmm();d.smokes=(d.smokes||0)+1;logEv(d,"reward","")});return}
-  if(a.startsWith("hday:")){const x=a.slice(5);W.open=W.open===x?null:x;return renderSheet()}
   if(a==="hbuy"||a==="hout"){const v=$("sheet").querySelector("input[name=v]").value.trim().slice(0,60);if(!v){toast("Напиши, что");return}closeSheet();
     mutate(()=>{if(a==="hbuy")hAdd(v);else{const h=houseOf(),x=h.items.find(i=>i.name.toLowerCase()===v.toLowerCase());if(x){x.level="out";touch(x)}else if(!h.shop.some(i=>!i.done&&i.name.toLowerCase()===v.toLowerCase()))h.shop.push(touch({id:hid("s"),name:v,done:false}))}});
     toast(a==="hbuy"?"Записал в запасы":"Добавил в покупки");return}

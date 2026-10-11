@@ -1,8 +1,12 @@
 import datetime
 
+import logging
+
 import aiosqlite
 
 from config import DATABASE_PATH
+
+logger = logging.getLogger(__name__)
 
 CREATE_TABLES = """
 CREATE TABLE IF NOT EXISTS user_profile (
@@ -50,6 +54,17 @@ CREATE TABLE IF NOT EXISTS quest_state (
 );
 
 -- Дом живёт отдельно от личного квеста: общий для всех участников
+CREATE TABLE IF NOT EXISTS quest_log (
+    telegram_id INTEGER NOT NULL,
+    day TEXT NOT NULL,
+    t TEXT NOT NULL,
+    ev TEXT NOT NULL,
+    task TEXT NOT NULL DEFAULT '',
+    name TEXT NOT NULL DEFAULT '',
+    min INTEGER,
+    UNIQUE (telegram_id, day, t, ev, task)
+);
+
 CREATE TABLE IF NOT EXISTS households (
     id TEXT PRIMARY KEY,
     data TEXT,
@@ -373,6 +388,48 @@ async def get_quest_state(telegram_id: int) -> dict:
     return state
 
 
+async def _log_events(db, telegram_id: int, state: dict) -> None:
+    """Журнал для анализа: каждое событие дня (начал, сделал, снял, убрал, отдых, награда) с временем и названием.
+    Пишется навсегда, отдельно от состояния. Свежие дни при каждом сохранении, всю историю один раз."""
+    from datetime import datetime, timedelta
+    from services import quest
+    days = state.get("days") or {}
+    cur = await db.execute("SELECT 1 FROM quest_log WHERE telegram_id = ? LIMIT 1", (telegram_id,))
+    since = "" if await cur.fetchone() is None else (datetime.strptime(quest.today_key(), "%Y-%m-%d") - timedelta(days=2)).strftime("%Y-%m-%d")
+    nm = quest.names(quest.full_profile(state))
+    chores = {"ch_" + c.get("id", ""): c.get("name", "") for c in ((state.get("house") or {}).get("chores") or [])}
+    rows = []
+    for k, d in days.items():
+        if k < since or not isinstance(d, dict):
+            continue
+        custom = {c.get("id"): c.get("name", "") for c in d.get("custom") or []}
+        span = d.get("span") or {}
+        ev = list(d.get("ev") or [])
+        logged = {(e[2], e[1]) for e in ev if len(e) == 3}
+        ev += [[t, "done", q] for q, t in (d.get("at") or {}).items() if (q, "done") not in logged]  # старые дни без журнала
+        for r in d.get("gl") or []:
+            r = {"at": r, "min": 45} if isinstance(r, str) else r
+            if (str(r.get("min")), "rest") not in logged:
+                ev.append([r.get("at", ""), "rest", str(r.get("min", 45))])
+        if d.get("firstSmoke") and ("", "reward") not in logged:
+            ev.append([d["firstSmoke"], "reward", ""])
+        for e in ev:
+            if len(e) != 3:
+                continue
+            t, kind, q = e
+            name = "Отдых" if kind == "rest" else "Награда" if kind == "reward" else custom.get(q) or chores.get(q) or nm.get(q) or q
+            m = int(q) if kind == "rest" and str(q).isdigit() else (span.get(q) or {}).get("m") if kind == "done" else None
+            rows.append((telegram_id, k, t, kind, q or "", name, m))
+    if rows:
+        await db.executemany("INSERT OR IGNORE INTO quest_log (telegram_id, day, t, ev, task, name, min) VALUES (?, ?, ?, ?, ?, ?, ?)", rows)
+
+
+async def get_log(telegram_id: int, since: str) -> list[tuple]:
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        cur = await db.execute("SELECT day, t, ev, name, min FROM quest_log WHERE telegram_id = ? AND day >= ? ORDER BY day, t", (telegram_id, since))
+        return await cur.fetchall()
+
+
 async def save_quest_state(telegram_id: int, state: dict) -> None:
     """Личное пишем в quest_state, дом сливаем с сохранённым домом (его могли поменять другие жильцы)."""
     from services import house as house_svc
@@ -380,6 +437,10 @@ async def save_quest_state(telegram_id: int, state: dict) -> None:
     incoming_house = state.pop("house", None)
     async with aiosqlite.connect(DATABASE_PATH) as db:
         await _write_personal(db, telegram_id, state)
+        try:
+            await _log_events(db, telegram_id, dict(state, house=incoming_house))
+        except Exception as e:  # журнал не должен ломать сохранение
+            logger.error(f"quest_log error: {e}")
         if isinstance(incoming_house, dict):
             hid = await house_id_of(db, telegram_id)
             if not hid:
