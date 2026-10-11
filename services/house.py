@@ -25,10 +25,6 @@ DEFAULT_CHORES = [
     {"id": "c_trash", "name": "Вынести мусор", "every": 3, "dur": 5},
     {"id": "c_bed", "name": "Сменить постельное", "every": 14, "dur": 15},
 ]
-MOVE_STEPS = ["Найти студию или квартиру с отдельной кухней", "Подписать договор аренды",
-              "Договориться с хозяином о сдаче комнаты", "Сдать комнату и забрать залог €500",
-              "Переписать адрес в BRP (gemeente)", "Новый адрес: банк, страховка, UWV, RDW (Audi)"]
-
 
 # Права в доме. Должности настраивает создатель: какие права у какой должности.
 PERMS = {
@@ -87,23 +83,23 @@ def shelf_days(name: str) -> int:
 
 
 def get(state: dict, uid: int | None = None) -> dict:
-    """Дом из состояния; при первом обращении создаётся с делами по умолчанию и проектом переезда."""
+    """Дом из состояния; при первом обращении создаётся с делами по умолчанию."""
     h = state.get("house")
+    me = (state.get("profile") or {}).get("name") or "Я"
     if not isinstance(h, dict):
         h = {"id": f"house_{uid or 'me'}", "owner": uid,
-             "members": [{"uid": uid, "name": "Андрей", "role": "owner", "u": 0}] if uid else [],
+             "members": [{"uid": uid, "name": me, "role": "owner", "u": 0}] if uid else [],
              "roles": [dict(r, u=0) for r in DEFAULT_ROLES], "items": [], "shop": [],
              # отсчёт с сегодня, чтобы в первый день не вывалилось всё сразу
              "chores": [dict(c, last=quest.today_key(), u=0) for c in DEFAULT_CHORES],
-             "projects": [{"id": "p_move", "name": "Переезд до 31.12", "due": "2026-12-31", "u": 0,
-                           "steps": [{"id": f"s{i + 1}", "t": t, "done": False, "u": 0} for i, t in enumerate(MOVE_STEPS)]}],
+             "projects": [],
              "del": []}
         state["house"] = h
     for k in ("items", "shop", "chores", "projects", "del", "notes"):
         h.setdefault(k, [])
     h.setdefault("roles", [dict(r, u=0) for r in DEFAULT_ROLES])
     # старый формат участников (просто id) -> записи с должностью
-    h["members"] = [m if isinstance(m, dict) else {"uid": m, "name": "Андрей", "role": "owner", "u": 0} for m in h.get("members", [])]
+    h["members"] = [m if isinstance(m, dict) else {"uid": m, "name": me, "role": "owner", "u": 0} for m in h.get("members", [])]
     if uid:
         # дом, созданный в приложении до знакомства с ботом: привязываем к настоящему id
         for m in h["members"]:

@@ -5,25 +5,19 @@
                          "firstSmoke": "HH:MM", "custom": [{"id", "name"}], "del": [...]}},
  "body": [{"d": "YYYY-MM-DD", "kg": 82.5}], "lifts": [{"d", "t", "clean"}]}
 """
+import json
+import re
 import time
 from datetime import datetime, timedelta
 
 import pytz
+from pathlib import Path
 
 import database
 from config import TIMEZONE
 
-BOSS_IDS = ["b1", "b2", "b3", "b4", "b5"]
-# Закрываются только пруфом через бота
-PROOF_IDS = {"cbr", "gym", "fight", "eng", "b5", "vid2", "fine"}
-
-QUEST_NAMES = {
-    "cbr": "TheorieExamen",
-    "gym": "Зал",
-    "fight": "Единоборства",
-    "eng": "Duolingo",
-    "house": "Жильё",
-}
+TEMPLATES = json.loads((Path(__file__).with_name("routine.json")).read_text(encoding="utf-8"))
+ANDREY_STEPS = {"b1", "b2", "b3", "b4", "b5"}  # по ним узнаём старые данные Андрея без распорядка
 
 
 def now() -> datetime:
@@ -42,16 +36,110 @@ def hhmm() -> str:
     return now().strftime("%H:%M")
 
 
-DEF_PROFILE = {"reward": "Трава", "name": "", "wake": "08:00", "bed": "23:30", "gymDays": [1, 2, 3, 4, 5, 6],
-               "req": {"train": 1, "cbr": 1, "eng": 1}, "videoMin": 110}
+DEF_PROFILE = {"reward": "Трава", "name": "", "wake": "08:00", "bed": "23:30"}
+
+
+def full_profile(state: dict | None) -> dict:
+    """Анкета человека вместе с распорядком. Нет своего распорядка: шаблон.
+    Старые данные Андрея (шаги видео b1–b5) получают его шаблон, все остальные: стартовый."""
+    state = state or {}
+    src = state.get("profile") or {}
+    p = dict(DEF_PROFILE)
+    p.update({k: v for k, v in src.items() if v is not None})
+    if not isinstance(src.get("routine"), list):
+        old = any(ANDREY_STEPS & set(d.get("done") or []) for d in (state.get("days") or {}).values() if isinstance(d, dict))
+        tpl = TEMPLATES["andrey" if old else "starter"]
+        r = json.loads(json.dumps(tpl["routine"]))
+        for it in r:  # старые поля анкеты, пока не было распорядка
+            if it["id"] == "video" and src.get("videoMin"):
+                it["dur"] = int(src["videoMin"])
+            if it["id"] == "gym" and src.get("gymDays"):
+                it["days"] = list(src["gymDays"])
+            if it["id"] == "walk" and src.get("gymDays"):
+                it["days"] = [d for d in range(7) if d not in src["gymDays"]]
+            if it["id"] in ("cbr", "eng") and (src.get("req") or {}).get(it["id"]) == 0:
+                it.pop("main", None)
+        p["routine"] = r
+        if "penalty" not in src:
+            p["penalty"] = tpl["penalty"]
+        if "goal" not in src:
+            p["goal"] = tpl["goal"]
+    p.setdefault("penalty", None)
+    p.setdefault("goal", None)
+    return p
 
 
 def prof(day_or_state: dict | None) -> dict:
-    """Анкета: из day["_profile"] или state["profile"], поверх значений по умолчанию."""
-    p = dict(DEF_PROFILE)
-    src = (day_or_state or {}).get("_profile") or (day_or_state or {}).get("profile") or {}
-    p.update({k: v for k, v in src.items() if v is not None})
-    return p
+    """Анкета: из day["_profile"] (get_day кладёт уже полную) или из state."""
+    x = day_or_state or {}
+    if isinstance(x.get("_profile"), dict):
+        return x["_profile"] if isinstance(x["_profile"].get("routine"), list) else full_profile({"profile": x["_profile"]})
+    return full_profile(x)
+
+
+# --- Распорядок: дела из анкеты ---
+
+def items(P: dict) -> list[dict]:
+    return [it for it in P.get("routine") or [] if it.get("id") and it["id"] != "_custom"]
+
+
+def item(P: dict, qid: str) -> dict | None:
+    return next((it for it in items(P) if it["id"] == qid), None)
+
+
+def on_day(it: dict, wd: int) -> bool:
+    """wd как в JS: 0 вс .. 6 сб."""
+    return not it.get("days") or wd in it["days"]
+
+
+def step_ids(it: dict | None) -> list[str]:
+    return [s["id"] for s in (it or {}).get("steps") or []]
+
+
+def parent_of(P: dict, sid: str) -> dict | None:
+    return next((it for it in items(P) if sid in step_ids(it)), None)
+
+
+def item_done(day: dict | None, it: dict) -> bool:
+    done = (day or {}).get("done") or []
+    st = step_ids(it)
+    return all(s in done for s in st) if st else it["id"] in done
+
+
+def item_t(day: dict, it: dict):
+    st = step_ids(it)
+    return (day.get("at") or {}).get(st[-1] if st else it["id"])
+
+
+def pen_item(P: dict) -> dict | None:
+    return item(P, (P.get("penalty") or {}).get("task") or "")
+
+
+def proof_ids(P: dict) -> set[str]:
+    """Закрываются только пруфом через бота."""
+    out = {"fine"}
+    for it in items(P):
+        if it.get("proof"):
+            out.add(it["id"])
+        for s in it.get("steps") or []:
+            if s.get("proof"):
+                out.add(s["id"])
+                out.add("vid2")
+        if it.get("proof") and (it.get("bonus") or pen_item(P) is it):
+            out.add("vid2")
+    return out
+
+
+def names(P: dict) -> dict:
+    n = {}
+    for it in items(P):
+        n[it["id"]] = it["name"]
+        for s in it.get("steps") or []:
+            n[s["id"]] = f"{it['name']}: {s['name']}"
+    pi = pen_item(P)
+    n["vid2"] = (pi or {}).get("bonus") or "Повтор"
+    n["fine"] = f"Штраф €{(P.get('penalty') or {}).get('fine') or 0}"
+    return n
 
 
 def bed_min(p: dict) -> int:
@@ -63,13 +151,6 @@ def day_end(p: dict) -> str:
     return hm(min(bed_min(p) - 45, 1439))
 
 
-def training_id(weekday: int | None = None, profile: dict | None = None) -> str | None:
-    """Зал в дни из анкеты (по умолчанию пн–сб). weekday как в Python: пн=0."""
-    w = now().weekday() if weekday is None else weekday
-    js = (w + 1) % 7
-    return "gym" if js in (profile or DEF_PROFILE)["gymDays"] else None
-
-
 def _day(state: dict, key: str) -> dict:
     day = state["days"].setdefault(key, {})
     day.setdefault("done", [])
@@ -78,19 +159,16 @@ def _day(state: dict, key: str) -> dict:
     return day
 
 
-def boss_done(day: dict | None) -> bool:
-    return bool(day) and all(b in day.get("done", []) for b in BOSS_IDS)
-
-
-REQ_NAMES = {"video": "Видео", "train": "Тренировка", "cbr": "Теория", "eng": "Duolingo", "debt": "Долг: 2-е видео", "fine": "Штраф €5"}
-
-
-# --- Провал и наказания: провал = день без видео. Долг не копится: максимум одно лишнее видео и €5.
+# --- Провал и наказания: провал = день без штрафного дела (у Андрея видео). Долг не копится: один повтор и штраф.
 
 def failed_day(state: dict, key: str) -> bool:
     if key >= today_key():
         return False
-    if boss_done(state.get("days", {}).get(key)):
+    P = full_profile(state)
+    it = pen_item(P)
+    if not it or not on_day(it, (datetime.strptime(key, "%Y-%m-%d").weekday() + 1) % 7):
+        return False
+    if item_done(state.get("days", {}).get(key), it):
         return False
     return any(k <= key and (d.get("done") or d.get("firstSmoke")) for k, d in state.get("days", {}).items())
 
@@ -102,54 +180,46 @@ def has_debt(state: dict, key: str | None = None) -> bool:
 
 
 def reqs(day: dict, weekday: int | None = None) -> list[dict]:
-    """4 главных дела для награды дня. weekday как в Python: пн=0, вс=6."""
-    at = day.get("at", {})
+    """Главные дела дня (отмечены в распорядке): закрыл все, награда открыта. weekday как в Python: пн=0."""
+    w = now().weekday() if weekday is None else weekday
+    P = prof(day)
     skip = set(day.get("skip", []))
-    p = prof(day)
-    tr = training_id(weekday, p)
-    r = [{"id": "video", "t": at.get("b5")}]
-    if tr and p["req"].get("train"):
-        r.append({"id": "train", "tr": tr, "t": at.get(tr) or ("skip" if tr in skip else None)})
-    if p["req"].get("cbr"):
-        r.append({"id": "cbr", "t": at.get("cbr") or ("skip" if "cbr" in skip else None)})
-    if p["req"].get("eng"):
-        r.append({"id": "eng", "t": at.get("eng") or ("skip" if "eng" in skip else None)})
-    if day.get("_debt"):
-        r.append({"id": "debt", "t": at.get("vid2")})
-        r.append({"id": "fine", "t": at.get("fine")})
+    pi = pen_item(P)
+    r = [{"id": it["id"], "name": it["name"],
+          "t": item_t(day, it) or ("skip" if it["id"] in skip and it is not pi else None)}
+         for it in items(P) if it.get("main") and on_day(it, (w + 1) % 7)]
+    if day.get("_debt") and pi:
+        at = day.get("at", {})
+        r.append({"id": "debt", "name": pi.get("debt") or f"Долг: ещё раз «{pi['name']}»", "t": at.get("vid2")})
+        if (P.get("penalty") or {}).get("fine"):
+            r.append({"id": "fine", "name": f"Штраф €{P['penalty']['fine']}", "t": at.get("fine")})
     return r
 
 
+def day_closed(day: dict | None, weekday: int | None = None) -> bool:
+    """День закрыт: все главные дела сделаны (или убраны на сегодня)."""
+    r = reqs(day, weekday) if day else []
+    return bool(r) and all(x["t"] for x in r)
+
+
 def reward_state(day: dict | None, weekday: int | None = None) -> str:
-    """pending: копим · open: награда открыта · gold: взял после всех дел ·
-    base: раньше, но тренировка была чистой · broken: раньше тренировки."""
+    """pending: копим · open: всё закрыто, награда твоя · taken: награду взял."""
     if not day:
         return "pending"
-    r = reqs(day, weekday)
-    fs = day.get("firstSmoke")
-    done_all = all(x["t"] for x in r)
-    if not fs:
-        return "open" if done_all else "pending"
-    if done_all and all(x["t"] == "skip" or x["t"] <= fs for x in r):
-        return "gold"
-    tr = next((x for x in r if x["id"] == "train"), None)
-    first = tr if tr else r[0]
-    if first["t"] and first["t"] != "skip" and first["t"] <= fs:
-        return "base"
-    return "broken"
+    if day.get("firstSmoke"):
+        return "taken"
+    return "open" if day_closed(day, weekday) else "pending"
 
 
 def reward_line(day: dict, weekday: int | None = None) -> str:
     r = reqs(day, weekday)
     n = sum(1 for x in r if x["t"])
     st = reward_state(day, weekday)
-    marks = " · ".join(("✅ " if x["t"] else "▫️ ") + (("Бой" if x.get("tr") == "fight" else "Зал") if x["id"] == "train" else REQ_NAMES[x["id"]]) for x in r)
+    marks = " · ".join(("✅ " if x["t"] else "▫️ ") + x["name"] for x in r)
     head = {
         "pending": f"🌿 {'Штрафной день' if day.get('_debt') else 'Награда дня'}: {n} из {len(r)}",
         "open": "🌿 Награда открыта. Заслужил.",
-        "gold": "🌿 Награда взята по-честному.",
-        "base": "🌿 Раньше времени, но тренировка была чистой.",
-        "broken": "🌿 Награда сегодня сгорела.",
+        "taken": "🌿 Награда взята.",
     }[st]
     return head + "\n" + marks
 
@@ -165,13 +235,14 @@ def _rest_overlap(day: dict, a: int, b: int) -> int:
     return sum(max(0, min(b, s + m) - max(a, s)) for s, m in rests_of(day))
 
 
-def record_span(day: dict, qid: str) -> None:
+def record_span(day: dict, qid: str, P: dict | None = None) -> None:
     """Сколько заняло дело: от «начал» (или прошлого закрытого дела) до сейчас, минус отдых."""
     n = now()
     now_m = n.hour * 60 + n.minute
     s, g = None, 1
     cur = day.get("cur") or {}
-    if cur.get("id") == qid or (qid in BOSS_IDS and cur.get("id") == "video"):
+    par = parent_of(P or prof(day), qid)
+    if cur.get("id") == qid or (par and cur.get("id") == par["id"]):
         s, g = to_min(cur["at"]), 0
     marks = [to_min(t) for k, t in (day.get("at") or {}).items() if k != qid]
     marks += [st + m for st, m in rests_of(day)]
@@ -188,21 +259,25 @@ def record_span(day: dict, qid: str) -> None:
 
 def learned(state: dict) -> dict:
     """Медиана последних 10 замеров по каждому делу, если набралось 3 нормальных."""
-    base = {q[0]: q[2] for q in PLAN_QUESTS}
+    P = full_profile(state)
+    base = {it["id"]: it.get("dur", 30) for it in items(P)}
+    multi = [it for it in items(P) if it.get("steps")]
     vals: dict[str, list[int]] = {}
     for k in sorted(state.get("days", {}))[-40:]:
         sp = state["days"][k].get("span") or {}
         for qid, v in sp.items():
-            if qid not in base or qid == "video":
+            if qid not in base or any(qid == it["id"] for it in multi):
                 continue
             if v.get("g") and v.get("m", 0) > base[qid] * 2.5:
                 continue
             vals.setdefault(qid, []).append(v["m"])
-        if all(b in sp for b in BOSS_IDS):
-            vals.setdefault("video", []).append(sum(sp[b]["m"] for b in BOSS_IDS))
-        for b in BOSS_IDS:
-            if b in sp:
-                vals.setdefault(b, []).append(sp[b]["m"])
+        for it in multi:
+            st = step_ids(it)
+            if all(b in sp for b in st):
+                vals.setdefault(it["id"], []).append(sum(sp[b]["m"] for b in st))
+            for b in st:
+                if b in sp:
+                    vals.setdefault(b, []).append(sp[b]["m"])
     out = {}
     for qid, arr in vals.items():
         last = arr[-10:]
@@ -226,7 +301,7 @@ async def get_day(telegram_id: int) -> dict:
     state = await database.get_quest_state(telegram_id)
     day = _day(state, today_key())
     day["_debt"] = has_debt(state)
-    day["_profile"] = state.get("profile")
+    day["_profile"] = full_profile(state)
     day["_theory_i"] = (state.get("theory") or {}).get("i", 0)
     day["_learn"] = learned(state)
     day["_reminders"] = state.get("reminders") or []
@@ -259,20 +334,27 @@ def chores_for_plan(state: dict, uid=None) -> list[dict]:
 async def mark_done(telegram_id: int, ids: list[str]) -> dict:
     state = await database.get_quest_state(telegram_id)
     day = _day(state, today_key())
+    P = full_profile(state)
     t = hhmm()
     for i in ids:
         if i not in day["done"]:
-            record_span(day, i)
+            record_span(day, i, P)
             day["done"].append(i)
             day["at"][i] = t
             log_ev(day, "done", i)
-    cur = day.get("cur") or {}
-    if cur.get("id") in ids or (cur.get("id") == "video" and boss_done(day)):
-        day.pop("cur", None)
+    drop_cur(day, P, ids)
     await database.save_quest_state(telegram_id, state)
     day["_debt"] = has_debt(state)
-    day["_profile"] = state.get("profile")
+    day["_profile"] = P
     return day
+
+
+def drop_cur(day: dict, P: dict, ids: list[str]) -> None:
+    """Закрыл начатое дело (или последний шаг многошагового): «идёт сейчас» снимаем."""
+    cur = (day.get("cur") or {}).get("id")
+    it = item(P, cur or "")
+    if cur in ids or (it and it.get("steps") and item_done(day, it)):
+        day.pop("cur", None)
 
 
 async def add_smoke(telegram_id: int) -> dict:
@@ -283,7 +365,7 @@ async def add_smoke(telegram_id: int) -> dict:
     day["smokes"] = day.get("smokes", 0) + 1
     await database.save_quest_state(telegram_id, state)
     day["_debt"] = has_debt(state)
-    day["_profile"] = state.get("profile")
+    day["_profile"] = full_profile(state)
     return day
 
 
@@ -359,9 +441,11 @@ def merge_incoming(server: dict, incoming: dict) -> dict:
     for k in ("prefs", "gifts", "claims", "goals", "notify", "tgoals"):
         if not incoming.get(k) and server.get(k):
             incoming[k] = server[k]
-    if not incoming.get("profile") and server.get("profile"):
-        incoming["profile"] = server["profile"]
+    sp, ip = server.get("profile") or {}, incoming.get("profile") or {}
+    if sp and (not ip or sp.get("u", 0) > ip.get("u", 0)):  # распорядок мог поменять бот
+        incoming["profile"] = sp
     s_days = server.get("days", {})
+    PROOF = proof_ids(full_profile(server)) | proof_ids(full_profile(incoming))
 
     for key, sday in s_days.items():
         iday = incoming["days"].setdefault(key, {})
@@ -370,7 +454,7 @@ def merge_incoming(server: dict, incoming: dict) -> dict:
         iday.setdefault("custom", [])
         # пруфы, засчитанные ботом
         for q in sday.get("done", []):
-            if q in PROOF_IDS and q not in iday["done"]:
+            if q in PROOF and q not in iday["done"]:
                 iday["done"].append(q)
                 if q in sday.get("at", {}):
                     iday["at"][q] = sday["at"][q]
@@ -417,61 +501,31 @@ def merge_incoming(server: dict, incoming: dict) -> dict:
     # пруф-квесты нельзя отметить из приложения вручную
     for key, iday in incoming["days"].items():
         sdone = s_days.get(key, {}).get("done", [])
-        iday["done"] = [q for q in iday.get("done", []) if q not in PROOF_IDS or q in sdone]
+        iday["done"] = [q for q in iday.get("done", []) if q not in PROOF or q in sdone]
         iday["at"] = {q: t for q, t in iday.get("at", {}).items() if q in iday["done"]}
     return incoming
 
 
 def day_summary(day: dict) -> str:
-    done = day.get("done", [])
+    P = prof(day)
     w = now().weekday()
-    lines = ["Видео: " + ("вышло ✅" if boss_done(day) else f"{sum(b in done for b in BOSS_IDS)} из 5 шагов ❌")]
-    if "vid2" in done:
-        lines.append("Второе видео: вышло 🔥" + (" Долг закрыт." if day.get("_debt") else ""))
-    elif day.get("_debt"):
-        lines.append("Долг за вчера: второе видео не вышло ❌")
-    if day.get("_debt"):
-        lines.append("Штраф €5: " + ("переведён ✅" if "fine" in done else "не переведён ❌"))
-    tr = training_id(w, prof(day))
-    if tr:
-        lines.append("Тренировка: " + ("да ✅" if tr in done else "нет ❌"))
-    missed = [QUEST_NAMES[q] for q in ("cbr", "eng") if q not in done]
-    if missed:
-        lines.append("Пропущено: " + ", ".join(missed))
-    open_custom = [c["name"] for c in day.get("custom", []) if c["id"] not in done]
+    lines = [("✅ " if x["t"] and x["t"] != "skip" else "➖ " if x["t"] else "❌ ") + x["name"] for x in reqs(day, w)]
+    pi = pen_item(P)
+    if pi and "vid2" in day.get("done", []) and not day.get("_debt"):
+        lines.append(f"{pi.get('bonus') or 'Бонус'}: есть 🔥")
+    open_custom = [c["name"] for c in day.get("custom", []) if c["id"] not in day.get("done", [])]
     if open_custom:
         lines.append("Не закрыто: " + "; ".join(open_custom))
     lines.append("")
     lines.append(reward_line(day, w))
     if day.get("smokes"):
-        lines.append(f"Трава: {day['smokes']}, первый раз в {day.get('firstSmoke')}")
+        lines.append(f"{P.get('reward') or 'Награда'}: {day['smokes']}, первый раз в {day.get('firstSmoke')}")
     return "\n".join(lines)
 
 
 # --- Живой план (та же логика, что в webapp/index.html) ---
 
 GAME_MIN = 45
-UNTIL = {"wake": "12:00", "bfast": "12:00", "lunch": "16:00"}
-DAY_START = "08:00"
-DAY_END = "22:45"
-# (id, название, минут, дни недели JS: 0 вс .. 6 сб или None, якорь, бытовое)
-PLAN_QUESTS = [
-    ("wake", "Подъём, вода, улица", 20, None, None, True),
-    ("bfast", "Завтрак", 20, None, None, True),
-    ("fine", "Штраф: €5 в safemoney", 5, None, None, False),
-    ("cbr", "Теория на права", 45, None, None, False),
-    ("video", "Видео", 110, None, None, False),
-    ("lunch", "Обед", 30, None, None, True),
-    ("gym", "Зал", 120, [1, 2, 3, 4, 5, 6], None, False),
-    ("walk", "Прогулка", 45, [0], None, False),
-    ("_custom", "", 0, None, None, False),
-    ("vid2", "Бонус: второе видео", 110, None, None, False),
-    ("prep", "Заготовка еды", 80, [0, 3, 5], None, True),
-    ("dinner", "Ужин", 30, [1, 2, 4, 6], None, True),
-    ("eng", "Duolingo", 20, None, None, False),
-    ("house", "Жильё", 20, [3, 0], None, False),
-    ("screen", "Экран выкл, повтор теории, душ", 45, None, DAY_END, True),
-]
 
 
 def to_min(t: str) -> int:
@@ -507,61 +561,63 @@ def build_plan(day: dict, now_min: int | None = None, wd: int | None = None) -> 
     dur_over = day.get("dur", {})
     learn = day.get("_learn") or {}
 
+    P = prof(day)
+    multi = {it["id"]: it for it in items(P) if it.get("steps")}
+
     def is_done(qid):
-        return boss_done(day) if qid == "video" else qid in done
+        return item_done(day, multi[qid]) if qid in multi else qid in done
 
     def dur_of(qid, base):
         if qid in dur_over:
             return dur_over[qid]
         if qid in learn:
             base = learn[qid]["min"]
-        if qid == "video":
-            left = sum(1 for b in BOSS_IDS if b not in done)
-            return max(20, round(base * left / 5))
+        if qid in multi:
+            st = step_ids(multi[qid])
+            return max(20, round(base * sum(1 for b in st if b not in done) / len(st)))
         return base
 
-    queue = []
-    P = prof(day)
-    gym_today = wd in P["gymDays"]
-    for qid, name, dur, days, fixed, minor in PLAN_QUESTS:
-        if qid == "gym":
-            if not gym_today:
-                continue
-        elif qid == "walk":
-            if gym_today:
-                continue
-        elif days is not None and wd not in days:
-            continue
-        if qid == "screen":
-            fixed = day_end(P)
-        if qid == "video":
-            dur = P["videoMin"]
-        if qid == "_custom":
-            for c in day.get("custom", []):
-                queue.append({"id": c["id"], "name": c["name"], "dur": c.get("dur", 30), "fixed": c.get("at"), "minor": False})
-            for c in day.get("_chores") or []:
-                if c["id"] not in skip:
-                    queue.append({"id": c["id"], "name": c["name"], "dur": c["dur"], "fixed": None, "minor": True})
-            continue
-        if qid == "fine" and not day.get("_debt"):
-            continue
-        if qid == "vid2" and not boss_done(day) and not day.get("_debt"):
-            continue
-        if qid == "vid2" and day.get("_debt"):
-            name = "Долг: второе видео"
-        if qid in skip:
-            continue
-        if qid in UNTIL and now_m > to_min(UNTIL[qid]) and qid not in done:
-            continue  # утро прошло: завтрак в вечер не тащим
-        queue.append({"id": qid, "name": name, "dur": dur, "fixed": fixed, "minor": minor})
+    debt = day.get("_debt")
+    pi = pen_item(P)
+    queue, has_custom = [], False
 
-    items, over = [], []
+    def extra():  # долг или бонус за штрафное дело
+        if pi and (debt or (pi.get("bonus") and item_done(day, pi) and "vid2" not in skip)):
+            queue.append({"id": "vid2", "name": (pi.get("debt") or f"Долг: ещё раз «{pi['name']}»") if debt else pi["bonus"],
+                          "dur": pi.get("dur", 30), "fixed": None, "minor": False})
+
+    def customs():
+        for c in day.get("custom", []):
+            queue.append({"id": c["id"], "name": c["name"], "dur": c.get("dur", 30), "fixed": c.get("at"), "minor": False})
+        for c in day.get("_chores") or []:
+            if c["id"] not in skip:
+                queue.append({"id": c["id"], "name": c["name"], "dur": c["dur"], "fixed": None, "minor": True})
+        extra()
+
+    for it in P.get("routine") or []:
+        qid = it.get("id")
+        if qid == "_custom":
+            has_custom = True
+            customs()
+            continue
+        if not qid or not on_day(it, wd) or (qid in skip and it is not pi):
+            continue
+        if it.get("main") and debt and (P.get("penalty") or {}).get("fine") and not any(q["id"] == "fine" for q in queue):
+            queue.append({"id": "fine", "name": f"Штраф: €{P['penalty']['fine']} в {P['penalty'].get('to') or 'копилку'}", "dur": 5, "fixed": None, "minor": False})
+        if it.get("until") and now_m > to_min(it["until"]) and not is_done(qid):
+            continue  # утро прошло: завтрак в вечер не тащим
+        fixed = day_end(P) if it.get("at") == "end" else it.get("at")
+        queue.append({"id": qid, "name": it["name"], "dur": it.get("dur", 30), "fixed": fixed, "minor": bool(it.get("minor"))})
+    if not has_custom:
+        customs()
+
+    out, over = [], []
     wake = day.get("at", {}).get("wake")
     cur = max(now_m, to_min(P["wake"])) if not wake else now_m
     for g, mins in sorted(rests_of(day)):
         if g + mins > now_m:
             s = g if g <= now_m else max(g, cur)
-            items.append({"game": True, "start": s, "end": s + mins})
+            out.append({"game": True, "start": s, "end": s + mins})
             cur = max(cur, s + mins)
 
     pending = [q for q in queue if not is_done(q["id"])]
@@ -572,7 +628,7 @@ def build_plan(day: dict, now_min: int | None = None, wd: int | None = None) -> 
             q = pending.pop(idx)
             s = to_min(started["at"])
             e = s + dur_of(q["id"], q["dur"])
-            items.append({**q, "start": s, "end": max(e, now_m + 5), "started": True, "late": max(0, now_m - e)})
+            out.append({**q, "start": s, "end": max(e, now_m + 5), "started": True, "late": max(0, now_m - e)})
             cur = max(cur, e, now_m + 5)
 
     anchors = sorted([q for q in pending if q["fixed"]], key=lambda q: to_min(q["fixed"]))
@@ -582,7 +638,7 @@ def build_plan(day: dict, now_min: int | None = None, wd: int | None = None) -> 
     def place(a):
         nonlocal cur
         s = max(to_min(a["fixed"]), cur)
-        items.append({**a, "start": s, "end": s + dur_of(a["id"], a["dur"]), "anchor": True, "late": max(0, cur - to_min(a["fixed"]))})
+        out.append({**a, "start": s, "end": s + dur_of(a["id"], a["dur"]), "anchor": True, "late": max(0, cur - to_min(a["fixed"]))})
         cur = s + dur_of(a["id"], a["dur"])
 
     for q in flex:
@@ -590,12 +646,100 @@ def build_plan(day: dict, now_min: int | None = None, wd: int | None = None) -> 
         while anchors and to_min(anchors[0]["fixed"]) < cur + du and anchors[0]["fixed"] != day_end(P):
             place(anchors.pop(0))
         if cur + du > end:
-            optional = q["id"] in ("vid2", "house") and not day.get("_debt")
+            optional = q["id"] == "vid2" and not debt
             if not optional:  # бонусы молча не влезают, без тревоги
                 over.append({**q, "dur": du})
             continue
-        items.append({**q, "start": cur, "end": cur + du})
+        out.append({**q, "start": cur, "end": cur + du})
         cur += du
     while anchors:
         place(anchors.pop(0))
-    return {"items": items, "over": over}
+    return {"items": out, "over": over}
+
+
+def day_view(state: dict, key: str) -> dict:
+    """День из истории с анкетой и долгом: для reqs/day_closed по прошлым дням."""
+    return dict(state.get("days", {}).get(key) or {}, _profile=full_profile(state), _debt=has_debt(state, key))
+
+
+def closed_streak(state: dict) -> int:
+    """Сколько дней подряд закрыто всё главное (сегодня считается, если уже закрыт)."""
+    d0 = now().date()
+    n, i = 0, 0 if day_closed(day_view(state, d0.strftime("%Y-%m-%d")), d0.weekday()) else 1
+    while i < 400:
+        k = d0 - timedelta(days=i)
+        if not day_closed(day_view(state, k.strftime("%Y-%m-%d")), k.weekday()):
+            break
+        n, i = n + 1, i + 1
+    return n
+
+
+# --- Правка распорядка (бот и приложение) ---
+ROUTINE_FIELDS = {"name": str, "sub": str, "dur": int, "days": list, "at": str, "until": str,
+                  "minor": int, "main": int, "proof": int, "hint": str, "check": str, "goal": str}  # goal: body = привычка для тела
+
+
+def routine_edit(state: dict, op: str, a: dict) -> str:
+    """op: add, update, remove. Пишет полный распорядок в анкету, с отметкой u для слияния."""
+    P = full_profile(state)
+    r = [dict(x) for x in P["routine"]]
+    nm = str(a.get("name") or "").strip()[:60]
+    it = next((x for x in r if x.get("id") == a.get("id")), None) or \
+        next((x for x in r if nm and x.get("name", "").lower() == nm.lower()), None)
+    if op == "remove":
+        if not it:
+            return "не нашёл такое дело в распорядке"
+        r = [x for x in r if x is not it]
+        if (P.get("penalty") or {}).get("task") == it["id"]:
+            P["penalty"] = None
+        msg = f"убрано из распорядка: {it['name']}"
+    else:
+        if op == "add" or not it:
+            if not nm:
+                return "нужно название"
+            it = {"id": "r" + format(int(time.time() * 1000), "x"), "name": nm, "dur": 30}
+            pos = next((i for i, x in enumerate(r) if x.get("at") == "end"), len(r))
+            r.insert(pos, it)
+        for k, typ in ROUTINE_FIELDS.items():
+            if k not in a or a[k] is None or (k == "name" and str(a[k]).strip().lower() == it.get("name", "").lower()):
+                continue
+            v = a[k]
+            if k == "days":
+                v = sorted({int(d) for d in v if 0 <= int(d) <= 6}) or None
+            elif k == "dur":
+                v = max(5, min(int(v), 480))
+            elif k in ("minor", "main", "proof"):
+                v = 1 if v else 0
+            elif k in ("at", "until") and v not in ("", "end") and not re.match(r"^\d{2}:\d{2}$", str(v)):
+                continue
+            else:
+                v = typ(v)[:300]
+            if v in (None, "", 0) and k != "dur":
+                it.pop(k, None)
+            else:
+                it[k] = v
+        msg = f"в распорядке: {it['name']}, {it.get('dur', 30)} мин" + (", главное" if it.get("main") else "") + \
+              (", пруф" if it.get("proof") else "") + (f", дни {it['days']}" if it.get("days") else ", каждый день") + \
+              (f", в {it['at']}" if it.get("at") and it["at"] != "end" else "")
+    prof_ = dict(state.get("profile") or {})
+    prof_.update({"routine": r, "penalty": P.get("penalty"), "goal": P.get("goal"), "u": int(time.time() * 1000)})
+    state["profile"] = prof_
+    return msg
+
+
+def habit_streak(state: dict, qid: str) -> int:
+    """Серия привычки: дни подряд, когда дело сделано. Дни без него по распорядку не рвут серию, сегодня ещё можно успеть."""
+    P = full_profile(state)
+    it = item(P, qid)
+    if not it:
+        return 0
+    d0, n = now().date(), 0
+    for i in range(400):
+        k = d0 - timedelta(days=i)
+        if not on_day(it, (k.weekday() + 1) % 7):
+            continue
+        if item_done(state.get("days", {}).get(k.strftime("%Y-%m-%d")), it):
+            n += 1
+        elif i:
+            break
+    return n

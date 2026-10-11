@@ -280,36 +280,54 @@ async def learn_facts(telegram_id: int, user: str, reply: str) -> None:
         logger.error(f"learn_facts error: {e}")
 
 
-PROOF_PROMPT = """Ты проверяешь пруф выполнения задачи для Андрея. Он прислал фото.
+PROOF_PROMPT = """Ты проверяешь пруф выполнения дела. Человек прислал фото.
 Подпись к фото: "{caption}"
-Сегодня по плану тренировка: {training}.
 
 Определи, что на фото:
-- "cbr" — скрин с TheorieExamen.nl (или другой практики теории на права в Нидерландах: verkeersborden, gevaarherkenning, вопросы CBR): пройденный урок или результат теста. Если виден результат, оцени: на экзамене проходной 44 из 50 (88%).
-- "eng" — скрин Duolingo: пройденный урок, экран «урок завершён», XP за сегодня или ударный режим (streak).
-- "training" — Андрей в зале или на тренировке (селфи в спортзале, тренажёры, ринг, мешок, перчатки) или скрин трекера тренировки.
-- "fine" — скрин Trading 212: пополнение счёта или покупка в пироге (pie) safemoney, видно сумму и сегодняшнюю дату или «только что».
-- "video" — скрин загрузки/публикации видео в YouTube Studio или опубликованное видео на канале.
-- "question" — скрин ОДНОГО вопроса по теории на права (картинка ситуации, знак, варианты ответа), а не итог теста. Тогда в comment объясни по-русски простыми словами правильный ответ и правило (3-5 предложений), с английским термином в скобках. ok = true.
+{kinds}
 - "receipt" — чек из магазина (Albert Heijn, Lidl, Jumbo, Kruidvat и т.п.). Перечисли купленное в items.
 - "fridge" — фото холодильника, полок или шкафа с продуктами. Перечисли то, что ясно видно, в items.
-- "none" — всё остальное, или пруф явно старый/фейковый/не относится к задаче (например письмо, реклама).
+- "none" — всё остальное, или пруф явно старый/фейковый/не относится к делу (например письмо, реклама).
 
 Для receipt и fridge: items = [{{"name": "по-русски, коротко: курица, рис, молоко", "cat": "fridge|pantry|home", "qty": "2 кг или 1 шт, если видно"}}]. fridge = свежее со сроком (мясо, молочка, овощи, яйца), pantry = крупы, макароны, консервы, специи, масло, соусы, home = бытовое (мыло, порошок, бумага, губки). Не включай пакеты, депозит за бутылки, скидки. ok = true.
-
-Если "cbr" и виден итог теста: score = сколько правильных, total = сколько всего вопросов, weak = коротко, по каким темам ошибки (если видно), иначе пусто.
-
+{score}
 Ответь ТОЛЬКО JSON без markdown:
-{{"quest": "cbr|eng|fine|training|video|question|receipt|fridge|none", "ok": true/false, "score": null, "total": null, "weak": "", "items": [], "comment": "1-2 коротких предложения по-русски, по делу. Для question: объяснение."}}"""
+{{"quest": "{ids}|receipt|fridge|none", "ok": true/false, "score": null, "total": null, "weak": "", "items": [], "comment": "1-2 коротких предложения по-русски, по делу."}}"""
+
+LIC_KINDS = """- "question" — скрин ОДНОГО вопроса по теории на права (картинка ситуации, знак, варианты ответа), а не итог теста. Тогда в comment объясни по-русски простыми словами правильный ответ и правило (3-5 предложений), с английским термином в скобках. ok = true."""
+LIC_SCORE = """
+Если "{lic}" и виден итог теста: score = сколько правильных, total = сколько всего вопросов, weak = коротко, по каким темам ошибки (если видно), иначе пусто. На экзамене CBR проходной 44 из 50 (88%).
+"""
 
 
-async def check_proof(image_bytes: bytes, caption: str, training: str) -> dict:
+def proof_prompt(caption: str, P: dict, debt: bool) -> str:
+    """Категории пруфов собираются из распорядка человека: что у него закрывается фото."""
+    from services import quest
+    kinds, ids, lic = [], [], None
+    for it in quest.items(P):
+        if it.get("proof") or any(s.get("proof") for s in it.get("steps") or []):
+            what = it.get("check") or f"фото или скрин, по которому видно, что сделано «{it['name']}»" + (f" ({it['sub']})" if it.get("sub") else "")
+            kinds.append(f'- "{it["id"]}" — {what}.')
+            ids.append(it["id"])
+            if it.get("tutor") == "cbr":
+                lic = it["id"]
+    pen = P.get("penalty") or {}
+    if debt and pen.get("fine"):
+        kinds.append(f'- "fine" — скрин перевода или пополнения на €{pen["fine"]} ({pen.get("to") or "копилка"}), видно сумму и сегодняшнюю дату или «только что».')
+        ids.append("fine")
+    if lic:
+        kinds.append(LIC_KINDS)
+        ids.append("question")
+    return PROOF_PROMPT.format(caption=caption[:300], kinds="\n".join(kinds), ids="|".join(ids) or "none",
+                               score=LIC_SCORE.format(lic=lic) if lic else "")
+
+
+async def check_proof(image_bytes: bytes, caption: str, P: dict, debt: bool = False) -> dict:
     """Проверяет фото-пруф через Claude. Возвращает {"quest", "ok", "comment"}."""
     import base64
     import json
     import re
 
-    training_name = "единоборства" if training == "fight" else "зал"
     try:
         response = await client.messages.create(
             model="claude-haiku-4-5",
@@ -325,7 +343,7 @@ async def check_proof(image_bytes: bytes, caption: str, training: str) -> dict:
                             "data": base64.b64encode(image_bytes).decode(),
                         },
                     },
-                    {"type": "text", "text": PROOF_PROMPT.format(caption=caption[:300], training=training_name)},
+                    {"type": "text", "text": proof_prompt(caption, P, debt)},
                 ],
             }],
         )

@@ -275,40 +275,42 @@ const GAME_MIN=45; // отдых по умолчанию
 const restsOf=d=>(d.gl||[]).map(g=>typeof g==="string"?{at:g,min:45}:g);
 const restToday=d=>restsOf(d).reduce((a,r)=>a+Math.max(0,Math.min(r.min,nowMin()-toMin(r.at))),0);
 let restMin=45;
-// Анкета: настройки под человека. Пока анкеты нет, работают значения по умолчанию.
-const DEF_PROFILE={reward:"Трава",name:"",wake:"08:00",bed:"23:30",gymDays:[1,2,3,4,5,6],req:{train:1,cbr:1,eng:1},videoMin:110,kg:null,goalKg:null,why:""};
-const prof=()=>Object.assign({},DEF_PROFILE,state.profile||{});
+// Анкета человека: подъём, отбой, награда, РАСПОРЯДОК (из чего собирается день), штраф и текущая цель.
+// Шаблоны те же, что у бота (services/routine.json). Своего распорядка нет: шаблон.
+/*TEMPLATES*/const TEMPLATES={"andrey":{"penalty":{"task":"video","fine":5,"to":"safemoney"},"goal":{"kind":"chan","name":"Канал","unit":"подписчиков","habit":"video"},"routine":[{"id":"wake","name":"Подъём, вода, улица","sub":"10 минут дневного света","dur":20,"minor":1,"until":"12:00"},{"id":"bfast","name":"Завтрак","sub":"Разогреть заготовку","dur":20,"minor":1,"until":"12:00"},{"id":"cbr","name":"Теория на права","sub":"TheorieExamen.nl: урок и тест","dur":45,"main":1,"proof":1,"tutor":"cbr","hint":"TheorieExamen.nl. Скрин результата сюда.","check":"скрин TheorieExamen.nl или другой практики теории на права в Нидерландах (verkeersborden, gevaarherkenning, вопросы CBR): пройденный урок или результат теста"},{"id":"video","name":"Видео","dur":110,"main":1,"link":"youtube","bonus":"Бонус: второе видео","debt":"Долг: второе видео","hint":"Открой квест и жми «Начать фокус». Телефон экраном вниз.","check":"скрин загрузки или публикации видео в YouTube Studio, или опубликованное видео на канале","steps":[{"id":"b1","name":"Текст в ChatGPT","hint":"Попроси историю и скопируй текст целиком."},{"id":"b2","name":"Озвучка в ElevenLabs","hint":"Вставь текст, сгенерируй и скачай mp3."},{"id":"b3","name":"Картинка и анимация","hint":"Сделай картинку и оживи её."},{"id":"b4","name":"Субтитры","hint":"Сгенерируй субтитры и проверь первые минуты."},{"id":"b5","name":"Загрузка на YouTube","hint":"Название, превью, публикация. Ссылку кинь боту.","proof":1}]},{"id":"lunch","name":"Обед","sub":"Разогреть заготовку","dur":30,"minor":1,"until":"16:00"},{"id":"gym","name":"Зал","sub":"С дорогой. Веса запиши во вкладке «Я»","dur":120,"days":[1,2,3,4,5,6],"main":1,"proof":1,"goal":"body","hint":"До зала без травы. Селфи из зала сюда.","check":"человек в спортзале или на тренировке (селфи в зале, тренажёры, ринг) или скрин трекера тренировки"},{"id":"walk","name":"Прогулка","sub":"День восстановления","dur":45,"days":[0]},{"id":"_custom"},{"id":"prep","name":"Заготовка еды на 2–3 дня","sub":"Готовка и ужин","dur":80,"days":[0,3,5],"minor":1},{"id":"dinner","name":"Ужин","sub":"Разогреть заготовку","dur":30,"days":[1,2,4,6],"minor":1},{"id":"eng","name":"Duolingo","sub":"Английский, урок или два","dur":20,"main":1,"proof":1,"hint":"Duolingo, урок или два. Скрин сюда.","check":"скрин Duolingo: пройденный урок, экран «урок завершён», XP за сегодня или ударный режим"},{"id":"screen","name":"Экран выкл, повтор теории, душ","sub":"Перед отбоем","dur":45,"at":"end","minor":1}]},"starter":{"penalty":null,"goal":null,"routine":[{"id":"wake","name":"Подъём, вода","dur":20,"minor":1,"until":"12:00"},{"id":"bfast","name":"Завтрак","dur":20,"minor":1,"until":"12:00"},{"id":"lunch","name":"Обед","dur":30,"minor":1,"until":"16:00"},{"id":"_custom"},{"id":"dinner","name":"Ужин","dur":30,"minor":1},{"id":"screen","name":"Экран выкл","sub":"Перед отбоем","dur":30,"at":"end","minor":1}]}};/*END TEMPLATES*/
+const DEF_PROFILE={reward:"Трава",name:"",wake:"08:00",bed:"23:30"};
+const clone=o=>JSON.parse(JSON.stringify(o));
+let _pk="",_pv=null;
+function prof(){
+  const src=state.profile||{},sig=JSON.stringify(src)+"|"+Object.keys(state.days).length;
+  if(sig===_pk)return _pv;
+  const p=Object.assign({},DEF_PROFILE);for(const [k,v] of Object.entries(src))if(v!=null)p[k]=v;
+  if(!Array.isArray(src.routine)){
+    const old=Object.values(state.days).some(d=>d&&(d.done||[]).some(x=>/^b[1-5]$/.test(x))); // старые данные Андрея
+    const tpl=TEMPLATES[old?"andrey":"starter"],r=clone(tpl.routine);
+    for(const it of r){if(it.id==="video"&&src.videoMin)it.dur=+src.videoMin;
+      if(it.id==="gym"&&src.gymDays)it.days=src.gymDays.slice();
+      if(it.id==="walk"&&src.gymDays)it.days=[0,1,2,3,4,5,6].filter(x=>!src.gymDays.includes(x));
+      if((it.id==="cbr"||it.id==="eng")&&src.req&&src.req[it.id]===0)delete it.main}
+    p.routine=r;if(!("penalty" in src))p.penalty=tpl.penalty;if(!("goal" in src))p.goal=tpl.goal}
+  if(p.penalty===undefined)p.penalty=null;if(p.goal===undefined)p.goal=null;
+  _pk=sig;_pv=p;return p}
+// правка анкеты: распорядок, штраф и цель пишем целиком, с отметкой времени (бот сливает по ней)
+function setProf(patch){const P=prof();state.profile=Object.assign({},state.profile||{},{routine:P.routine,penalty:P.penalty,goal:P.goal},patch,{u:Date.now()})}
 const DAY_START_=()=>prof().wake;
 const BED_=()=>prof().bed;
 const bedMin=()=>{const m=toMin(BED_());return m<300?m+1440:m};
 const DAY_END_=()=>hm(Math.min(bedMin()-45,1439));
-
-const VIDEO_STEPS=[
-  {id:"b1",name:"Текст в ChatGPT",hint:"Попроси историю и скопируй текст целиком."},
-  {id:"b2",name:"Озвучка в ElevenLabs",hint:"Вставь текст, сгенерируй и скачай mp3."},
-  {id:"b3",name:"Картинка и анимация",hint:"Сделай картинку и оживи её."},
-  {id:"b4",name:"Субтитры",hint:"Сгенерируй субтитры и проверь первые минуты."},
-  {id:"b5",name:"Загрузка на YouTube",hint:"Название, превью, публикация.",botHint:"Название, превью, публикация. Ссылку кинь боту.",proof:1}
-];
-// dur в минутах. fixed = якорь (время не двигается). days: 0 вс ... 6 сб.
-const QUESTS=[
-  {id:"wake",name:"Подъём, вода, улица",sub:"10 минут дневного света",dur:20,xp:20,minor:1,until:"12:00"},
-  {id:"bfast",name:"Завтрак",sub:"Разогреть заготовку",dur:20,xp:15,minor:1,until:"12:00"},
-  {id:"fine",name:"Штраф: €5 в safemoney",sub:"Перевод в Trading 212 за вчерашний провал",botSub:"За вчерашний провал. Скрин перевода в Trading 212 в бот",dur:5,xp:0,proof:1,req:1,penalty:1},
-  {id:"cbr",name:"Теория на права",sub:"TheorieExamen.nl: урок и тест",botSub:"TheorieExamen.nl. Скрин результата в бот",dur:45,xp:40,req:1,proof:1},
-  {id:"video",name:"Видео",kind:"video",dur:110,req:1},
-  {id:"lunch",name:"Обед",sub:"Разогреть заготовку",dur:30,xp:15,minor:1,until:"16:00"},
-  {id:"gym",name:"Зал",sub:"С дорогой. Веса запиши во вкладке «Я»",botSub:"С дорогой. Селфи из зала в бот",dur:120,xp:50,req:1,proof:1,days:[1,2,3,4,5,6],train:1},
-  {id:"walk",name:"Прогулка",sub:"День восстановления",dur:45,xp:20,days:[0]},
-  {id:"_custom"},
-  {id:"vid2",name:"Бонус: второе видео",sub:"Плюс к каналу",botSub:"Плюс к каналу. Ссылку кинь боту",dur:110,xp:100,proof:1,kind:"bonus",opt:1},
-  {id:"prep",name:"Заготовка еды на 2–3 дня",sub:"Готовка и ужин",dur:80,xp:30,days:[0,3,5],minor:1},
-  {id:"dinner",name:"Ужин",sub:"Разогреть заготовку",dur:30,xp:15,days:[1,2,4,6],minor:1},
-  {id:"eng",name:"Duolingo",sub:"Английский, урок или два",botSub:"Английский. Скрин урока в бот",dur:20,xp:30,req:1,proof:1},
-  {id:"house",name:"Жильё",sub:"Только новые объявления",dur:20,xp:20,days:[3,0],opt:1},
-  {id:"screen",name:"Экран выкл, повтор теории, душ",sub:"Перед отбоем",dur:45,xp:20,fixed:"END",minor:1}
-];
-const BOSS_IDS=VIDEO_STEPS.map(s=>s.id);
+const ritems=()=>prof().routine.filter(it=>it.id&&it.id!=="_custom");
+const ritem=id=>ritems().find(it=>it.id===id);
+const onDay=(it,wd)=>!it.days||!it.days.length||it.days.includes(wd);
+const stepIds=it=>((it&&it.steps)||[]).map(x=>x.id);
+const parentOf=id=>ritems().find(it=>stepIds(it).includes(id));
+const itemDone=(d,it)=>{const st=stepIds(it);return st.length?st.every(x=>has(d,x)):has(d,it.id)};
+const itemT=(d,it)=>{const st=stepIds(it);return ((d&&d.at)||{})[st.length?st[st.length-1]:it.id]};
+const penItem=()=>{const p=prof().penalty;return p&&ritem(p.task)||null};
+const penProof=()=>{const it=penItem();return !!it&&(!!it.proof||(it.steps||[]).some(x=>x.proof))};
+const nextStep=(d,it)=>(it.steps||[]).find(x=>!has(d,x.id));
 const EXERCISES=["Жим лёжа","Присед","Становая","Жим стоя","Тяга штанги","Подтягивания","Брусья","Жим ногами"];
 const IC={
   check:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#17110e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>',
@@ -346,37 +348,36 @@ function norm(s){if(!s||typeof s!=="object")s={};if(!s.days||typeof s.days!=="ob
 function dayOf(k){const d=state.days[k]||(state.days[k]={});d.done=d.done||[];d.at=d.at||{};d.custom=d.custom||[];d.skip=d.skip||[];d.dur=d.dur||{};d.gl=d.gl||[];return d}
 const peek=k=>state.days[k];
 const has=(d,id)=>!!d&&(d.done||[]).includes(id);
-const bossDone=d=>!!d&&BOSS_IDS.every(b=>has(d,b));
-const trainOf=k=>prof().gymDays.includes(dow(k))?"gym":null; // дни зала из анкеты
-const subOf=q=>BOT&&q.botSub?q.botSub:(q.sub||"");
-const locked=q=>BOT&&q.proof;
+const subOf=q=>(q.sub||"")+(BOT&&q.proof&&!q.penalty?(q.sub?". ":"")+"Пруф в бот":"");
+const locked=q=>BOT&&!!q.proof;
 
 function queue(k){
-  const d=dayOf(k),out=[];
-  for(const q of QUESTS){
-    if(q.id==="gym"){if(!trainOf(k))continue}
-    else if(q.id==="walk"){if(trainOf(k))continue}
-    else if(q.days&&!q.days.includes(dow(k)))continue;
-    if(q.id==="screen"){out.push({...q,fixed:DAY_END_(),sub:"Отбой в "+BED_()});continue}
-    if(q.kind==="video"&&prof().videoMin!==q.dur){out.push({...q,dur:prof().videoMin});continue}
-    if(q.id==="_custom"){for(const c of d.custom)out.push({id:c.id,name:c.name,dur:c.dur||30,fixed:c.at||null,xp:15,custom:1});
-      if(k===key()){for(const c of houseOf().chores)if(((choreDue(c,k)&&isMe(c.who))||(c.last===k&&has(d,"ch_"+c.id)))&&!d.skip.includes("ch_"+c.id))out.push({id:"ch_"+c.id,name:c.name,sub:"Дом · взял на себя",dur:c.dur||20,minor:1,chore:1});
-        const mb=myBuys();if((mb.length||has(d,"buy"))&&!d.skip.includes("buy"))out.push({id:"buy",name:mb.length?"Купить: "+mb.map(({x})=>x.name).join(", "):"Покупки",sub:"Дом · взял на себя",dur:Math.min(60,20+5*mb.length),minor:1,chore:1});}
-      continue}
-    const debt=debtOf(k);
-    if(q.id==="fine"&&!debt)continue;
-    if(q.id==="vid2"){if(debt){out.push({...q,name:"Долг: второе видео",sub:"За вчера. Без него награды и Доты нет",botSub:"За вчера. Ссылку кинь боту",opt:0,penalty:1});continue}if(!bossDone(d))continue}
-    if(d.skip.includes(q.id))continue;
-    if(q.until&&k===key()&&nowMin()>toMin(q.until)&&!has(d,q.id))continue; // утро прошло: не тащим завтрак в вечер
+  const d=dayOf(k),P=prof(),wd=dow(k),debt=debtOf(k),pi=penItem(),pen=P.penalty||{},out=[];let hasC=false;
+  const extra=()=>{if(pi&&(debt||(pi.bonus&&itemDone(d,pi)&&!d.skip.includes("vid2"))))
+    out.push({id:"vid2",name:debt?(pi.debt||`Долг: ещё раз «${pi.name}»`):pi.bonus,sub:debt?"За вчера. Без него награды нет":"Плюс к цели",dur:pi.dur||30,proof:penProof()?1:0,opt:debt?0:1,penalty:debt?1:0})};
+  const customs=()=>{for(const c of d.custom)out.push({id:c.id,name:c.name,dur:c.dur||30,fixed:c.at||null,custom:1});
+    if(k===key()){for(const c of houseOf().chores)if(((choreDue(c,k)&&isMe(c.who))||(c.last===k&&has(d,"ch_"+c.id)))&&!d.skip.includes("ch_"+c.id))out.push({id:"ch_"+c.id,name:c.name,sub:"Дом · взял на себя",dur:c.dur||20,minor:1,chore:1});
+      const mb=myBuys();if((mb.length||has(d,"buy"))&&!d.skip.includes("buy"))out.push({id:"buy",name:mb.length?"Купить: "+mb.map(({x})=>x.name).join(", "):"Покупки",sub:"Дом · взял на себя",dur:Math.min(60,20+5*mb.length),minor:1,chore:1});}
+    extra()};
+  for(const it of P.routine){
+    if(it.id==="_custom"){hasC=true;customs();continue}
+    if(!it.id||!onDay(it,wd)||(d.skip.includes(it.id)&&it!==pi))continue;
+    if(it.main&&debt&&pen.fine&&!out.some(q=>q.id==="fine"))out.push({id:"fine",name:`Штраф: €${pen.fine} в ${pen.to||"копилку"}`,sub:"За вчерашний провал. Скрин перевода в бот",dur:5,proof:1,penalty:1});
+    if(it.until&&k===key()&&nowMin()>toMin(it.until)&&!itemDone(d,it))continue; // утро прошло: завтрак в вечер не тащим
+    const q=Object.assign({},it,{fixed:it.at==="end"?DAY_END_():(it.at||null)});
+    if(it.at==="end")q.sub=(it.sub?it.sub+". ":"")+"Отбой в "+BED_();
+    if(it.steps)q.kind="multi";
     out.push(q);
   }
+  if(!hasC)customs();
   return out;
 }
-const isDone=(d,q)=>q.kind==="video"?bossDone(d):has(d,q.id);
+const isDone=(d,q)=>q.steps?itemDone(d,q):has(d,q.id);
+const isMain=q=>!!(q.main||q.penalty);
 function durOf(d,q){
   if(d.dur[q.id])return d.dur[q.id];
-  const L=learned()[q.kind==="video"?"video":q.id],base=L?L.min:(q.dur||30);
-  if(q.kind==="video"){const left=BOSS_IDS.filter(b=>!has(d,b)).length;return Math.max(20,Math.round(base*left/5))}
+  const L=learned()[q.id],base=L?L.min:(q.dur||30);
+  if(q.steps){const st=stepIds(q);return Math.max(20,Math.round(base*st.filter(b=>!has(d,b)).length/st.length))}
   return base;
 }
 
@@ -386,9 +387,9 @@ function durOf(d,q){
 function logEv(d,e,id){d.ev=(d.ev||[]).concat([[hhmm(),e,id||""]]).slice(-200)}
 function restOverlap(d,a,b){return restsOf(d).reduce((n,r)=>{const s=toMin(r.at),e=s+r.min;return n+Math.max(0,Math.min(b,e)-Math.max(a,s))},0)}
 function recSpan(d,id){
-  const now=nowMin(),isStep=BOSS_IDS.includes(id);
+  const now=nowMin(),par=parentOf(id);
   let s=null,g=1;
-  if(d.cur&&(d.cur.id===id||(isStep&&d.cur.id==="video"))){s=toMin(d.cur.at);g=0}
+  if(d.cur&&(d.cur.id===id||(par&&d.cur.id===par.id))){s=toMin(d.cur.at);g=0}
   // последнее событие перед этим: закрытое дело или конец отдыха
   const marks=Object.entries(d.at).filter(([k])=>k!==id).map(([,t])=>toMin(t)).concat(restsOf(d).map(r=>toMin(r.at)+r.min)).filter(t=>t<=now);
   const last=marks.length?Math.max(...marks):null;
@@ -398,19 +399,19 @@ function recSpan(d,id){
   if(m<1)return;
   d.span=Object.assign({},d.span||{},{[id]:{s:hm(s),e:hm(now),m,g}});
 }
-const BASE_DUR=Object.fromEntries(QUESTS.filter(q=>q.dur).map(q=>[q.id,q.dur]));
 function median(a){const b=a.slice().sort((x,y)=>x-y),n=b.length;return n?(n%2?b[(n-1)/2]:(b[n/2-1]+b[n/2])/2):0}
 let _learnKey="",_learn={};
 function learned(){
-  const ks=Object.keys(state.days).sort().slice(-40),sig=ks.map(k=>k+JSON.stringify(state.days[k].span||{})).join("|");
+  const ks=Object.keys(state.days).sort().slice(-40),sig=_pk+ks.map(k=>k+JSON.stringify(state.days[k].span||{})).join("|");
   if(sig===_learnKey)return _learn;
-  const vals={};
+  const vals={},base=Object.fromEntries(ritems().map(it=>[it.id,it.dur||30])),multi=ritems().filter(it=>it.steps);
   for(const k of ks){const sp=state.days[k].span||{};
-    for(const [id,v] of Object.entries(sp)){if(!BASE_DUR[id]||id==="video")continue;
-      if(v.g&&v.m>BASE_DUR[id]*2.5)continue; // угаданный старт и слишком долго: скорее был перерыв
+    for(const [id,v] of Object.entries(sp)){if(!base[id]||multi.some(it=>it.id===id))continue;
+      if(v.g&&v.m>base[id]*2.5)continue; // угаданный старт и слишком долго: скорее был перерыв
       (vals[id]=vals[id]||[]).push(v.m)}
-    if(BOSS_IDS.every(b=>sp[b]))(vals.video=vals.video||[]).push(BOSS_IDS.reduce((n,b)=>n+sp[b].m,0));
-    for(const b of BOSS_IDS)if(sp[b])(vals[b]=vals[b]||[]).push(sp[b].m);
+    for(const it of multi){const st=stepIds(it);
+      if(st.every(b=>sp[b]))(vals[it.id]=vals[it.id]||[]).push(st.reduce((n,b)=>n+sp[b].m,0));
+      for(const b of st)if(sp[b])(vals[b]=vals[b]||[]).push(sp[b].m)}
   }
   const out={};
   for(const [id,arr] of Object.entries(vals)){const last=arr.slice(-10);if(last.length<3)continue;
@@ -458,12 +459,11 @@ const guessCat=n=>{n=n.toLowerCase();return HOME_WORDS.some(w=>n.includes(w))?"h
 const shelfDays=n=>{n=n.toLowerCase();const f=SHELF.find(([w])=>n.includes(w));return f?f[1]:5};
 const PERMS={see_food:"Видеть продукты",edit_food:"Менять продукты",shop:"Покупки",chores:"Дела по дому",assign:"Назначать дела",projects:"Проекты",notes:"Память дома",members:"Люди и должности"};
 const DEF_CHORES=[{id:"c_wash",name:"Стирка",every:7,dur:20},{id:"c_clean",name:"Уборка комнаты",every:7,dur:40},{id:"c_trash",name:"Вынести мусор",every:3,dur:5},{id:"c_bed",name:"Сменить постельное",every:14,dur:15}];
-const MOVE_STEPS=["Найти студию или квартиру с отдельной кухней","Подписать договор аренды","Договориться с хозяином о сдаче комнаты","Сдать комнату и забрать залог €500","Переписать адрес в BRP (gemeente)","Новый адрес: банк, страховка, UWV, RDW (Audi)"];
 const DEF_ROLES=[{id:"owner",name:"Создатель",perms:Object.keys(PERMS),fixed:true},{id:"adult",name:"Взрослый",perms:["see_food","edit_food","shop","chores","assign","projects","notes"]},{id:"helper",name:"Помощник",perms:["see_food","shop","chores"]},{id:"guest",name:"Гость",perms:["shop"]}];
 function houseOf(){
   let h=state.house;
-  if(!h||typeof h!=="object"){h=state.house={id:"house_me",members:[{uid:"me",name:"Андрей",role:"owner",u:0}],roles:DEF_ROLES.map(r=>({...r,u:0})),items:[],shop:[],
-    chores:DEF_CHORES.map(c=>({...c,last:key(),u:0})),projects:[{id:"p_move",name:"Переезд до 31.12",due:"2026-12-31",u:0,steps:MOVE_STEPS.map((t,i)=>({id:"s"+(i+1),t,done:false,u:0}))}],del:[],notes:[]}}
+  if(!h||typeof h!=="object"){h=state.house={id:"house_me",members:[{uid:"me",name:prof().name||"Я",role:"owner",u:0}],roles:DEF_ROLES.map(r=>({...r,u:0})),items:[],shop:[],
+    chores:DEF_CHORES.map(c=>({...c,last:key(),u:0})),projects:[],del:[],notes:[]}}
   for(const k of ["items","shop","chores","projects","del","notes","members"])if(!Array.isArray(h[k]))h[k]=[];
   if(!Array.isArray(h.roles)||!h.roles.length)h.roles=DEF_ROLES.map(r=>({...r,u:0}));
   return h;
@@ -496,83 +496,71 @@ const ddmm=k=>k?k.slice(8,10)+"."+k.slice(5,7):"";
 function daysLeft(k){return Math.round((new Date(k+"T12:00:00")-new Date(key()+"T12:00:00"))/864e5)}
 
 /* ---------- провал и наказания ---------- */
-// Провал = день без видео. Считаем только дни, когда приложением уже пользовались.
-function failedDay(k){if(k>=key())return false;const d=peek(k);if(bossDone(d))return false;
+// Провал = день без штрафного дела из анкеты (у Андрея видео). Считаем только дни, когда приложением уже пользовались.
+function failedDay(k){if(k>=key())return false;const it=penItem();if(!it||!onDay(it,dow(k)))return false;const d=peek(k);if(itemDone(d,it))return false;
   return Object.keys(state.days).some(x=>x<=k&&((peek(x).done||[]).length||peek(x).firstSmoke))}
 const debtOf=k=>failedDay(shift(k,-1));
-const debtClosed=d=>has(d,"vid2")&&has(d,"fine");
+const debtClosed=d=>has(d,"vid2")&&(has(d,"fine")||!(prof().penalty||{}).fine);
 
-/* ---------- награда дня, XP ---------- */
-// Главная награда (что именно, задаётся в анкете) открывается, когда закрыты 4 главных дела. Одна за день.
-const REQ_NAMES={video:"Видео",train:"Тренировка",cbr:"Теория",eng:"Duolingo",debt:"Долг",fine:"€5"};
-function reqs(k){const d=peek(k)||{},at=d.at||{},tr=trainOf(k);
-  const r=[{id:"video",t:at.b5},{id:"cbr",t:at.cbr},{id:"eng",t:at.eng}];
-  const P=prof().req;
-  if(tr&&P.train)r.splice(1,0,{id:"train",tr,t:at[tr]});
-  for(const id of ["cbr","eng"])if(!P[id]){const i=r.findIndex(x=>x.id===id);if(i>=0)r.splice(i,1)}
-  if(debtOf(k)){r.push({id:"debt",t:at.vid2,pen:1},{id:"fine",t:at.fine,pen:1})}
-  if(d.skip)for(const x of r)if(x.id!=="video"&&!x.pen&&d.skip.includes(x.id==="train"?x.tr:x.id))x.t=x.t||"skip"; // убранное сегодня не блокирует награду, видео убрать нельзя
+/* ---------- награда дня и серии ---------- */
+// Награда (что именно, в анкете) открывается, когда закрыты все главные дела дня. Убранное на сегодня не блокирует, штрафное дело убрать нельзя.
+function reqs(k){const d=peek(k)||{},at=d.at||{},sk=d.skip||[],pi=penItem(),P=prof();
+  const r=ritems().filter(it=>it.main&&onDay(it,dow(k))).map(it=>({id:it.id,name:it.name,t:itemT(d,it)||(sk.includes(it.id)&&it!==pi?"skip":null)}));
+  if(debtOf(k)&&pi){r.push({id:"debt",name:pi.debt||`Долг: ещё раз «${pi.name}»`,t:at.vid2,pen:1});if(P.penalty.fine)r.push({id:"fine",name:"Штраф €"+P.penalty.fine,t:at.fine,pen:1})}
   return r}
-// pending: копим · open: награда открыта · gold: взял после всех дел · base: раньше, но тренировка была чистой · broken: раньше тренировки
-function rewardState(k){
-  const d=peek(k);if(!d)return "pending";
-  const R=reqs(k),fs=d.firstSmoke,all=R.every(x=>x.t);
-  const tr=R.find(x=>x.id==="train");
-  if(!fs){if(all)return k<key()?"gold":"open";return k<key()&&(d.done||[]).length?"base":"pending"}
-  if(all&&R.every(x=>x.t==="skip"||x.t<=fs))return "gold";
-  if(tr?(tr.t&&tr.t!=="skip"&&tr.t<=fs):(R[0].t&&R[0].t<=fs))return "base";
-  return "broken";
-}
-const cleanState=rewardState;
-const isClean=k=>["base","gold","open"].includes(rewardState(k));
-function cleanStreak(){let n=0,k=key();if(!isClean(k))k=shift(k,-1);
-  for(let i=0;i<400;i++){if(isClean(k)){n++;k=shift(k,-1)}else break}return n}
+const dayClosed=k=>{const r=reqs(k);return r.length>0&&r.every(x=>x.t)};
+function rewardState(k){const d=peek(k);if(!d)return "pending";if(d.firstSmoke)return "taken";return dayClosed(k)?"open":"pending"}
+// 🔥 дни подряд, когда закрыто всё главное. Сегодня считается, когда закрыт.
+function closedStreak(){let n=0,k=key();if(!dayClosed(k))k=shift(k,-1);while(n<400&&dayClosed(k)){n++;k=shift(k,-1)}return n}
+// Серия привычки: дни подряд с этим делом. Дни, когда его нет по распорядку, не рвут. Сегодня ещё можно успеть.
+function habitStreak(id){const it=ritem(id);if(!it)return {n:0,start:null};let n=0,start=null,k=key();
+  for(let i=0;i<400;i++,k=shift(k,-1)){if(!onDay(it,dow(k)))continue;if(itemDone(peek(k),it)){n++;start=k}else if(i)break}
+  return {n,start}}
 const gamesUsed=d=>Math.max(d.games||0,(d.gl||[]).length);
-const vids=()=>Object.values(state.days).reduce((a,d)=>a+(bossDone(d)?1:0)+(has(d,"vid2")?1:0),0);
-function videoStreak(){let n=0,k=key();if(!bossDone(peek(k)))k=shift(k,-1);while(bossDone(peek(k))){n++;k=shift(k,-1)}return n}
-const countQ=(ids,days)=>{let n=0;const keys=days?Array.from({length:days},(_,i)=>shift(key(),-i)):Object.keys(state.days);for(const k of keys){const d=peek(k);if(d&&ids.some(id=>has(d,id)))n++}return n};
 const e1rm=l=>l.kg*(1+(l.reps||1)/30);
 const liftsOf=ex=>state.lifts.filter(l=>l.ex===ex);
 
-/* ---------- лестница наград ---------- */
-// Серия: подарки внутри одной серии дней с видео. Большие цели: разовые, за реальный результат.
-const RUNGS=[{id:"s3",n:3,budget:5,t:"3 дня подряд"},{id:"s7",n:7,budget:15,t:"7 дней подряд"},{id:"s14",n:14,budget:30,t:"14 дней подряд"},{id:"s30",n:30,budget:50,t:"30 дней подряд"}];
+/* ---------- цели: Тело у всех, плюс одна текущая цель ---------- */
+// Цель = цифра + ступени с подарками + привычка из распорядка (своя серия). Ступени бот предлагает, ты правишь.
 const curKg=()=>state.body.length?state.body[state.body.length-1].kg:null;
-// Разовые цели вне шаблонов (флажок «достиг»)
-const GOALS=[
-  {id:"g_money",t:"Первые деньги с YouTube",grp:"Разовые",budget:300,ok:G=>!!G.earned,flag:"earned"},
-  {id:"g_house",t:"Подписал договор на жильё",grp:"Разовые",budget:75,ok:G=>!!G.house,flag:"house"}
-];
-/* ---------- цели по одному шаблону ---------- */
-// Цель = цифра (откуда-то из квеста) + ступени с подарками. Ступени бот предлагает, ты правишь.
-const licVal=()=>goalsSt().license?10:goalsSt().cbr?9:Math.min(((state.theory||{}).i)||0,8);
-const LIC_LABEL={4:"Половина тем теории",8:"Все темы теории пройдены",9:"Сдал теорию CBR",10:"Получил права"};
+const goalsSt=()=>state.goals||{};
+const GOAL=()=>prof().goal;
+const gk=()=>{const g=GOAL();return g?(g.kind==="chan"?"chan":"goal"):null}; // ключ ступеней: у канала старый, чтобы подарки не потерялись
+const bodyHabit=()=>ritems().find(it=>it.goal==="body");
+const goalHabit=()=>{const g=GOAL();return g&&g.habit?ritem(g.habit):null};
+const nice=x=>{const p=Math.pow(10,Math.floor(Math.log10(Math.max(1,x))));return Math.ceil(x/p*2)/2*p};
 const TPL={
-  chan:{name:"Канал",unit:"подписчиков",val:()=>goalsSt().subs||0,dir:1,
-    suggest:v=>[100,250,500,1000,2500,5000,10000,25000].filter(x=>x>v).slice(0,4).map((at,i)=>({at,budget:[15,25,50,100][i]}))},
-  body:{name:"Тело",unit:"кг",val:()=>curKg(),dir:()=>{const G=goalsSt();return G.goalKg&&curKg()!=null&&G.goalKg<curKg()?-1:1},
+  body:{name:()=>"Тело",unit:()=>"кг",val:()=>curKg(),dir:()=>{const G=goalsSt();return G.goalKg&&curKg()!=null&&G.goalKg<curKg()?-1:1},
     suggest:v=>{const g=goalsSt().goalKg;if(!g||v==null)return [];const n=Math.min(4,Math.max(1,Math.round(Math.abs(g-v)/2)));
       return Array.from({length:n},(_,i)=>({at:Math.round((v+(g-v)*(i+1)/n)*10)/10,budget:[15,20,30,50][Math.min(3,i+(4-n))]}))}},
-  lic:{name:"Права",unit:"этап",val:licVal,dir:1,suggest:()=>[{at:4,budget:10},{at:8,budget:20},{at:9,budget:75},{at:10,budget:200}]}
+  chan:{name:()=>GOAL().name,unit:()=>GOAL().unit||"подписчиков",val:()=>goalsSt().subs||0,dir:()=>1,
+    suggest:v=>[100,250,500,1000,2500,5000,10000,25000].filter(x=>x>v).slice(0,4).map((at,i)=>({at,budget:[15,25,50,100][i]}))},
+  goal:{name:()=>GOAL().name,unit:()=>GOAL().unit||"",val:()=>goalsSt().val??0,dir:()=>1,
+    suggest:v=>{const b=Math.max(5,v||0);return [2,4,8,16].map((m,i)=>({at:nice(b*m),budget:[15,25,50,100][i]}))}}
 };
 function goalOf(gid){state.tgoals=state.tgoals||{};let g=state.tgoals[gid];
   if(!g||!Array.isArray(g.steps)){g=state.tgoals[gid]={steps:TPL[gid].suggest(TPL[gid].val()).map(x=>({id:hid("t"),...x}))}}
   return g}
-const tdir=gid=>{const d=TPL[gid].dir;return typeof d==="function"?d():d};
+const tdir=gid=>TPL[gid].dir();
 const reached=(gid,at)=>{const v=TPL[gid].val();return v!=null&&(tdir(gid)>0?v>=at:v<=at)};
 const fmtN=n=>Number(n).toLocaleString("ru-RU");
-function stepLabel(gid,st){return st.label||(gid==="lic"?(LIC_LABEL[st.at]||"Этап "+st.at):gid==="body"?st.at+" кг":fmtN(st.at)+" "+TPL[gid].unit)}
-function goalRungs(){const out=[];for(const gid of Object.keys(TPL)){if(gid==="body"&&!goalsSt().goalKg&&!(state.tgoals||{}).body)continue;
-  for(const st of goalOf(gid).steps)out.push({id:"t_"+gid+"_"+st.id,t:stepLabel(gid,st),grp:TPL[gid].name,budget:st.budget,ok:()=>reached(gid,st.at),
-    prog:()=>{const v=TPL[gid].val();return gid==="lic"?`этап ${Math.min(v,10)} из ${st.at}`:v==null?"нет данных":`${gid==="body"?v+" кг":fmtN(v)} / ${gid==="body"?st.at+" кг":fmtN(st.at)}`}})}
+function stepLabel(gid,st){return st.label||(gid==="body"?st.at+" кг":fmtN(st.at)+" "+TPL[gid].unit())}
+const gids=()=>["body"].concat(gk()?[gk()]:[]);
+function goalRungs(){const out=[];for(const gid of gids()){if(gid==="body"&&!goalsSt().goalKg&&!(state.tgoals||{}).body)continue;
+  for(const st of goalOf(gid).steps)out.push({id:"t_"+gid+"_"+st.id,t:stepLabel(gid,st),grp:TPL[gid].name(),budget:st.budget,ok:()=>reached(gid,st.at),
+    prog:()=>{const v=TPL[gid].val();return v==null?"нет данных":`${gid==="body"?v+" кг":fmtN(v)} / ${gid==="body"?st.at+" кг":fmtN(st.at)}`}})}
   return out}
-const allRungs=()=>RUNGS.concat(GOALS,goalRungs());
-const goalsSt=()=>state.goals||{};
-function streakStart(){const n=videoStreak();if(!n)return null;let k=key();if(!bossDone(peek(k)))k=shift(k,-1);return shift(k,-(n-1))}
-function bestStreak(){let best=0,run=0;const ks=Object.keys(state.days).sort();if(!ks.length)return 0;let k=ks[0];const end=key();
-  while(k<=end){if(bossDone(peek(k))){run++;best=Math.max(best,run)}else if(k<end)run=0;k=shift(k,1)}return best}
-const claimKey=r=>r.n?r.id+"@"+streakStart():r.id;
-const rungOpen=r=>r.n?videoStreak()>=r.n:r.ok(goalsSt());
+// подарки за серию привычки: 7, 14, 30 дней подряд. Новая серия, новые подарки.
+const HABIT_N=[{n:7,budget:10},{n:14,budget:25},{n:30,budget:50}];
+function habitRungs(){const out=[];
+  for(const [gid,it] of [["body",bodyHabit()],[gk(),goalHabit()]]){if(!gid||!it)continue;const hs=habitStreak(it.id);
+    for(const h of HABIT_N)out.push({id:"h_"+gid+"_"+h.n,n:h.n,t:`${it.name}: ${h.n} дней подряд`,grp:TPL[gid].name(),budget:h.budget,ok:()=>hs.n>=h.n,ck:"h_"+gid+"_"+h.n+"@"+hs.start,prog:()=>`${Math.min(hs.n,h.n)} из ${h.n}`})}
+  return out}
+// разовые результаты внутри цели (флажок «достиг»)
+const FLAGS=()=>gk()==="chan"?[{id:"g_money",t:"Первые деньги с YouTube",grp:"Канал",budget:300,ok:()=>!!goalsSt().earned,flag:"earned"}]:[];
+const allRungs=()=>FLAGS().concat(goalRungs(),habitRungs());
+const claimKey=r=>r.ck||r.id;
+const rungOpen=r=>r.ok();
 const rungClaimed=r=>!!(state.claims||{})[claimKey(r)];
 const openList=()=>allRungs().filter(r=>rungOpen(r)&&!rungClaimed(r)).map(r=>r.id);
 const findRung=id=>allRungs().find(r=>r.id===id);
@@ -582,17 +570,16 @@ function haptic(t){try{window.Telegram&&Telegram.WebApp.HapticFeedback.notificat
 
 function mutate(fn){
   const before=new Set(openList());
-  const k=key(),wasBoss=bossDone(peek(k)),wasClean=cleanState(k);
+  const k=key(),was=rewardState(k);
   fn();
-  const d=peek(k);let delay=0;
-  if(!wasBoss&&bossDone(d)){toast("Видео вышло. Засчитано для награды.");haptic("success");delay=2700}
+  let delay=0;
   const c=rewardState(k);
-  if(c!==wasClean){const T={open:"Все 4 дела закрыты. Награда открыта.",gold:"Заслужил.",base:"Раньше времени, но тренировка была чистой.",broken:"Раньше тренировки. Награда сегодня сгорела."}[c];if(T)setTimeout(()=>toast(T),delay)}
+  if(c!==was&&c==="open"){toast("Все главные дела закрыты. Награда открыта.");haptic("success");delay=2700}
   const fresh=openList().filter(id=>!before.has(id));
   if(fresh.length){const r=findRung(fresh[0]),g=(state.gifts||{})[r.id];setTimeout(()=>toast(`Открыт подарок: ${r.t}!${g?" "+g:""}`),delay+2700);haptic("success")}
   render();save();
 }
-function findQ(id){if(String(id).startsWith("ch_")||id==="buy")return queue(key()).find(x=>x.id===id);return QUESTS.find(x=>x.id===id)||VIDEO_STEPS.find(x=>x.id===id)||dayOf(key()).custom.find(c=>c.id===id)}
+function findQ(id){if(String(id).startsWith("ch_")||id==="buy")return queue(key()).find(x=>x.id===id);return queue(key()).find(x=>x.id===id)||ritem(id)||ritems().flatMap(it=>it.steps||[]).find(x=>x.id===id)||dayOf(key()).custom.find(c=>c.id===id)}
 function toggle(id){
   const q=findQ(id),d=dayOf(key());
   if(q&&locked(q)&&!has(d,id)){toast("Это закрывается пруфом. Кинь его боту.");haptic("warning");return}
@@ -601,22 +588,20 @@ function toggle(id){
       if(id.startsWith("ch_")){const c=houseOf().chores.find(x=>"ch_"+x.id===id),pv=(d.chPrev||{})[id]||{};if(c){c.last=pv.last||null;c.who=pv.who||ME();c.u=Date.now()}}}
     else{recSpan(d,id);d.done.push(id);d.at[id]=hhmm();logEv(d,"done",id);
       if(id.startsWith("ch_")){const c=houseOf().chores.find(x=>"ch_"+x.id===id);if(c){d.chPrev=Object.assign({},d.chPrev,{[id]:{last:c.last,who:c.who}});c.last=key();delete c.who;c.u=Date.now()}}
-      if(id==="buy"){for(const {kind,x} of myBuys())markBought(kind,x)}if(d.cur&&(d.cur.id===id||(d.cur.id==="video"&&bossDone(d))))delete d.cur}});
+      if(id==="buy"){for(const {kind,x} of myBuys())markBought(kind,x)}const ci=d.cur&&ritem(d.cur.id);if(d.cur&&(d.cur.id===id||(ci&&ci.steps&&itemDone(d,ci))))delete d.cur}});
 }
 function startTask(id){const d=dayOf(key());mutate(()=>{d.cur={id,at:hhmm()};logEv(d,"start",id)});const q=findQ(id);if(q)toast("Начал: "+q.name+". Остальное сдвинулось")}
-const nextStep=d=>VIDEO_STEPS.find(s=>!has(d,s.id));
-
 /* ---------- отрисовка ---------- */
 const GEAR='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>';
 const FIRE='<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 22c4.4 0 7.5-3 7.5-7.2 0-4.1-2.8-6.3-4.2-10.3-1.9 1.7-3 3.6-3.1 5.8-.9-1-1.6-2.2-1.8-3.9C7.4 8.4 4.5 11.3 4.5 14.8 4.5 19 7.6 22 12 22z"/></svg>';
 const TITLES={today:"Сегодня",home:"Дом",me:"Я"};
 function renderReward(){
-  const k=key(),d=dayOf(k),R=reqs(k),st=rewardState(k),n=R.filter(x=>x.t).length,vs=videoStreak();
+  const k=key(),d=dayOf(k),R=reqs(k),st=rewardState(k),n=R.filter(x=>x.t).length,vs=closedStreak();
   const sub=tab==="today"?new Date().toLocaleDateString("ru-RU",{weekday:"long",day:"numeric",month:"long"}):"";
-  const leafTxt=st==="open"||st==="gold"?IC.check:`${n}/${R.length}`;
+  const leafTxt=st!=="pending"?IC.check:`${n}/${R.length}`;
   $("appbar").innerHTML=`<div class="tt"><h1>${TITLES[tab]}</h1>${sub?`<span class="sub">${esc(sub)}</span>`:""}</div>
-    <div class="pills">${tab==="home"||tab==="me"?`<button type="button" class="pill gear${(tab==="home"?homeSeg==="people":meSeg==="set")?" on":""}" data-gear="1" aria-label="${tab==="home"?"Жильцы и правила":"Настройки"}">${GEAR}</button>`:""}<button type="button" class="pill fire${vs?"":" zero"}" data-tab-go="me" data-meseg="prog" aria-label="Серия ${vs} дней">${FIRE}${vs}</button>
-    <button type="button" class="pill leaf${st==="open"||st==="gold"?" open":""}${debtOf(k)&&!debtClosed(d)?" pen":""}" id="rewardpill" aria-label="Награда дня">${IC.leaf}${leafTxt}</button></div>`;
+    <div class="pills">${tab==="home"||tab==="me"?`<button type="button" class="pill gear${(tab==="home"?homeSeg==="people":meSeg==="set")?" on":""}" data-gear="1" aria-label="${tab==="home"?"Жильцы и правила":"Настройки"}">${GEAR}</button>`:""}<button type="button" class="pill fire${vs?"":" zero"}" data-hist="1" aria-label="Дней подряд всё закрыто: ${vs}. История">${FIRE}${vs}</button>
+    <button type="button" class="pill leaf${st!=="pending"?" open":""}${debtOf(k)&&!debtClosed(d)?" pen":""}" id="rewardpill" aria-label="Награда дня">${IC.leaf}${leafTxt}</button></div>`;
   if(!confirmPlay){$("confirm").innerHTML="";return}
   const a=plan(k),b=plan(k,restMin),nextReal=b.items.find(x=>x.q&&!x.started),newly=b.over.filter(o=>!a.over.some(x=>x.q.id===o.q.id));
   const done=restToday(d);
@@ -640,7 +625,7 @@ function renderHead(){
   const free=p.items.filter(i=>i.gap).reduce((a,i)=>a+Math.max(0,i.end-Math.max(i.start,now)),0),miss=p.over.reduce((a,o)=>a+o.dur,0);
   let segs="",total=0;
   for(const i of p.items){const st=Math.max(i.start,now),en=Math.min(i.end,bed);if(en<=st)continue;const w=(en-st)/span*100;total+=en-st;
-    const c=i.gap?"f":i.game?"g":i.q&&i.q.kind==="video"?"v":i.anchor?"a":"t";segs+=`<i class="${c}" style="width:${w.toFixed(2)}%" title="${esc(i.gap?"Свободно":i.game?"Отдых":i.q.name)}"></i>`}
+    const c=i.gap?"f":i.game?"g":i.q&&i.q.steps?"v":i.anchor?"a":"t";segs+=`<i class="${c}" style="width:${w.toFixed(2)}%" title="${esc(i.gap?"Свободно":i.game?"Отдых":i.q.name)}"></i>`}
   if(miss)segs+=`<i class="o" style="width:${Math.min(30,miss/span*100).toFixed(2)}%"></i>`;
   $("daybar").innerHTML=`<div class="track" role="img" aria-label="План до отбоя">${segs}</div>
     <div class="dline">${miss?`<span class="minus">Не хватает <b>${durTxt(miss)}</b></span>`:`<span class="free">Свободно <b>${durTxt(free)}</b></span>`}<span>До отбоя <b>${durTxt(Math.max(0,bed-now))}</b></span></div>`;
@@ -654,35 +639,36 @@ function nowCard(k,d,p){
   const q=it.q,late=it.late>0,left=it.end-now;
   const kline=`<span class="k"><span>${it.started?"Сейчас":"Начать сейчас"}</span><span>${late?"план был до "+hm(it.pe):"до "+hm(it.end)}</span></span>`;
   const clock=it.started?`<div class="clock"><b>${late?"+"+it.late:left}</b><span>${late?"мин сверх плана":"мин осталось"}</span></div>`:`<div class="clock"><b>${hm(it.start)}–${hm(it.end)}</b></div>`;
-  if(q.kind==="video"){
-    const st=nextStep(d),i=VIDEO_STEPS.indexOf(st);
-    const segs=VIDEO_STEPS.map(s=>`<div class="seg${has(d,s.id)?" on":""}"></div>`).join("");
-    const step=locked(st)?`<button type="button" class="ghost" data-proof="1">Кинуть ссылку боту</button>`:`<button type="button" class="ghost" data-t="${st.id}">Шаг сделан</button>`;
-    return `<section class="now${late?" late":""}">${kline}<div><h2>Видео: ${esc(st.name.split(" ")[0].toLowerCase())}</h2><p>Шаг ${i+1} из 5. ${esc(BOT&&st.botHint?st.botHint:st.hint)}</p></div>${clock}<div class="segs">${segs}</div>
-      <button type="button" class="bigbtn" data-focus="1">${IC.play}${it.started?"Открыть фокус":"Начать фокус 50 минут"}</button>${step}</section>`;
+  if(q.steps){
+    const st=nextStep(d,q),i=q.steps.indexOf(st);
+    const segs=q.steps.map(x=>`<div class="seg${has(d,x.id)?" on":""}"></div>`).join("");
+    const step=locked(st)?`<button type="button" class="ghost" data-proof="1">Кинуть пруф боту</button>`:`<button type="button" class="ghost" data-t="${st.id}">Шаг сделан</button>`;
+    return `<section class="now${late?" late":""}">${kline}<div><h2>${esc(q.name)}: ${esc(st.name.toLowerCase())}</h2><p>Шаг ${i+1} из ${q.steps.length}. ${esc(st.hint||"")}</p></div>${clock}<div class="segs">${segs}</div>
+      <button type="button" class="bigbtn" data-focus="${esc(q.id)}">${IC.play}${it.started?"Открыть фокус":"Начать фокус 50 минут"}</button>${step}</section>`;
   }
   const done=locked(q)?`<button type="button" class="bigbtn" data-proof="1">Кинуть пруф боту</button>`:`<button type="button" class="bigbtn" data-t="${esc(q.id)}">Готово</button>`;
   const startB=it.started?"":`<button type="button" class="ghost" data-start="${esc(q.id)}">Начать, засечь время</button>`;
-  const tok=q.req&&(q.kind==="video"||q.penalty||(q.id==="gym"?prof().req.train:prof().req[q.id]))?" Нужно для награды.":"";
+  const tok=isMain(q)?" Нужно для награды.":"";
   return `<section class="now${late?" late":""}">${kline}<div><h2>${esc(q.name)}</h2><p>${esc(subOf(q))}${tok&&subOf(q)&&!/[.!?]$/.test(subOf(q))?".":""}${tok}</p></div>${clock}${done}${startB}</section>`;
 }
 function planRow(d,it,opts={}){
   if(it.gap)return `<div class="row gap"><span class="tm">${hm(it.start)}</span><span class="nm"><b>Свободно ${durTxt(it.end-it.start)}</b></span></div>`;
   if(it.game)return `<div class="row game"><span class="tm">${hm(it.start)}<small>${hm(it.end)}</small></span>${IC.chest}<span class="nm"><b>Отдых</b><small>${durTxt(it.end-it.start)}</small></span></div>`;
   const q=it.q;
-  const inReward=q.req&&(q.kind==="video"||q.penalty||(q.id==="gym"?prof().req.train:prof().req[q.id]));
+  const inReward=isMain(q),pi=penItem();
   const right=inReward?`<span class="tok" title="Нужно для награды">${IC.leaf}</span>`:`<span class="dur">${durTxt(durOf(d,q))}</span>`;
-  const sub=q.kind==="video"?`${BOSS_IDS.filter(b=>has(d,b)).length} из 5 шагов · ${durTxt(durOf(d,q))}`:(it.late&&it.started?`Сверх плана ${it.late} мин`:subOf(q));
-  const startAttr=q.kind==="video"?'data-focus="1"':`data-start="${esc(q.id)}"`;
-  const chk=q.kind==="video"?`<span class="chk" aria-hidden="true"></span>`:`<button type="button" class="chk" data-t="${esc(q.id)}" aria-label="Отметить «${esc(q.name)}» сделанным"></button>`;
-  const skipB=!q.custom&&!q.penalty&&q.kind!=="video"&&!it.anchor?`<button type="button" class="x" data-skip="${esc(q.id)}" aria-label="Убрать на сегодня">${IC.x}</button>`:"";
+  const sub=q.steps?`${q.steps.filter(x=>has(d,x.id)).length} из ${q.steps.length} шагов · ${durTxt(durOf(d,q))}`:(it.late&&it.started?`Сверх плана ${it.late} мин`:subOf(q));
+  const startAttr=q.steps?`data-focus="${esc(q.id)}"`:`data-start="${esc(q.id)}"`;
+  const chk=q.steps?`<span class="chk" aria-hidden="true"></span>`:`<button type="button" class="chk" data-t="${esc(q.id)}" aria-label="Отметить «${esc(q.name)}» сделанным"></button>`;
+  const skipB=!q.custom&&!q.penalty&&!q.steps&&!it.anchor&&!(pi&&pi.id===q.id)?`<button type="button" class="x" data-skip="${esc(q.id)}" aria-label="Убрать на сегодня">${IC.x}</button>`:"";
   const extra=skipB+(q.custom&&opts.edit?`<button type="button" class="x" data-later="${esc(q.id)}" aria-label="Перенести на завтра">${IC.later}</button><button type="button" class="x" data-del="${esc(q.id)}" aria-label="Удалить">${IC.x}</button>`:"");
   const main=it.started?`<span class="rowmain"><span class="nm"><b>${esc(q.name)}</b><small>Идёт сейчас · ${esc(sub)}</small></span>${right}</span>`
     :`<button type="button" class="rowmain" ${startAttr} aria-label="Делать «${esc(q.name)}» сейчас"><span class="nm"><b>${esc(q.name)}${it.anchor?'<span class="pin">ЯКОРЬ</span>':""}</b><small>${esc(sub)}</small></span>${right}</button>`;
-  return `<div class="row${q.kind==="video"?" boss":""}${it.anchor?" anchor":""}${it.started?" cur":""}"><span class="tm" style="${it.late?"color:var(--red)":""}">${hm(it.start)}<small>${hm(it.end)}</small></span>${chk}${main}${extra}</div>`;
+  return `<div class="row${q.steps?" boss":""}${it.anchor?" anchor":""}${it.started?" cur":""}"><span class="tm" style="${it.late?"color:var(--red)":""}">${hm(it.start)}<small>${hm(it.end)}</small></span>${chk}${main}${extra}</div>`;
 }
 function doneRow(d,q){
-  return `<button type="button" class="row on" data-t="${esc(q.kind==="video"?"b5":q.id)}"${q.kind==="video"?" disabled":""}><span class="tm">${esc(q.kind==="video"?(d.at.b5||""):(d.at[q.id]||""))}</span><span class="chk">${IC.check}</span><span class="nm"><b>${esc(q.name)}</b></span></button>`;
+  const last=q.steps?stepIds(q).pop():q.id;
+  return `<button type="button" class="row on" data-t="${esc(last)}"${q.steps?" disabled":""}><span class="tm">${esc(d.at[last]||"")}</span><span class="chk">${IC.check}</span><span class="nm"><b>${esc(q.name)}</b></span></button>`;
 }
 function overCard(p){
   if(!p.over.length)return "";
@@ -703,7 +689,7 @@ let dayOpen=false;
 function viewToday(){
   const k=key(),d=dayOf(k),p=plan(k);
   const rest=p.items.slice(1),shown=dayOpen?rest:rest.slice(0,4);
-  const done=queue(k).filter(q=>isDone(d,q)).sort((a,b)=>(d.at[a.kind==="video"?"b5":a.id]||"").localeCompare(d.at[b.kind==="video"?"b5":b.id]||""));
+  const done=queue(k).filter(q=>isDone(d,q)).sort((a,b)=>(itemT(d,a)||d.at[a.id]||"").localeCompare(itemT(d,b)||d.at[b.id]||""));
   const up=[];for(let i=1;i<=14;i++){const kk=shift(k,i),dd=peek(kk);if(dd&&dd.custom)for(const c of dd.custom)up.push({kk,c})}
   const dname=kk=>{const i=Math.round((new Date(kk+"T12:00:00")-new Date(k+"T12:00:00"))/864e5);return i===1?"Завтра":i===2?"Послезавтра":new Date(kk+"T12:00:00").toLocaleDateString("ru-RU",{weekday:"short",day:"numeric",month:"short"})};
   const tl=up.map(({kk,c})=>`<div class="row"><span class="tm">${esc(dname(kk))}<small>${esc(c.at||"")}</small></span><span class="nm"><b>${esc(c.name)}</b><small>${durTxt(c.dur||30)}</small></span><button type="button" class="x" data-delon="${esc(kk)}|${esc(c.id)}" aria-label="Удалить">${IC.x}</button></div>`).join("");
@@ -718,8 +704,15 @@ function viewToday(){
        <div class="list">${tl||'<p class="empty">Нажми «+», выбери день, и дело встанет в план того дня.</p>'}</div>`:""}
      <div class="segfoot">${more}</div>`;
 }
+// Серия привычки: огонь, 7 дней, ступени-подарки за 7/14/30 дней подряд
+function habitCard(gid,it){if(!it)return "";const hs=habitStreak(it.id),k=key(),days=Array.from({length:7},(_,i)=>shift(k,i-6));
+  const wins=days.map(x=>`<div class="win${itemDone(peek(x),it)?" on":""}${x===k?" today":""}"${onDay(it,dow(x))?"":' style="opacity:.35"'}><i></i><span>${new Date(x+"T12:00:00").toLocaleDateString("ru-RU",{weekday:"short"})}</span></div>`).join("");
+  const R=habitRungs().filter(r=>r.id.startsWith("h_"+gid+"_"));
+  return `<div class="sec"><h3>Серия: ${esc(it.name)}</h3><span>${hs.n} ${hs.n===1?"день":hs.n>1&&hs.n<5?"дня":"дней"} подряд</span></div>
+    <div class="wins" style="margin:0 16px">${wins}</div><div class="list" style="margin-top:8px">${R.map(rungRow).join("")}</div>
+    <p class="empty" style="padding:6px 20px 0">Дни, когда дела нет по распорядку, серию не рвут. Пропуск обнуляет серию, подарки за новую серию открываются заново.</p>`}
 function viewGym(){
-  const k=key(),d=dayOf(k),tr=trainOf(k);
+  const k=key(),d=dayOf(k),bh=bodyHabit(),trToday=bh&&onDay(bh,dow(k));
   const body=state.body.slice(-6);
   const dl=body.length>1?Math.round((body[body.length-1].kg-body[0].kg)*10)/10:null;
   const dd=x=>String(x).slice(5).split("-").reverse().join(".");
@@ -737,8 +730,10 @@ function viewGym(){
   const hero=goalHero("body",'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 5v14M18 5v14M6 12h12M3 8v8M21 8v8"/></svg>',
     goal?`кг · цель ${goal} кг`:"кг · задай цель по весу");
   return hero+`<div class="segfoot" style="padding:10px 16px 0"><button type="button" class="line" data-goalkg="1">${goal?"Цель по весу: "+goal+" кг":"Задать цель по весу"}</button></div>${goal?goalSteps("body"):""}
-    <div class="card" style="margin-top:12px"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><b>Сегодня</b><span style="font-size:13px;font-weight:700;color:var(--muted)">${tr?(tr==="gym"?"Зал":"Единоборства"):"День отдыха"}</span></div>
-      <div class="mini">${learned().gym?`<div><span>Зал у тебя обычно</span><b>${durTxt(learned().gym.min)}</b></div>`:""}<div><span>Тренировка</span><b>${tr?(has(d,tr)?"сделана":"ещё нет"):"не нужна"}</b></div><div><span>Награда дня</span><b>${{pending:"копим",open:"открыта",base:"тренировка чистая",gold:"заслужил",broken:"сгорела"}[rewardState(k)]}</b></div><div><span>Тренировок за 7 дней</span><b>${countQ(["gym","fight"],7)}</b></div></div></div>
+    ${bh?`<div class="card" style="margin-top:12px"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><b>Сегодня</b><span style="font-size:13px;font-weight:700;color:var(--muted)">${trToday?esc(bh.name):"День отдыха"}</span></div>
+      <div class="mini">${learned()[bh.id]?`<div><span>${esc(bh.name)} у тебя обычно</span><b>${durTxt(learned()[bh.id].min)}</b></div>`:""}<div><span>${esc(bh.name)}</span><b>${trToday?(itemDone(d,bh)?"сделано":"ещё нет"):"не нужно"}</b></div></div></div>
+      ${habitCard("body",bh)}`:`<p class="empty" style="padding:12px 20px 0">Отметь в распорядке дело для тела (зал, бег, растяжка): у него будет своя серия. Я → ⚙ → Распорядок.</p>`}
+    <div class="card" style="margin-top:12px"><b>Личный советчик</b><p class="empty">Спроси бота про питание, тренировки, сон и вес: «что съесть после зала», «составь меню на 2 дня из того, что есть дома». Он видит твой вес, цель и запасы.</p></div>
     <div class="sec"><h3>Вес тела</h3></div><div class="card">${bodyCard}</div>
     <form class="add" data-add="weight"><div class="r"><input name="t" inputmode="decimal" placeholder="Вес, кг (например 82.5)" aria-label="Вес в кг" autocomplete="off"><button type="submit">Записать</button></div></form>
     <div class="sec"><h3>Рабочие веса</h3><span>${allW?`чистых подходов ${cleanW} из ${allW}`:""}</span></div>
@@ -748,11 +743,11 @@ function viewGym(){
       <button type="submit">Записать подход</button></form>
     ${exCards||'<p class="empty" style="padding:10px 20px 0">Записывай лучший рабочий подход по каждому упражнению. Приложение покажет рекорды и рост.</p>'}`;
 }
-function timeCard(){
-  const L=learned(),v=L.video,steps=VIDEO_STEPS.filter(x=>L[x.id]);
-  let n=0;for(const k of Object.keys(state.days)){const sp=state.days[k].span||{};if(BOSS_IDS.every(b=>sp[b]))n++}
-  if(!v&&!steps.length)return `<div class="card" style="margin-top:10px"><b>Время на видео</b><p class="empty">${n?`Замеров: ${n} из 3.`:"Пока нет замеров."} Жми «Начать фокус» в начале и отмечай шаги сразу, как закончил. С трёх видео план возьмёт твоё реальное время.</p></div>`;
-  return `<div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><b>Время на видео</b>${v?`<span style="font-size:13px;font-weight:700;color:var(--muted)">обычно ${durTxt(v.min)}</span>`:""}</div>
+function timeCard(it){
+  if(!it||!it.steps)return "";const L=learned(),v=L[it.id],steps=it.steps.filter(x=>L[x.id]),st=stepIds(it);
+  let n=0;for(const k of Object.keys(state.days)){const sp=state.days[k].span||{};if(st.every(b=>sp[b]))n++}
+  if(!v&&!steps.length)return `<div class="card" style="margin-top:10px"><b>Время: ${esc(it.name.toLowerCase())}</b><p class="empty">${n?`Замеров: ${n} из 3.`:"Пока нет замеров."} Жми «Начать фокус» в начале и отмечай шаги сразу, как закончил. С трёх замеров план возьмёт твоё реальное время.</p></div>`;
+  return `<div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><b>Время: ${esc(it.name.toLowerCase())}</b>${v?`<span style="font-size:13px;font-weight:700;color:var(--muted)">обычно ${durTxt(v.min)}</span>`:""}</div>
     <div class="mini">${steps.map(x=>`<div><span>${esc(x.name)}</span><b>${durTxt(L[x.id].min)}</b></div>`).join("")}</div>
     <p class="empty">По последним замерам, медиана. План дня уже считает так.</p></div>`;
 }
@@ -762,9 +757,9 @@ function goalHero(gid,icon,sub){const T=TPL[gid],v=T.val(),steps=goalOf(gid).ste
   let ringH="";
   if(nx&&v!=null){const from=prev?prev.at:(gid==="body"?((state.body[0]||{}).kg??v):0),span=Math.abs(nx.at-from)||1;
     const pct=Math.max(0,Math.min(1,Math.abs(v-from)/span)),left=Math.abs(Math.round((nx.at-v)*10)/10);
-    ringH=ring(pct,fmtN(left),gid==="lic"?"этапа до подарка":"до "+(gid==="body"?nx.at+" кг":fmtN(nx.at)))}
+    ringH=ring(pct,fmtN(left),"до "+(gid==="body"?nx.at+" кг":fmtN(nx.at)))}
   else if(!nx&&steps.length)ringH=ring(1,"✓","все ступени");
-  return `<section class="hero"><div class="hl2"><span class="flame${gid==="chan"?" yt":""}">${icon}</span><div><b>${v==null?"—":gid==="lic"?Math.min(v,10)+"/10":gid==="body"?v:fmtN(v)}</b><small>${esc(sub)}</small></div></div>${ringH}</section>`}
+  return `<section class="hero"><div class="hl2"><span class="flame${gid==="chan"?" yt":""}">${icon}</span><div><b>${v==null?"—":gid==="body"?v:fmtN(v)}</b><small>${esc(sub)}</small></div></div>${ringH}</section>`}
 function goalSteps(gid){const T=TPL[gid],g=goalOf(gid),steps=g.steps.slice().sort((a,b)=>tdir(gid)*(a.at-b.at));
   if(!goalEdit)return `<div class="sec"><h3>Ступени и подарки</h3><button type="button" data-gedit="1">изменить</button></div>
     <div class="list">${steps.map(st=>rungRow(findRung("t_"+gid+"_"+st.id))).join("")||'<p class="empty" style="padding:0 4px">Ступеней нет. Нажми «изменить» и добавь.</p>'}</div>`;
@@ -773,31 +768,38 @@ function goalSteps(gid){const T=TPL[gid],g=goalOf(gid),steps=g.steps.slice().sor
       <input class="gnum" data-gat="${gid}:${st.id}" inputmode="decimal" value="${st.at}" aria-label="Порог"><span class="dur">€</span><input class="gnum" data-gbud="${gid}:${st.id}" inputmode="numeric" value="${st.budget}" aria-label="Бюджет, €">
       <button type="button" class="x" data-gdel="${gid}:${st.id}" aria-label="Удалить ступень">${IC.x}</button></div>`).join("")}</div>
     <div class="segfoot" style="display:flex;gap:8px"><button type="button" class="line" data-gadd="${gid}">+ ступень</button><button type="button" class="line" data-gsug="${gid}">Предложить заново</button></div>
-    <p class="empty" style="padding:8px 20px 0">${gid==="lic"?"Этапы: 1–8 темы теории, 9 сдал теорию CBR, 10 получил права.":"Порог и бюджет подарка можно менять. Подарок выбираешь, нажав на ступень."}</p>`}
-function viewLic(){const th=state.theory||{i:0},G=goalsSt(),i=Math.min(th.i||0,8);
-  return goalHero("lic",'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="8.5" cy="12" r="2"/><path d="M13 10h5M13 14h3"/></svg>',
-      i>=8?(G.cbr?(G.license?"права получены":"теория сдана, дальше вождение"):"полные пробные экзамены"):`тема ${i+1} из 8`)
-    +`<div class="card" style="margin-top:10px"><b>Сейчас</b><p class="empty">${i>=8?"Полные пробные экзамены: три сдачи подряд (44 из 50), и можно записываться в CBR.":"Тема "+(i+1)+" из 8. Напиши боту «теория», он скажет, что учить, и засчитает скрин теста."}</p>
-      <div class="btns">${G.cbr?"":`<button type="button" data-flag="cbr">Сдал теорию</button>`}${G.license||!G.cbr?"":`<button type="button" class="pri" data-flag="license">Получил права</button>`}</div></div>`
-    +goalSteps("lic")}
-function viewChan(){
-  const k=key(),d=dayOf(k),G=goalsSt(),log=state.chanLog||[],subs=G.subs||0;
+    <p class="empty" style="padding:8px 20px 0">Порог и бюджет подарка можно менять. Подарок выбираешь, нажав на ступень.</p>`}
+function viewGoal(){
+  const g=GOAL();
+  if(!g)return `<section class="card"><b>Цель пока не задана</b><p class="empty">Одна текущая цель: канал, рисование, деньги, что угодно. У неё цифра, ступени с подарками и привычка из распорядка со своей серией.</p><button type="button" class="goldbtn" data-goalnew="1">Задать цель</button></section>`;
+  const gid=gk(),k=key(),hb=goalHabit(),log=state.chanLog||[],G=goalsSt();
   const dd=x=>String(x).slice(5).split("-").reverse().join(".");
-  const nxt=[100,1000,10000,100000].find(t=>subs<t);
-  const ago=log.filter(x=>x.d<=shift(k,-6)).pop(),dS=ago&&log.length?subs-ago.subs:null;
-  const vidsIn=n=>Array.from({length:n},(_,i)=>shift(k,-i)).filter(x=>bossDone(peek(x))).length;
-  const done=bossDone(d),step=nextStep(d),si=step?VIDEO_STEPS.indexOf(step):VIDEO_STEPS.length;
-  return goalHero("chan",'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>',
-      "подписчиков"+(dS?` · ${dS>0?"+":""}${dS} за неделю`:"")+(log.length?"":" · цифры не внесены"))
-    +`<div class="segfoot" style="padding:10px 16px 0"><button type="button" class="line" data-chan="1">Обновить цифры канала</button></div>
-    ${goalSteps("chan")}
-    ${timeCard()}
-    <div class="tiles"><div class="tile"><b>${vidsIn(7)}/7</b><span>видео за неделю</span></div><div class="tile"><b>${vidsIn(30)}</b><span>видео за 30 дней</span></div></div>
-    ${log.length>1?`<div class="sec"><h3>История</h3></div><div class="card"><div class="mini">${log.slice(-6).reverse().map(x=>`<div><span>${dd(x.d)}</span><b>${x.subs.toLocaleString("ru-RU")} подп.${x.views?" · "+x.views.toLocaleString("ru-RU"):""}</b></div>`).join("")}</div></div>`:""}`;
+  const ago=gid==="chan"?log.filter(x=>x.d<=shift(k,-6)).pop():null,dS=ago&&log.length?(G.subs||0)-ago.subs:null;
+  const doneIn=n=>hb?Array.from({length:n},(_,i)=>shift(k,-i)).filter(x=>itemDone(peek(x),hb)).length:0;
+  const icon=gid==="chan"?'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>':'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/></svg>';
+  return goalHero(gid,icon,TPL[gid].unit()+(dS?` · ${dS>0?"+":""}${dS} за неделю`:"")+(gid==="chan"&&!log.length?" · цифры не внесены":""))
+    +`<div class="segfoot" style="padding:10px 16px 0;display:flex;gap:8px"><button type="button" class="line" data-${gid==="chan"?"chan":"gval"}="1">Обновить цифру</button><button type="button" class="line" data-goalnew="1">Сменить цель</button></div>
+    ${goalSteps(gid)}
+    ${FLAGS().length?`<div class="list" style="margin-top:8px">${FLAGS().map(rungRow).join("")}</div>`:""}
+    ${hb?habitCard(gid,hb):`<p class="empty" style="padding:12px 20px 0">Привычка не выбрана. Нажми «Сменить цель» и выбери дело из распорядка, которое ведёт к цели.</p>`}
+    ${timeCard(hb)}
+    ${hb?`<div class="tiles"><div class="tile"><b>${doneIn(7)}/7</b><span>${esc(hb.name.toLowerCase())} за неделю</span></div><div class="tile"><b>${doneIn(30)}</b><span>за 30 дней</span></div></div>`:""}
+    ${gid==="chan"&&log.length>1?`<div class="sec"><h3>История</h3></div><div class="card"><div class="mini">${log.slice(-6).reverse().map(x=>`<div><span>${dd(x.d)}</span><b>${x.subs.toLocaleString("ru-RU")} подп.${x.views?" · "+x.views.toLocaleString("ru-RU"):""}</b></div>`).join("")}</div></div>`:""}`;
 }
 const NOTIFY=[["morning","Утренняя сводка","план дня, дом, теория, после подъёма"],["voice","Сводка голосом","голосовое вместе с текстом"],["pora","«Пора» по делам","когда начинается дело из плана"],["rest","Отдых","отдых закончился, отдыха много"],["evening","Итог дня","в 22:30"],["week","Итог недели","воскресенье 21:00"]];
 const notifyOn=k=>((state.notify||{})[k])!==false;
-let rolesOpen=false,homeSeg="food",foodCat="fridge",cookIdeas=null,cookBusy=false,meSeg="chan";
+let rolesOpen=false,homeSeg="food",foodCat="fridge",cookIdeas=null,cookBusy=false,meSeg="goal";
+const WD=["Вс","Пн","Вт","Ср","Чт","Пт","Сб"],WD_ORDER=[1,2,3,4,5,6,0];
+const daysTxt=it=>!it.days||!it.days.length||it.days.length===7?"каждый день":it.days.length===6?"кроме "+WD[[0,1,2,3,4,5,6].find(x=>!it.days.includes(x))].toLowerCase():WD_ORDER.filter(x=>it.days.includes(x)).map(x=>WD[x].toLowerCase()).join(", ");
+function routineCard(){const P=prof(),pen=P.penalty,mains=ritems().filter(it=>it.main);
+  return `<div class="sec"><h3>Распорядок</h3><span>из этого собирается каждый день</span></div>
+    <div class="list">${ritems().map(it=>`<button type="button" class="hrow" data-redit="${esc(it.id)}" style="text-align:left;border:none;color:inherit;font:inherit"><span class="nm"><b>${esc(it.name)}${it.main?' <span class="pin">ГЛАВНОЕ</span>':""}</b><small>${durTxt(it.dur||30)} · ${daysTxt(it)}${it.at?" · "+(it.at==="end"?"перед отбоем":"в "+it.at):""}${it.proof||(it.steps||[]).some(x=>x.proof)?" · пруф":""}${it.goal==="body"?" · тело":""}${GOAL()&&GOAL().habit===it.id?" · цель":""}</small></span></button>`).join("")}</div>
+    <div class="segfoot"><button type="button" class="line" data-redit="+">+ Дело в распорядок</button></div>
+    <div class="card" style="margin-top:10px"><b>Награда и штраф</b><div class="mini">
+      <div><span>Награда дня</span><input class="gnum" style="width:120px" data-pf="reward" value="${esc(P.reward||"")}" aria-label="Награда дня" maxlength="30"></div>
+      <div><span>Провал, если не сделано</span><select data-pen="task" aria-label="Штрафное дело"><option value="">штраф выключен</option>${mains.map(it=>`<option value="${esc(it.id)}"${pen&&pen.task===it.id?" selected":""}>${esc(it.name)}</option>`).join("")}</select></div>
+      ${pen?`<div><span>Штраф, €</span><input class="gnum" data-pen="fine" inputmode="numeric" value="${pen.fine||0}" aria-label="Штраф в евро"></div><div><span>Куда переводить</span><input class="gnum" style="width:120px" data-pen="to" value="${esc(pen.to||"")}" aria-label="Куда переводить штраф" maxlength="30"></div>`:""}</div>
+      <p class="empty">${pen?`День без «${esc((ritem(pen.task)||{}).name||"")}»: завтра долг, повторить его${pen.fine?` и €${pen.fine} в ${esc(pen.to||"копилку")}`:""}. Пока долг не закрыт, отдыха нет.`:"Без штрафа пропуск просто рвёт серию."}</p></div>`}
 function viewHome(){
   const h=houseOf(),k=key(),exp=expiringH(h),due=h.chores.filter(c=>choreDue(c,k)),sl=shopListH(h);
   const outN=h.items.filter(x=>x.level==="out").length,stepsLeft=h.projects.reduce((n,p)=>n+p.steps.filter(x=>!x.done).length,0);
@@ -855,16 +857,16 @@ function viewHome(){
     ${homeSeg==="people"?`<div class="sec"><h3>Жильцы и правила</h3><button type="button" data-gear="1">назад</button></div>`:`<div class="segc" role="tablist" style="grid-template-columns:repeat(4,minmax(0,1fr))">${segs.map(([id,t])=>`<button type="button" role="tab" data-hseg="${id}" aria-selected="${homeSeg===id}">${t}</button>`).join("")}</div>`}${body}`;
 }
 function viewMe(){
-  const segs=[["chan","Канал"],["body","Тело"],["lic","Права"],["prog","Серия"]];
+  if(meSeg!=="set"&&meSeg!=="body")meSeg="goal";
+  const segs=[["goal",GOAL()?GOAL().name:"Цель"],["body","Тело"]];
   let body="";
-  if(meSeg==="chan")body=viewChan();
-  if(meSeg==="lic")body=viewLic();
+  if(meSeg==="goal")body=viewGoal();
   if(meSeg==="body")body=viewGym();
-  if(meSeg==="prog")body=viewProg();
   if(meSeg==="set"){const P=prof(),notes=state.notes||[],temp=(state.temp||[]).filter(x=>x.until>=key());
     const opt=(v,list)=>list.map(t=>`<option value="${t}"${t===v?" selected":""}>${t}</option>`).join("");
     body=`<div class="card"><b>Режим</b><div class="mini"><div><span>Подъём</span><select data-pf="wake" aria-label="Подъём">${opt(P.wake,["06:00","06:30","07:00","07:30","08:00","08:30","09:00","09:30","10:00"])}</select></div>
       <div><span>Отбой</span><select data-pf="bed" aria-label="Отбой">${opt(P.bed,["22:00","22:30","23:00","23:30","00:00","00:30","01:00"])}</select></div></div></div>
+      ${routineCard()}
       <div class="sec"><h3>Уведомления</h3></div>
       <div class="list">${NOTIFY.map(([k,t,sub])=>`<div class="hrow"><span class="nm"><b>${t}</b><small>${sub}</small></span><button type="button" class="lvl${notifyOn(k)?"":" out"}" data-notify="${k}" aria-pressed="${notifyOn(k)}">${notifyOn(k)?"вкл":"выкл"}</button></div>`).join("")}</div>
       <div class="sec"><h3>Мои вкусы</h3><button type="button" data-prefs="1">изменить</button></div>
@@ -875,14 +877,13 @@ function viewMe(){
       <p class="empty" style="padding:10px 20px 0">Поправить или удалить: скажи боту «забудь …» или «запомни …».</p>
       ${state.home&&state.home.address?`<div class="sec"><h3>Дом на карте</h3></div><div class="card"><p class="empty">${esc(state.home.address)}</p></div>`:""}`}
   return (meSeg==="set"?`<div class="sec" style="margin-top:4px"><h3>Настройки</h3><button type="button" data-gear="1">назад</button></div>`
-    :`<div class="segc" role="tablist" style="grid-template-columns:repeat(4,minmax(0,1fr))">${segs.map(([id,t])=>`<button type="button" role="tab" data-meseg="${id}" aria-selected="${meSeg===id}">${t}</button>`).join("")}</div>`)+body;
+    :`<div class="segc" role="tablist" style="grid-template-columns:repeat(2,minmax(0,1fr))">${segs.map(([id,t])=>`<button type="button" role="tab" data-meseg="${id}" aria-selected="${meSeg===id}">${esc(t)}</button>`).join("")}</div>`)+body;
 }
-let progSeg="streak";
 function rungState(r){const open=rungOpen(r),claimed=rungClaimed(r);
   return claimed?"got":open?"open":"locked"}
 function rungSub(r){const st=rungState(r);
   if(st==="got")return "взято";if(st==="open")return "открыто, забирай";
-  if(r.n)return `${Math.min(videoStreak(),r.n)} из ${r.n}`;return r.prog?r.prog(goalsSt()):"впереди"}
+  return r.prog?r.prog():"впереди"}
 function rungRow(r){
   const st=rungState(r),g=(state.gifts||{})[r.id];
   const right=st==="got"?`<span class="rs ok">${IC.check}</span>`:st==="open"?`<span class="rs open">${IC.star}</span>`:`<span class="rs">${IC.lock}</span>`;
@@ -890,31 +891,6 @@ function rungRow(r){
     <span class="rt"><b>${esc(r.t)}</b><small>до €${r.budget} · ${esc(rungSub(r))}</small>${g?`<em>${esc(g)}</em>`:`<em class="none">подарок не выбран</em>`}</span>${right}</button>`;
 }
 function ring(pct,label,sub){const C=2*Math.PI*34;return `<div class="ring2"><svg width="84" height="84" viewBox="0 0 84 84" aria-hidden="true"><circle cx="42" cy="42" r="34" fill="none" stroke="var(--line)" stroke-width="8"/><circle cx="42" cy="42" r="34" fill="none" stroke="var(--fire)" stroke-width="8" stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C*(1-pct)).toFixed(1)}" transform="rotate(-90 42 42)"/></svg><div><b>${label}</b><small>${sub}</small></div></div>`}
-function viewProg(){
-  const k=key(),days=Array.from({length:7},(_,i)=>shift(k,i-6)),st=videoStreak(),nx=RUNGS.find(r=>r.n>st);
-  const wins=days.map(x=>`<div class="win${bossDone(peek(x))?" on":""}${x===k?" today":""}"><i></i><span>${new Date(x+"T12:00:00").toLocaleDateString("ru-RU",{weekday:"short"})}</span></div>`).join("");
-  const all=allRungs(),openR=all.find(r=>rungState(r)==="open");
-  const focus=openR||nx||null;
-  let fcard="";
-  if(focus){const g=(state.gifts||{})[focus.id],isOpen=rungState(focus)==="open";
-    fcard=`<section class="fcard${isOpen?" open":""}"><span class="k">${isOpen?"Подарок открыт":"Следующий подарок"}</span>
-      <div class="fh"><span class="rb">${focus.n?focus.n:IC.star}</span><div><b>${esc(focus.t)}</b><small>до €${focus.budget}${isOpen?"":focus.n?` · ещё ${focus.n-st} ${focus.n-st===1?"видео":"видео подряд"}`:""}</small></div></div>
-      <p>${g?esc(g):"Подарок ещё не выбран. Выбери сейчас: когда знаешь, ради чего, тянуть серию легче."}</p>
-      <div class="btns">${isOpen?`<button type="button" class="pri" data-claim="${focus.id}">Забрал</button>`:""}<button type="button" class="${isOpen?"":"pri"}" data-gift="${focus.id}">${g?"Сменить подарок":"Выбрать подарок"}</button></div></section>`}
-  const segs=[["streak","Серия"],["life","Разовые"]];if(progSeg!=="life")progSeg="streak";
-  const list=progSeg==="streak"?RUNGS:GOALS;
-  const doneN=list.filter(r=>rungState(r)==="got").length;
-  return `<section class="hero"><div class="hl2"><span class="flame">${FIRE}</span><div><b>${st}</b><small>${st===1?"день":st>1&&st<5?"дня":"дней"} подряд с видео</small><small class="dim">лучшая серия ${bestStreak()}</small></div></div>
-      ${nx?ring(st/nx.n,`${nx.n-st}`,"до подарка"):ring(1,"30+","максимум")}</section>
-    <div class="wins" style="margin:10px 16px 0">${wins}</div>
-    ${fcard}
-    <div class="segc" role="tablist" style="grid-template-columns:repeat(2,minmax(0,1fr))">${segs.map(([id,t])=>`<button type="button" role="tab" data-seg="${id}" aria-selected="${progSeg===id}">${t}</button>`).join("")}</div>
-    <div class="list">${list.map(rungRow).join("")}</div>
-    <div class="segfoot">${progSeg==="streak"?`<span class="empty">Подарки внутри одной серии. Пропуск дня обнуляет серию и открывает лестницу заново.</span>`:`<span class="empty">Большие подарки за разовый результат. Отметь цель внутри карточки, когда достиг.</span>`}</div>
-    <div class="sec"><h3>Неделя в цифрах</h3><button type="button" data-prefs="1">мои вкусы</button></div>
-    <div class="tiles" style="margin-top:0"><div class="tile"><b>${vids()}</b><span>видео всего</span></div><div class="tile"><b>${countQ(["gym"],7)}</b><span>тренировок за 7 дней</span></div>
-      <div class="tile"><b>${countQ(["cbr"],7)}/7</b><span>теория</span></div><div class="tile"><b>${countQ(["eng"],7)}/7</b><span>Duolingo</span></div></div>`;
-}
 let giftIdeas=null,giftBusy=false;
 async function findGifts(id){
   if(!state.prefs){openPrefs();return}
@@ -937,8 +913,12 @@ document.addEventListener("change",e=>{
   const gi=e.target.closest("input[data-gat],input[data-gbud]");
   if(gi){const [gid,sid]=(gi.dataset.gat||gi.dataset.gbud).split(":"),st=goalOf(gid).steps.find(x=>x.id===sid),n=parseFloat(String(gi.value).replace(",","."));
     if(st&&n>0)mutate(()=>{if(gi.dataset.gat)st.at=n;else st.budget=Math.round(n)});return}
-  const el=e.target.closest("select[data-pf]");if(!el)return;
-  mutate(()=>{state.profile=Object.assign({},state.profile||{},{[el.dataset.pf]:el.value})});toast("Сохранил")});
+  const pn=e.target.closest("[data-pen]");
+  if(pn){const P=prof(),f=pn.dataset.pen,v=pn.value.trim();
+    mutate(()=>{if(f==="task")setProf({penalty:v?Object.assign({fine:5,to:"копилку"},P.penalty||{},{task:v}):null});
+      else if(P.penalty)setProf({penalty:Object.assign({},P.penalty,{[f]:f==="fine"?Math.max(0,parseInt(v,10)||0):v.slice(0,30)})})});toast("Сохранил");return}
+  const el=e.target.closest("[data-pf]");if(!el)return;
+  mutate(()=>setProf({[el.dataset.pf]:el.value.trim().slice(0,30)}));toast("Сохранил")});
 async function cook(){
   if(!BOT||typeof fetchCook!=="function"){toast("Подбор блюд работает в боте в Телеграме.");return}
   cookBusy=true;render();
@@ -951,11 +931,14 @@ document.addEventListener("click",e=>{
   if(t.dataset.tabGo){tab=t.dataset.tabGo;if(t.dataset.meseg)meSeg=t.dataset.meseg;render();window.scrollTo(0,0);return}
   if(t.dataset.t){toggle(t.dataset.t);return}
   if(t.dataset.start){startTask(t.dataset.start);return}
-  if(t.dataset.focus){openFocus();return}
+  if(t.dataset.focus){openFocus(t.dataset.focus);return}
+  if(t.dataset.hist){W={step:"hist",open:null};renderSheet();return}
+  if(t.dataset.redit){openRoutine(t.dataset.redit);return}
+  if(t.dataset.goalnew){const g=GOAL()||{};W={step:"goalnew",g:{name:g.name||"",unit:g.unit||"",habit:g.habit||""}};renderSheet();return}
+  if(t.dataset.gval){W={step:"gval"};renderSheet();return}
   if(t.dataset.game){askGame();return}
   if(t.dataset.restend){endRest();return}
   if(t.dataset.prefs){openPrefs();return}
-  if(t.dataset.seg){progSeg=t.dataset.seg;render();return}
   if(t.dataset.hseg){homeSeg=t.dataset.hseg;render();return}
   if(t.dataset.meseg&&!t.dataset.tabGo){meSeg=t.dataset.meseg;render();return}
   if(t.dataset.hcat){foodCat=t.dataset.hcat;render();return}
@@ -978,11 +961,11 @@ document.addEventListener("click",e=>{
     if(st)mutate(()=>{st.done=!st.done;touch(st);if(st.done&&/договор/i.test(st.t))state.goals=Object.assign({},goalsSt(),{house:true})});return}
   if(t.dataset.perm){const [rid,pk]=t.dataset.perm.split(":"),r=houseOf().roles.find(x=>x.id===rid);
     if(r&&!r.fixed)mutate(()=>{r.perms=r.perms.includes(pk)?r.perms.filter(x=>x!==pk):r.perms.concat([pk]);touch(r)});return}
-  if(t.dataset.gear){if(tab==="home")homeSeg=homeSeg==="people"?"food":"people";else meSeg=meSeg==="set"?"chan":"set";render();window.scrollTo(0,0);return}
+  if(t.dataset.gear){if(tab==="home")homeSeg=homeSeg==="people"?"food":"people";else meSeg=meSeg==="set"?"goal":"set";render();window.scrollTo(0,0);return}
   if(t.dataset.gedit){goalEdit=t.dataset.gedit==="1";render();return}
   if(t.dataset.gdel){const [gid,sid]=t.dataset.gdel.split(":"),g=goalOf(gid);mutate(()=>{g.steps=g.steps.filter(x=>x.id!==sid)});return}
   if(t.dataset.gadd){const gid=t.dataset.gadd,g=goalOf(gid),last=g.steps.slice().sort((a,b)=>tdir(gid)*(a.at-b.at)).pop(),v=TPL[gid].val()||0;
-    const at=gid==="lic"?Math.min(10,(last?last.at:0)+1):last?Math.round(last.at+(last.at-(gid==="body"?v:0))*(gid==="body"?0.5:1)):(gid==="body"?v:100);
+    const at=last?Math.round(last.at+(last.at-(gid==="body"?v:0))*(gid==="body"?0.5:1)):(gid==="body"?v:100);
     mutate(()=>g.steps.push({id:hid("t"),at,budget:last?last.budget:20}));return}
   if(t.dataset.gsug){const gid=t.dataset.gsug;mutate(()=>{state.tgoals[gid]={steps:TPL[gid].suggest(TPL[gid].val()).map(x=>({id:hid("t"),...x}))}});toast("Ступени предложены заново");return}
   if(t.dataset.notify){const k=t.dataset.notify;mutate(()=>{state.notify=Object.assign({},state.notify,{[k]:!notifyOn(k)})});return}
@@ -1033,7 +1016,7 @@ const LIKES=["Вкусная еда","Одежда и кроссовки","Иг�
 const FOODS=["Бургеры","Суши","Донер и шаурма","Пицца","Стейки","Азиатская","Домашняя","Сладкое"];
 function openGift(id){giftIdeas=null;W={step:"gift",rung:id};renderSheet()}
 function openChan(){W={step:"chan"};renderSheet()}
-function openPrefs(){const P=state.prefs||{};W={step:"pcity",prefs:{city:P.city||"Dronten",budget:P.budget||25,likes:(P.likes||[]).slice(),foods:(P.foods||[]).slice(),more:P.more||""}};renderSheet()}
+function openPrefs(){const P=state.prefs||{};W={step:"pcity",prefs:{city:P.city||"",budget:P.budget||25,likes:(P.likes||[]).slice(),foods:(P.foods||[]).slice(),more:P.more||""}};renderSheet()}
 function openSheet(){W={step:"menu",name:"",date:key(),at:"",dur:30};renderSheet()}
 function closeSheet(){W=null;$("sheet").hidden=true;$("sheet").innerHTML=""}
 function wDate(){return W.date===key()?"сегодня":W.date===shift(key(),1)?"завтра":new Date(W.date+"T12:00:00").toLocaleDateString("ru-RU",{weekday:"long",day:"numeric",month:"long"})}
@@ -1047,7 +1030,8 @@ function renderSheet(){
     <button type="button" class="opt" data-w="go:name">${IC.later}<span>Дело<small>На сегодня, завтра или любой день</small></span></button>
     <button type="button" class="opt" data-w="go:weight">${IC.shield}<span>Вес тела<small>Раз в неделю, утром до завтрака</small></span></button>
     <button type="button" class="opt" data-w="game">${IC.chest}<span>Отдых<small>Дота, ролики, что угодно. С таймером</small></span></button>
-    <button type="button" class="opt" data-w="go:lift">${IC.star}<span>Подход в зале<small>Упражнение, вес и повторы</small></span></button></div>`;
+    <button type="button" class="opt" data-w="go:lift">${IC.star}<span>Подход в зале<small>Упражнение, вес и повторы</small></span></button>
+    <button type="button" class="opt" data-w="go:house">${IC.leaf}<span>В дом<small>Купил или кончилось</small></span></button></div>`;
   if(W.step==="name")body=`<h2>Что нужно сделать?</h2><form data-wf="name"><input name="v" maxlength="80" placeholder="Например: отвезти Audi механику" value="${esc(W.name)}" autocomplete="off" aria-label="Что нужно сделать"></form>
     <button type="button" class="goldbtn" data-w="next">Дальше</button>`;
   if(W.step==="when"){const t=key(),t1=shift(t,1),t2=shift(t,2),other=![t,t1,t2].includes(W.date);
@@ -1078,14 +1062,41 @@ function renderSheet(){
   if(W.step==="chan"){const G=goalsSt();body=`<h2>Цифры канала</h2><p class="q">Раз в неделю из YouTube Studio. Или напиши боту: подписчики 120.</p><form data-wf="c" style="display:flex;flex-direction:column;gap:8px">
       <input name="subs" inputmode="numeric" value="${G.subs||""}" placeholder="Подписчиков" aria-label="Подписчиков"><input name="views" inputmode="numeric" value="${G.maxViews||""}" placeholder="Просмотров у лучшего видео" aria-label="Просмотров у лучшего видео"></form><button type="button" class="goldbtn" data-w="csave">Сохранить</button>`}
   if(W.step==="goalkg"){const G=goalsSt();body=`<h2>Цель по весу</h2><p class="q">${curKg()!=null?"Сейчас "+curKg()+" кг. ":""}Когда дойдёшь, откроется подарок до €50.</p><form data-wf="gk"><input name="v" inputmode="decimal" value="${G.goalKg||""}" placeholder="Например 78" aria-label="Цель, кг" autocomplete="off"></form><button type="button" class="goldbtn" data-w="gksave">Сохранить</button>`}
-  if(W.step==="reward"){const k=key(),R=reqs(k),st=rewardState(k),open=st==="open";
-    const nm=x=>x.id==="train"?"Зал":REQ_NAMES[x.id]==="€5"?"Штраф €5 в safemoney":x.id==="debt"?"Долг: второе видео":REQ_NAMES[x.id];
-    const T={pending:"Закрой всё из списка, и награда твоя.",open:"Всё закрыто. Заслужил.",gold:"Сегодня награда уже взята по-честному.",base:"Взял раньше времени, но после тренировки.",broken:"Взял раньше тренировки. Сегодня награда сгорела."}[st];
-    body=`<h2>Награда дня: ${esc(prof().reward)}</h2><p class="q">${T}</p>
-      <div class="rqlist">${R.map(x=>`<div class="${x.t?"on":""}"><span class="c">${x.t?IC.check:""}</span>${esc(nm(x))}${x.t&&x.t!=="skip"?`<span style="margin-left:auto;font-size:12px;color:var(--dim)">${esc(x.t)}</span>`:x.t==="skip"?`<span style="margin-left:auto;font-size:12px;color:var(--dim)">убрано</span>`:""}</div>`).join("")}</div>
-      ${st==="gold"||st==="base"||st==="broken"?"":`<button type="button" class="${open?"goldbtn":"line"}" data-w="take">${open?"Взял награду":"Взять сейчас, раньше времени"}</button>`}
-      ${!open&&st==="pending"?`<p class="q" style="margin:0">Если возьмёшь до тренировки, награда сегодня сгорит.</p>`:""}`}
-  if(W.step==="lift")body=`<h2>Подход в зале</h2><form data-wf="lift" style="display:flex;flex-direction:column;gap:8px"><input name="ex" list="exlist2" placeholder="Упражнение" aria-label="Упражнение" autocomplete="off">
+  if(W.step==="reward"){const k=key(),R=reqs(k),st=rewardState(k);
+    const T={pending:R.length?"Закрой все главные дела, и награда твоя.":"Главных дел нет. Отметь их в распорядке: Я → ⚙.",open:"Всё закрыто. Заслужил.",taken:"Награда сегодня взята."}[st];
+    body=`<h2>Награда дня: ${esc(prof().reward||"награда")}</h2><p class="q">${T}</p>
+      <div class="rqlist">${R.map(x=>`<div class="${x.t?"on":""}"><span class="c">${x.t?IC.check:""}</span>${esc(x.name)}${x.t&&x.t!=="skip"?`<span style="margin-left:auto;font-size:12px;color:var(--dim)">${esc(x.t)}</span>`:x.t==="skip"?`<span style="margin-left:auto;font-size:12px;color:var(--dim)">убрано</span>`:""}</div>`).join("")}</div>
+      ${st==="open"?`<button type="button" class="goldbtn" data-w="take">Взял награду</button>`:st==="pending"?`<button type="button" class="line" data-w="take">Взял раньше</button>`:""}`}
+  if(W.step==="hist"){const k=key(),days=Array.from({length:14},(_,i)=>shift(k,-i)),cs=closedStreak();
+    body=`<h2>История</h2><p class="q">${cs?`${cs} ${cs===1?"день":cs<5?"дня":"дней"} подряд всё главное закрыто 🔥`:"Закрой все главные дела сегодня, и серия начнётся."}</p>
+      <div class="list" style="padding:0;gap:6px">${days.map(x=>{const R=reqs(x),d=peek(x),cl=dayClosed(x),open=W.open===x,n=R.filter(r=>r.t).length,used=d&&((d.done||[]).length||d.firstSmoke);
+        const lbl=x===k?"Сегодня":new Date(x+"T12:00:00").toLocaleDateString("ru-RU",{weekday:"short",day:"numeric",month:"short"});
+        return `<button type="button" class="hrow" data-w="hday:${x}" style="border:none;color:inherit;font:inherit;text-align:left;flex-wrap:wrap"><span class="nm"><b>${esc(lbl)}</b><small class="${!cl&&x<k&&used?"bad":""}">${!used&&x<k?"не пользовался":cl?"всё закрыто":`${n} из ${R.length}`}${debtOf(x)?" · штрафной":""}${d&&d.firstSmoke?" · награда в "+d.firstSmoke:""}</small></span><span class="rs${cl?" ok":""}">${cl?IC.check:""}</span>
+          ${open?`<div class="rqlist" style="width:100%">${R.map(r=>`<div class="${r.t?"on":""}"><span class="c">${r.t?IC.check:""}</span>${esc(r.name)}${r.t&&r.t!=="skip"?`<span style="margin-left:auto;font-size:12px;color:var(--dim)">${esc(r.t)}</span>`:""}</div>`).join("")}${(d&&d.custom||[]).map(c=>`<div class="${has(d,c.id)?"on":""}"><span class="c">${has(d,c.id)?IC.check:""}</span>${esc(c.name)}</div>`).join("")}</div>`:""}</button>`}).join("")}</div>`}
+  if(W.step==="house")body=`<h2>В дом</h2><p class="q">Что купил или что кончилось. Купленное встанет в запасы, кончившееся в покупки.</p>
+      <form data-wf="house"><input name="v" maxlength="60" placeholder="Например: молоко" autocomplete="off" aria-label="Что"></form>
+      <div class="btns"><button type="button" data-w="hout">Кончилось</button><button type="button" class="pri" data-w="hbuy">Купил</button></div>`;
+  if(W.step==="ritem"){const it=W.it,isNew=W.isNew,pi=penItem();
+    body=`<h2>${isNew?"Новое дело в распорядок":"Дело в распорядке"}</h2>
+      <form data-wf="ritem"><input name="v" maxlength="60" value="${esc(it.name||"")}" placeholder="Например: чтение" autocomplete="off" aria-label="Название"></form>
+      <p class="q" style="margin:0">Сколько занимает</p><div class="opts three">${[10,15,20,30,45,60,90,120].map(m=>`<button type="button" class="opt" data-w="rdur:${m}" aria-pressed="${(it.dur||30)===m}">${durTxt(m)}</button>`).join("")}</div>
+      <p class="q" style="margin:0">Дни</p><div class="perm">${WD_ORDER.map(x=>`<button type="button" class="chip" data-w="rday:${x}" aria-pressed="${!it.days||!it.days.length||it.days.includes(x)}">${WD[x]}</button>`).join("")}</div>
+      <p class="q" style="margin:0">Время</p><div class="opts three"><button type="button" class="opt" data-w="rat:" aria-pressed="${!it.at}">Когда окно</button><button type="button" class="opt" data-w="rat:pick" aria-pressed="${!!it.at&&it.at!=="end"}">Точно в</button><button type="button" class="opt" data-w="rat:end" aria-pressed="${it.at==="end"}">Перед сном</button></div>
+      ${it.at&&it.at!=="end"?`<input type="time" id="rtime" value="${it.at==="pick"?"":esc(it.at)}" aria-label="Время">`:""}
+      <div class="perm">${[["main","Главное, для награды"],["proof","Пруф в бот"],["minor","Бытовое"],["body","Для тела"]].map(([f,t])=>`<button type="button" class="chip" data-w="rflag:${f}" aria-pressed="${f==="body"?it.goal==="body":!!it[f]}"${f==="proof"&&it.steps?" disabled":""}>${t}</button>`).join("")}</div>
+      ${it.proof&&!it.steps?`<form data-wf="ritem"><input name="check" maxlength="200" value="${esc(it.check||"")}" placeholder="Что на фото-пруфе (например: скрин урока)" autocomplete="off" aria-label="Что на пруфе"></form>`:""}
+      ${it.steps?`<p class="q" style="margin:0">Шаги: ${it.steps.map(x=>esc(x.name)).join(" → ")}</p>`:""}
+      <button type="button" class="goldbtn" data-w="rsave">Сохранить</button>
+      ${isNew?"":`<button type="button" class="line" data-w="rdel"${pi&&pi.id===it.id?" disabled":""}>${pi&&pi.id===it.id?"Это штрафное дело: сначала смени штраф":"Убрать из распорядка"}</button>`}`}
+  if(W.step==="goalnew"){const g=W.g;
+    body=`<h2>Текущая цель</h2><p class="q">Одна цель кроме тела. Канал, рисование, деньги, книги: что угодно.</p>
+      <form data-wf="goal" style="display:flex;flex-direction:column;gap:8px"><input name="name" maxlength="40" value="${esc(g.name)}" placeholder="Название: например Рисование" autocomplete="off" aria-label="Название цели">
+      <input name="unit" maxlength="30" value="${esc(g.unit)}" placeholder="Что считаем: картин, подписчиков, €" autocomplete="off" aria-label="Что считаем"></form>
+      <p class="q" style="margin:0">Привычка: какое дело из распорядка ведёт к цели</p>
+      <div class="perm">${ritems().filter(it=>!it.minor).map(it=>`<button type="button" class="chip" data-w="ghab:${esc(it.id)}" aria-pressed="${g.habit===it.id}">${esc(it.name)}</button>`).join("")||'<span class="empty">Сначала добавь дело в распорядок.</span>'}</div>
+      <button type="button" class="goldbtn" data-w="gnsave">Сохранить</button>${GOAL()?`<button type="button" class="line" data-w="gnclear">Убрать цель</button>`:""}`}
+  if(W.step==="gval")body=`<h2>${esc(GOAL().name)}</h2><p class="q">Сколько сейчас${GOAL().unit?" ("+esc(GOAL().unit)+")":""}? Или скажи боту.</p><form data-wf="gval"><input name="v" inputmode="decimal" value="${goalsSt().val??""}" aria-label="Текущая цифра" autocomplete="off"></form><button type="button" class="goldbtn" data-w="gvsave">Сохранить</button>`;
+  if(W.step==="lift")  if(W.step==="lift")body=`<h2>Подход в зале</h2><form data-wf="lift" style="display:flex;flex-direction:column;gap:8px"><input name="ex" list="exlist2" placeholder="Упражнение" aria-label="Упражнение" autocomplete="off">
       <datalist id="exlist2">${[...new Set(EXERCISES.concat(state.lifts.map(l=>l.ex).filter(Boolean)))].map(e=>`<option value="${esc(e)}">`).join("")}</datalist>
       <div style="display:flex;gap:8px"><input name="kg" inputmode="decimal" placeholder="Вес, кг" aria-label="Вес, кг"><input name="reps" inputmode="numeric" placeholder="Повторы" aria-label="Повторы"></div></form>
       <button type="button" class="goldbtn" data-w="savelift">Записать</button>`;
@@ -1104,7 +1115,7 @@ $("sheet").addEventListener("click",e=>{
   if(a==="close")return closeSheet();
   if(a==="game"){closeSheet();return askGame()}
   if(a==="back"){const SS=PSTEPS.includes(W.step)?PSTEPS:STEPS,i=SS.indexOf(W.step);W.step=i>0?SS[i-1]:(SS===PSTEPS?W.step:"menu");return renderSheet()}
-  if(a==="pnext"||a==="psave"){const v=$("sheet").querySelector("input[name=v]");if(v){if(W.step==="pcity")W.prefs.city=v.value.trim().slice(0,40)||"Dronten";if(W.step==="pmore")W.prefs.more=v.value.trim().slice(0,120)}
+  if(a==="pnext"||a==="psave"){const v=$("sheet").querySelector("input[name=v]");if(v){if(W.step==="pcity")W.prefs.city=v.value.trim().slice(0,40);if(W.step==="pmore")W.prefs.more=v.value.trim().slice(0,120)}
     if(a==="psave"){const pr=W.prefs;closeSheet();mutate(()=>{state.prefs=pr});toast("Вкусы сохранены. Жми «Подобрать подарок».");return}
     W.step=PSTEPS[PSTEPS.indexOf(W.step)+1];return renderSheet()}
   if(a==="gsave"){const v=$("sheet").querySelector("input[name=v]").value.trim(),id=W.rung;closeSheet();mutate(()=>{state.gifts=Object.assign({},state.gifts||{},{[id]:v.slice(0,80)})});toast(v?"Подарок записан":"Подарок убран");return}
@@ -1113,6 +1124,28 @@ $("sheet").addEventListener("click",e=>{
   if(a==="flag"){const r=findRung(W.rung);closeSheet();mutate(()=>{state.goals=Object.assign({},goalsSt(),{[r.flag]:true})});return}
   if(a==="tochan"){W={step:"chan"};return renderSheet()}
   if(a==="take"){const d=dayOf(key());closeSheet();mutate(()=>{if(!d.smokes)d.firstSmoke=hhmm();d.smokes=(d.smokes||0)+1;logEv(d,"reward","")});return}
+  if(a.startsWith("hday:")){const x=a.slice(5);W.open=W.open===x?null:x;return renderSheet()}
+  if(a==="hbuy"||a==="hout"){const v=$("sheet").querySelector("input[name=v]").value.trim().slice(0,60);if(!v){toast("Напиши, что");return}closeSheet();
+    mutate(()=>{if(a==="hbuy")hAdd(v);else{const h=houseOf(),x=h.items.find(i=>i.name.toLowerCase()===v.toLowerCase());if(x){x.level="out";touch(x)}else if(!h.shop.some(i=>!i.done&&i.name.toLowerCase()===v.toLowerCase()))h.shop.push(touch({id:hid("s"),name:v,done:false}))}});
+    toast(a==="hbuy"?"Записал в запасы":"Добавил в покупки");return}
+  if(a.startsWith("rdur:")){rKeep();W.it.dur=+a.slice(5);return renderSheet()}
+  if(a.startsWith("rday:")){rKeep();const x=+a.slice(5),cur=W.it.days&&W.it.days.length?W.it.days.slice():[0,1,2,3,4,5,6],i=cur.indexOf(x);if(i>=0)cur.splice(i,1);else cur.push(x);
+    if(!cur.length){toast("Хотя бы один день");return}W.it.days=cur.length===7?undefined:cur.sort();return renderSheet()}
+  if(a.startsWith("rat:")){rKeep();const v=a.slice(4);W.it.at=v||undefined;return renderSheet()}
+  if(a.startsWith("rflag:")){rKeep();const f=a.slice(6),it=W.it;if(f==="body"){if(it.goal==="body")delete it.goal;else it.goal="body"}else{if(it[f])delete it[f];else it[f]=1;if(f==="minor"&&it.minor)delete it.main;if(f==="main"&&it.main)delete it.minor}return renderSheet()}
+  if(a==="rsave"){rKeep();const it=W.it;if(!it.name){toast("Напиши название");return}if(it.at==="pick"){toast("Выбери время");return}
+    const r=prof().routine.map(x=>Object.assign({},x)),i=r.findIndex(x=>x.id===it.id);
+    if(i>=0)r[i]=it;else{const e=r.findIndex(x=>x.at==="end");r.splice(e<0?r.length:e,0,it)}
+    if(it.goal==="body")for(const x of r)if(x!==it&&x.goal==="body")delete x.goal;
+    closeSheet();mutate(()=>setProf({routine:r}));toast("Распорядок сохранён. План пересчитан");return}
+  if(a==="rdel"){const id=W.it.id;closeSheet();mutate(()=>{const G=GOAL();setProf({routine:prof().routine.filter(x=>x.id!==id),goal:G&&G.habit===id?Object.assign({},G,{habit:""}):G})});toast("Убрано из распорядка");return}
+  if(a.startsWith("ghab:")){gKeep();W.g.habit=W.g.habit===a.slice(5)?"":a.slice(5);return renderSheet()}
+  if(a==="gnsave"){gKeep();const g=W.g,old=GOAL();if(!g.name){toast("Напиши название цели");return}
+    const same=old&&old.name.toLowerCase()===g.name.toLowerCase(),ng=Object.assign({},same?old:{kind:"num"},{name:g.name,unit:g.unit,habit:g.habit});
+    closeSheet();mutate(()=>{if(!same&&state.tgoals){delete state.tgoals.goal}setProf({goal:ng})});meSeg="goal";toast("Цель: "+g.name);return}
+  if(a==="gnclear"){closeSheet();mutate(()=>setProf({goal:null}));toast("Цель убрана");return}
+  if(a==="gvsave"){const v=parseFloat(String($("sheet").querySelector("input[name=v]").value).replace(",","."));if(!(v>=0)){toast("Напиши число");return}
+    closeSheet();mutate(()=>{state.goals=Object.assign({},goalsSt(),{val:v})});toast("Записал");return}
   if(a.startsWith("gpick:")){const x=giftIdeas[+a.slice(6)],id=W.rung;closeSheet();giftIdeas=null;mutate(()=>{state.gifts=Object.assign({},state.gifts||{},{[id]:(x.title+(x.where?" · "+x.where:"")).slice(0,80)})});toast("Подарок записан: "+x.title);return}
   if(a==="csave"){const f=$("sheet").querySelector("form"),n=x=>parseInt(String(x).replace(/\D/g,""),10)||0,subs=n(f.subs.value),views=n(f.views.value);
     closeSheet();mutate(()=>{state.goals=Object.assign({},goalsSt(),{subs,maxViews:Math.max(views,goalsSt().maxViews||0)});
@@ -1136,7 +1169,12 @@ $("sheet").addEventListener("click",e=>{
     const L=liftsOf(ex),prev=L.length?Math.max(...L.map(e1rm)):0;closeSheet();
     mutate(()=>state.lifts.push({d:key(),ex:ex.slice(0,40),kg:Math.round(kg*10)/10,reps,clean:!dayOf(key()).firstSmoke}));toast(L.length&&kg*(1+reps/30)>prev?"Новый рекорд в «"+ex+"»":"Подход записан");return}
 });
-$("sheet").addEventListener("submit",e=>{e.preventDefault();e.stopPropagation();const f=e.target.dataset.wf;if(f==="p"){$("sheet").querySelector("[data-w=pnext],[data-w=psave]").click();return}if(f==="g"){$("sheet").querySelector("[data-w=gsave]").click();return}if(f==="c"){$("sheet").querySelector("[data-w=csave]").click();return}if(f==="name")wNext();if(f==="weight")$("sheet").querySelector("[data-w=saveweight]").click()});
+// поля окошек распорядка и цели: запоминаем введённое до перерисовки
+function rKeep(){const n=$("sheet").querySelector("input[name=v]"),c=$("sheet").querySelector("input[name=check]"),tm=$("rtime");
+  if(n)W.it.name=n.value.trim().slice(0,60);if(c)W.it.check=c.value.trim().slice(0,200)||undefined;if(tm&&tm.value)W.it.at=tm.value}
+function gKeep(){const f=$("sheet").querySelector("form[data-wf=goal]");if(f){W.g.name=f.name.value.trim().slice(0,40);W.g.unit=f.unit.value.trim().slice(0,30)}}
+function openRoutine(id){const it=id==="+"?null:ritem(id);W={step:"ritem",isNew:!it,it:it?clone(it):{id:"r"+Date.now().toString(36),name:"",dur:30}};renderSheet()}
+$("sheet").addEventListener("submit",e=>{e.preventDefault();e.stopPropagation();const f=e.target.dataset.wf;if(f==="ritem"){$("sheet").querySelector("[data-w=rsave]").click();return}if(f==="goal"){$("sheet").querySelector("[data-w=gnsave]").click();return}if(f==="gval"){$("sheet").querySelector("[data-w=gvsave]").click();return}if(f==="house"){$("sheet").querySelector("[data-w=hbuy]").click();return}if(f==="p"){$("sheet").querySelector("[data-w=pnext],[data-w=psave]").click();return}if(f==="g"){$("sheet").querySelector("[data-w=gsave]").click();return}if(f==="c"){$("sheet").querySelector("[data-w=csave]").click();return}if(f==="name")wNext();if(f==="weight")$("sheet").querySelector("[data-w=saveweight]").click()});
 $("plus").onclick=openSheet;
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&W)closeSheet()});
 
@@ -1146,14 +1184,16 @@ let F={phase:"work",endsAt:0,left:WORK,running:false,session:1},tick=null;
 function loadF(){try{const v=JSON.parse(localStorage.getItem("qd-focus")||"null");if(v&&v.day===key())F=Object.assign(F,v)}catch(e){}}
 function saveF(){try{localStorage.setItem("qd-focus",JSON.stringify(Object.assign({day:key()},F)))}catch(e){}}
 const remain=()=>F.running?Math.max(0,Math.round((F.endsAt-Date.now())/1000)):F.left;
-function openFocus(){loadF();const d=dayOf(key());
-  if(!d.cur||d.cur.id!=="video")mutate(()=>{d.cur={id:"video",at:hhmm()}});
+let focusId=null;
+function openFocus(id){loadF();const d=dayOf(key());
+  const it=ritem(id)&&ritem(id).steps?ritem(id):ritems().find(x=>x.steps&&onDay(x,dow(key())));if(!it)return;focusId=it.id;
+  if(!d.cur||d.cur.id!==it.id)mutate(()=>{d.cur={id:it.id,at:hhmm()};logEv(d,"start",it.id)});
   if(!F.running&&F.left===WORK&&F.phase==="work"){F.running=true;F.endsAt=Date.now()+WORK*1000}
   saveF();$("focus").hidden=false;document.body.style.overflow="hidden";renderFocus();clearInterval(tick);tick=setInterval(stepTimer,1000)}
 function closeFocus(){$("focus").hidden=true;document.body.style.overflow="";clearInterval(tick);render()}
 function stepTimer(){
   if(F.running&&remain()<=0){
-    if(F.phase==="work"){F.phase="break";F.endsAt=Date.now()+BREAK*1000;toast("50 минут есть. Перерыв 10 минут, без Доты.");haptic("success")}
+    if(F.phase==="work"){F.phase="break";F.endsAt=Date.now()+BREAK*1000;toast("50 минут есть. Перерыв 10 минут.");haptic("success")}
     else{F.phase="work";F.session++;F.endsAt=Date.now()+WORK*1000;toast("Перерыв всё. Сессия "+F.session+".");haptic("warning")}
     saveF();}
   renderFocus(true);
@@ -1161,15 +1201,15 @@ function stepTimer(){
 function renderFocus(onlyTime){
   const s=remain(),mm=pad(Math.floor(s/60)),ss=pad(s%60),tot=F.phase==="work"?WORK:BREAK,C=2*Math.PI*104,off=C*(1-s/tot);
   if(onlyTime&&$("ftime")){$("ftime").textContent=mm+":"+ss;$("farc").setAttribute("stroke-dashoffset",off.toFixed(1));return}
-  const d=dayOf(key()),st=nextStep(d);
-  const list=VIDEO_STEPS.map(x=>`<div class="${has(d,x.id)?"done":x===st?"cur":""}"><span class="dot">${has(d,x.id)?IC.check:""}</span>${esc(x.name)}</div>`).join("");
-  const main=!st?`<button type="button" class="goldbtn" id="fclose2">Видео вышло. Закрыть</button>`:locked(st)?`<button type="button" class="goldbtn" data-proof="1">Кинуть ссылку боту</button>`:`<button type="button" class="goldbtn" data-t="${st.id}">Готово, следующий шаг</button>`;
+  const d=dayOf(key()),it=ritem(focusId);if(!it){closeFocus();return}const st=nextStep(d,it);
+  const list=it.steps.map(x=>`<div class="${has(d,x.id)?"done":x===st?"cur":""}"><span class="dot">${has(d,x.id)?IC.check:""}</span>${esc(x.name)}</div>`).join("");
+  const main=!st?`<button type="button" class="goldbtn" id="fclose2">Готово. Закрыть</button>`:locked(st)?`<button type="button" class="goldbtn" data-proof="1">Кинуть пруф боту</button>`:`<button type="button" class="goldbtn" data-t="${st.id}">Готово, следующий шаг</button>`;
   $("focus").innerHTML=`<div class="top"><button type="button" class="back" id="fclose" aria-label="Назад">${IC.back}</button><span style="font-size:14px;font-weight:800;color:var(--muted)">${F.phase==="work"?"Сессия "+F.session:"Перерыв"}</span><span style="width:44px"></span></div>
     <div class="ring"><svg width="240" height="240" viewBox="0 0 240 240" role="img" aria-label="Осталось ${mm} минут"><circle cx="120" cy="120" r="104" fill="none" stroke="#2a1d16" stroke-width="12"/><circle id="farc" cx="120" cy="120" r="104" fill="none" stroke="${F.phase==="work"?"#e5603f":"#6c9a7d"}" stroke-width="12" stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 120 120)"/></svg>
       <div class="c"><b id="ftime">${mm}:${ss}</b><span>${F.phase==="work"?(F.running?"до перерыва":"на паузе"):"отдых"}</span></div></div>
-    <div class="fstep"><h2>${st?esc(st.name):"Видео готово"}</h2><p>${st?esc(BOT&&st.botHint?st.botHint:st.hint):"Красавчик. Видео в зачёт награды."}</p></div>
+    <div class="fstep"><h2>${st?esc(st.name):esc(it.name)+": готово"}</h2><p>${st?esc(st.hint||""):"Красавчик. В зачёт награды."}</p></div>
     <div class="flist">${list}</div>
-    <div class="factions"><span class="tip">Телефон экраном вниз. Дота подождёт до загрузки.</span>${main}<button type="button" class="line" id="fpause">${F.running?"Пауза":"Продолжить"}</button></div>`;
+    <div class="factions"><span class="tip">Телефон экраном вниз. Отдых подождёт до конца.</span>${main}<button type="button" class="line" id="fpause">${F.running?"Пауза":"Продолжить"}</button></div>`;
   $("fclose").onclick=closeFocus;if($("fclose2"))$("fclose2").onclick=closeFocus;
   $("fpause").onclick=()=>{if(F.running){F.left=remain();F.running=false}else{F.running=true;F.endsAt=Date.now()+F.left*1000}saveF();renderFocus()};
 }

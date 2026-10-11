@@ -9,34 +9,43 @@ from datetime import datetime, timedelta
 
 from services import quest
 
-BASE_NAMES = {q[0]: q[1] for q in quest.PLAN_QUESTS if q[0] != "_custom"}
-BASE_NAMES.update({"b1": "Видео: текст", "b2": "Видео: озвучка", "b3": "Видео: картинка",
-                   "b4": "Видео: субтитры", "b5": "Видео: загрузка"})
-# Эти закрываются только пруфом (фото или ссылка), руками нельзя
-PROOF_ONLY = quest.PROOF_IDS
 
 TOOLS = [
+    {"name": "routine_edit",
+     "description": "Изменить РАСПОРЯДОК: из чего каждый день собирается план (насовсем, не только сегодня). op: add (новое дело), update (поменять поля дела по id или имени), remove (убрать насовсем). days: дни недели 0 вс .. 6 сб (пусто = каждый день). main=1: главное дело для награды дня. proof=1: закрывается только пруфом (тогда check: что должно быть на фото). at: HH:MM якорь или end = перед отбоем. minor=1: бытовое (еда, душ).",
+     "input_schema": {"type": "object", "properties": {
+         "op": {"type": "string", "enum": ["add", "update", "remove"]}, "id": {"type": "string"}, "name": {"type": "string"},
+         "dur": {"type": "integer"}, "days": {"type": "array", "items": {"type": "integer"}}, "at": {"type": "string"},
+         "main": {"type": "integer"}, "proof": {"type": "integer"}, "minor": {"type": "integer"}, "sub": {"type": "string"},
+         "check": {"type": "string"}, "hint": {"type": "string"}}, "required": ["op"]}},
+    {"name": "set_goal",
+     "description": "Текущая цель (одна, кроме здоровья): name (например Канал, Рисование), unit (что считаем: подписчиков, картин, €), habit = id дела из распорядка, которое ведёт к цели (его серия дней). value = текущая цифра. Если цель та же, меняй только переданные поля. clear=true убирает цель.",
+     "input_schema": {"type": "object", "properties": {"name": {"type": "string"}, "unit": {"type": "string"}, "habit": {"type": "string"},
+         "value": {"type": "number"}, "clear": {"type": "boolean"}}}},
+    {"name": "set_penalty",
+     "description": "Штраф за пропуск: task = id главного дела, без которого день считается проваленным (завтра долг: повторить его и перевести fine евро в to). task пустой = штраф выключен.",
+     "input_schema": {"type": "object", "properties": {"task": {"type": "string"}, "fine": {"type": "integer"}, "to": {"type": "string"}}}},
     {"name": "add_task",
      "description": "Добавить своё дело в план. day: today, tomorrow или YYYY-MM-DD. at: время HH:MM, если привязано к часу. dur: сколько минут займёт (по умолчанию 30).",
      "input_schema": {"type": "object", "properties": {
          "name": {"type": "string"}, "day": {"type": "string"}, "at": {"type": "string"}, "dur": {"type": "integer"}},
          "required": ["name"]}},
     {"name": "edit_task",
-     "description": "Изменить дело по id из плана: новое название, время at (HH:MM, пустая строка = без времени), длительность dur в минутах, или перенести на другой день move_to (today/tomorrow/YYYY-MM-DD, только для своих дел). Для базовых дел (зал, теория и т.п.) можно менять только dur.",
+     "description": "Изменить дело по id из плана: новое название, время at (HH:MM, пустая строка = без времени), длительность dur в минутах, или перенести на другой день move_to (today/tomorrow/YYYY-MM-DD, только для своих дел). У дел из распорядка тут меняется только dur на сегодня; насовсем: routine_edit.",
      "input_schema": {"type": "object", "properties": {
          "id": {"type": "string"}, "day": {"type": "string"}, "name": {"type": "string"}, "at": {"type": "string"},
          "dur": {"type": "integer"}, "move_to": {"type": "string"}}, "required": ["id"]}},
     {"name": "delete_task",
-     "description": "Убрать дело по id. Своё дело удаляется совсем. Базовое дело убирается только на сегодня.",
+     "description": "Убрать дело по id. Своё дело удаляется совсем. Дело из распорядка убирается только на сегодня (насовсем: routine_edit remove).",
      "input_schema": {"type": "object", "properties": {"id": {"type": "string"}, "day": {"type": "string"}}, "required": ["id"]}},
     {"name": "complete_task",
-     "description": "Отметить дело сделанным по id (свои дела, подъём, еда, шаги видео b1–b4, прогулка, жильё). Теорию, зал, Duolingo, загрузку видео и штраф так закрыть нельзя: нужен пруф фото или ссылкой.",
+     "description": "Отметить дело сделанным по id из плана (свои дела, дела распорядка, шаги многошаговых дел). Дела с пометкой «пруф» в РАСПОРЯДКЕ так закрыть нельзя: нужен пруф фото или ссылкой.",
      "input_schema": {"type": "object", "properties": {"id": {"type": "string"}}, "required": ["id"]}},
     {"name": "uncomplete_task",
      "description": "Снять отметку «сделано» с дела по id (кроме закрытых пруфом).",
      "input_schema": {"type": "object", "properties": {"id": {"type": "string"}}, "required": ["id"]}},
     {"name": "start_task",
-     "description": "Отметить, что Андрей начал дело сейчас (id; для видео используй video). Нужно для замеров времени и плана.",
+     "description": "Отметить, что он начал дело сейчас (id из плана; для многошагового дела id самого дела). Нужно для замеров времени и плана.",
      "input_schema": {"type": "object", "properties": {"id": {"type": "string"}}, "required": ["id"]}},
     {"name": "start_rest",
      "description": "Начать отдых сейчас на min минут (30, 45, 60 или 90). Нельзя в штрафной день, пока долг не закрыт.",
@@ -93,7 +102,7 @@ TOOLS = [
     {"name": "goal_flag",
      "description": "Отметить разовый результат для целей: cbr = сдал теорию CBR, license = получил права, earned = первые деньги с YouTube, house = подписал договор на жильё. Только если он прямо сказал, что это произошло.",
      "input_schema": {"type": "object", "properties": {"flag": {"type": "string", "enum": ["cbr", "license", "earned", "house"]}}, "required": ["flag"]}},
-    {"name": "take_reward", "description": "Отметить, что Андрей взял награду дня. Только если он прямо сказал, что взял.",
+    {"name": "take_reward", "description": "Отметить, что он взял награду дня. Только если он прямо сказал, что взял.",
      "input_schema": {"type": "object", "properties": {}}},
 ]
 
@@ -134,18 +143,55 @@ def _find_custom(state: dict, qid: str, day: str | None):
     return None, None, None
 
 
+def _names(state: dict) -> dict:
+    return quest.names(quest.full_profile(state))
+
+
 def _name(state: dict, qid: str) -> str:
     if qid.startswith("ch_"):
         c = next((x for x in (state.get("house") or {}).get("chores", []) if x.get("id") == qid[3:]), None)
         return c["name"] if c else qid
     _, _, c = _find_custom(state, qid, None)
-    return c["name"] if c else BASE_NAMES.get(qid, qid)
+    return c["name"] if c else _names(state).get(qid, qid)
 
 
 def run(state: dict, name: str, a: dict) -> str | None:
     """None = это не наш инструмент."""
     today = quest.today_key()
     td = quest._day(state, today)
+    P = quest.full_profile(state)
+    BASE_NAMES = quest.names(P)
+    PROOF_ONLY = quest.proof_ids(P)
+
+    if name == "routine_edit":
+        return quest.routine_edit(state, str(a.get("op") or "update"), a)
+
+    if name == "set_goal":
+        g = None if a.get("clear") else dict(P.get("goal") or {"kind": "num", "name": "Цель", "unit": ""})
+        if g is not None:
+            if a.get("name") and str(a["name"]).strip().lower() != g.get("name", "").lower():
+                g = {"kind": "num", "name": str(a["name"])[:40], "unit": g.get("unit", "")}  # новая цель
+                state["tgoals"] = {k: v for k, v in (state.get("tgoals") or {}).items() if k != "goal"}
+            if a.get("unit"):
+                g["unit"] = str(a["unit"])[:30]
+            if a.get("habit"):
+                if not quest.item(P, str(a["habit"])):
+                    return "нет такого дела в распорядке для привычки"
+                g["habit"] = str(a["habit"])
+            if a.get("value") is not None:
+                G = dict(state.get("goals") or {})
+                G["subs" if g.get("kind") == "chan" else "val"] = a["value"]
+                state["goals"] = G
+        state["profile"] = dict(state.get("profile") or {}, routine=P["routine"], penalty=P.get("penalty"), goal=g, u=int(time.time() * 1000))
+        return f"цель: {g['name']}" + (f", считаем {g['unit']}" if g.get("unit") else "") + (f", привычка {g['habit']}" if g.get("habit") else "") if g else "цель убрана"
+
+    if name == "set_penalty":
+        t = str(a.get("task") or "")
+        if t and not quest.item(P, t):
+            return "нет такого дела в распорядке"
+        pen = {"task": t, "fine": max(0, int(a.get("fine") or 0)), "to": str(a.get("to") or "копилку")[:40]} if t else None
+        state["profile"] = dict(state.get("profile") or {}, routine=P["routine"], goal=P.get("goal"), penalty=pen, u=int(time.time() * 1000))
+        return f"штраф: без «{quest.item(P, t)['name']}» завтра долг и €{pen['fine']}" if pen else "штраф выключен"
 
     if name == "add_task":
         nm = str(a.get("name") or "").strip()[:80]
@@ -207,8 +253,9 @@ def run(state: dict, name: str, a: dict) -> str | None:
 
     if name == "complete_task":
         qid = str(a.get("id") or "")
-        if qid == "video":
-            qid = next((b for b in quest.BOSS_IDS if b not in td["done"]), "b5")
+        it = quest.item(P, qid)
+        if it and it.get("steps"):
+            qid = next((b for b in quest.step_ids(it) if b not in td["done"]), quest.step_ids(it)[-1])
         if qid in PROOF_ONLY:
             return f"{_name(state, qid)} закрывается только пруфом: фото или ссылкой в этот чат"
         if qid == "buy":
@@ -226,13 +273,11 @@ def run(state: dict, name: str, a: dict) -> str | None:
             return "не нашёл такое дело на сегодня"
         if qid in td["done"]:
             return "уже отмечено"
-        quest.record_span(td, qid)
+        quest.record_span(td, qid, P)
         td["done"].append(qid)
         td["at"][qid] = quest.hhmm()
         quest.log_ev(td, "done", qid)
-        cur = td.get("cur") or {}
-        if cur.get("id") == qid or (cur.get("id") == "video" and quest.boss_done(td)):
-            td.pop("cur", None)
+        quest.drop_cur(td, P, [qid])
         sp = (td.get("span") or {}).get(qid)
         return f"отмечено: {_name(state, qid)}" + (f", заняло {sp['m']} мин" if sp and not sp.get("g") else "")
 
@@ -250,15 +295,16 @@ def run(state: dict, name: str, a: dict) -> str | None:
 
     if name == "start_task":
         qid = str(a.get("id") or "")
-        if qid in quest.BOSS_IDS:
-            qid = "video"
+        par = quest.parent_of(P, qid)
+        if par:
+            qid = par["id"]
         td["cur"] = {"id": qid, "at": quest.hhmm()}
         quest.log_ev(td, "start", qid)
         return f"начато в {td['cur']['at']}: {_name(state, qid)}"
 
     if name == "start_rest":
         if quest.has_debt(state) and not ("vid2" in td["done"] and "fine" in td["done"]):
-            return "штрафной день: отдых только после второго видео и €5"
+            return "штрафной день: отдых только после долга и штрафа"
         m = int(a.get("min") or 45)
         m = min((30, 45, 60, 90), key=lambda x: abs(x - m))
         td.setdefault("gl", []).append({"at": quest.hhmm(), "min": m})
@@ -405,10 +451,31 @@ def run(state: dict, name: str, a: dict) -> str | None:
             td["firstSmoke"] = quest.hhmm()
         td["smokes"] = td.get("smokes", 0) + 1
         quest.log_ev(td, "reward", "")
-        day = dict(td, _debt=quest.has_debt(state), _profile=state.get("profile"))
+        day = dict(td, _debt=quest.has_debt(state), _profile=P)
         return "записал. " + quest.reward_line(day).replace("\n", " ")
 
     return None
+
+
+DAYS_RU = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"]
+
+
+def routine_context(P: dict) -> str:
+    """Распорядок человека: из чего собирается каждый день."""
+    out = ["РАСПОРЯДОК (id: дело, мин, дни; ★ главное для награды, 📸 только пруфом):"]
+    for it in quest.items(P):
+        days = ",".join(DAYS_RU[d] for d in it["days"]) if it.get("days") else "каждый день"
+        tags = ("★" if it.get("main") else "") + ("📸" if it.get("proof") or any(s.get("proof") for s in it.get("steps") or []) else "")
+        at = " в " + ("конце дня" if it.get("at") == "end" else it["at"]) if it.get("at") else ""
+        steps = " шаги: " + ", ".join(f"{s['id']} {s['name']}" for s in it["steps"]) if it.get("steps") else ""
+        out.append(f"- {it['id']}: {it['name']}, {it.get('dur', 30)}, {days}{at} {tags}{steps}".rstrip())
+    pen = P.get("penalty") or {}
+    pi = quest.pen_item(P)
+    out.append(f"ШТРАФ: день без «{pi['name']}» = завтра долг (повторить) и €{pen.get('fine') or 0} в {pen.get('to') or 'копилку'}" if pi else "ШТРАФ: выключен")
+    out.append(f"НАГРАДА ДНЯ: {P.get('reward') or 'нет'}. Подъём {P['wake']}, отбой {P['bed']}.")
+    g = P.get("goal")
+    out.append(f"ТЕКУЩАЯ ЦЕЛЬ: {g['name']} ({g.get('unit') or 'без цифры'}), привычка: {g.get('habit') or 'не задана'}" if g else "ТЕКУЩАЯ ЦЕЛЬ: нет (здоровье есть всегда)")
+    return "\n".join(out)
 
 
 def plan_context(state: dict) -> str:
@@ -416,11 +483,11 @@ def plan_context(state: dict) -> str:
     today = quest.today_key()
     day = dict(quest._day(state, today))
     day["_debt"] = quest.has_debt(state)
-    day["_profile"] = state.get("profile")
+    day["_profile"] = P = quest.full_profile(state)
     day["_learn"] = quest.learned(state)
     day["_chores"] = quest.chores_for_plan(state)
     p = quest.build_plan(day)
-    lines = ["ПЛАН НА СЕГОДНЯ (id: дело, время):"]
+    lines = [routine_context(P), "ПЛАН НА СЕГОДНЯ (id: дело, время):"]
     for it in p["items"]:
         if it.get("game"):
             lines.append(f"- отдых {quest.hm(it['start'])}–{quest.hm(it['end'])}")
@@ -430,7 +497,6 @@ def plan_context(state: dict) -> str:
         lines.append(f"- {o['id']}: {o['name']} (не влезает до отбоя)")
     n = quest.now()
     now_m = n.hour * 60 + n.minute
-    P = quest.prof(day)
     spans = sorted((it["start"], it["end"]) for it in p["items"] if not it.get("gap"))
     free, cur = [], max(now_m, quest.to_min(P["wake"]))
     for s0, e0 in spans:
@@ -453,7 +519,8 @@ def plan_context(state: dict) -> str:
         lines.append("СВОИ ДЕЛА НА ЗАВТРА: " + "; ".join(f"{c['id']}: {c['name']}" + (f" в {c['at']}" if c.get("at") else "") for c in tc))
     L = day["_learn"]
     if L:
-        lines.append("ТВОЁ РЕАЛЬНОЕ ВРЕМЯ (медиана): " + ", ".join(f"{BASE_NAMES.get(k, k) if k != 'video' else 'видео целиком'} {v['min']} мин" for k, v in L.items()))
+        nm = quest.names(P)
+        lines.append("ТВОЁ РЕАЛЬНОЕ ВРЕМЯ (медиана): " + ", ".join(f"{nm.get(k, k)} {v['min']} мин" for k, v in L.items()))
     from services import house as _h
     if isinstance(state.get("house"), dict):
         lines.append("ДОМ:\n" + _h.summary(state["house"]))

@@ -46,35 +46,34 @@ async def cmd_quest(message: Message) -> None:
     await message.answer(text, reply_markup=kb)
 
 
+def _proof_ids(day: dict, it: dict) -> tuple[list[str], str] | None:
+    """Что закрыть пруфом по делу распорядка: само дело, все его шаги, или повтор (долг/бонус)."""
+    if not quest.item_done(day, it):
+        return (quest.step_ids(it) or [it["id"]]), it["name"]
+    if (day.get("_debt") or it.get("bonus")) and quest.pen_item(quest.prof(day)) is not None \
+            and quest.pen_item(quest.prof(day))["id"] == it["id"] and "vid2" not in day["done"]:
+        return ["vid2"], (it.get("debt") if day.get("_debt") else it.get("bonus")) or "Повтор"
+    return None
+
+
 @router.message(F.text.regexp(YT_PATTERN))
 async def proof_youtube(message: Message) -> None:
     day = await quest.get_day(message.from_user.id)
-    if not quest.boss_done(day):
-        day = await quest.mark_done(message.from_user.id, quest.BOSS_IDS)
-        await message.answer(
-            f"🎬 Видео засчитано. Босс убит.\n\n{_reward(day)}",
-            reply_markup=quest_keyboard(),
-        )
-    elif "vid2" not in day["done"]:
-        day = await quest.mark_done(message.from_user.id, ["vid2"])
-        await message.answer(
-            f"🔥 Второе видео засчитано. Дубль.",
-            reply_markup=quest_keyboard(),
-        )
-    else:
-        await message.answer("Два видео сегодня уже есть. Остальное в запас на завтра.")
+    it = next((x for x in quest.items(quest.prof(day)) if x.get("link") == "youtube"), None)
+    got = _proof_ids(day, it) if it else None
+    if not got:
+        await message.answer("Ссылку вижу, но засчитывать нечего: по распорядку на сегодня всё уже закрыто.")
+        return
+    day = await quest.mark_done(message.from_user.id, got[0])
+    await message.answer(f"🎬 {html.escape(got[1])}: засчитано.\n\n{_reward(day)}", reply_markup=quest_keyboard())
 
 
 @router.message(F.text.regexp(SMOKE_PATTERN))
 async def log_smoke(message: Message) -> None:
     day = await quest.add_smoke(message.from_user.id)
-    state = quest.reward_state(day)
     if day.get("smokes") == 1:
-        note = {
-            "gold": "День закрыт раньше. Награда по-честному 🌿",
-            "base": "Раньше времени, но тренировка была чистой.",
-            "broken": "Раньше тренировки. Награда сегодня сгорела. Завтра заново.",
-        }.get(state, "Записал.")
+        note = ("Все главные дела закрыты. Кайфуй, заслужил 🌿" if quest.day_closed(day)
+                else "Записал. Главные дела ещё не закрыты, доделай их сегодня.")
         note += "\n\n" + quest.reward_line(day)
     else:
         note = f"Записал. Сегодня уже {day['smokes']}."
@@ -174,8 +173,9 @@ async def proof_photo(message: Message, bot: Bot) -> None:
     await bot.download(photo, destination=buf)
 
     await bot.send_chat_action(message.chat.id, "typing")
-    training = quest.training_id() or "gym"
-    result = await claude.check_proof(buf.getvalue(), message.caption or "", training)
+    day = await quest.get_day(message.from_user.id)
+    P = quest.prof(day)
+    result = await claude.check_proof(buf.getvalue(), message.caption or "", P, bool(day.get("_debt")))
 
     kind = result.get("quest")
     comment = result.get("comment", "").strip()
@@ -192,39 +192,35 @@ async def proof_photo(message: Message, bot: Bot) -> None:
     if kind == "question":
         await message.answer("📚 " + html.escape(comment or "Не разобрал вопрос. Скинь скрин почётче."))
         return
-    if not result.get("ok") or kind not in ("cbr", "eng", "fine", "training", "video"):
+    it = quest.item(P, kind or "")
+    if not result.get("ok") or not (it or kind == "fine"):
         await message.answer("Это не пруф, ничего не отметил.\n" + html.escape(comment or "")
                              + "\n\nЕсли хотел что-то спросить, напиши текстом или голосом.")
         return
 
-    day = await quest.get_day(message.from_user.id)
-    if kind == "training":
-        ids, title = [training], "Тренировка"
-    elif kind == "cbr":
-        ids, title = ["cbr"], "Теория на права"
-    elif kind == "eng":
-        ids, title = ["eng"], "Duolingo"
-    elif kind == "fine":
+    if kind == "fine":
         if not day.get("_debt"):
-            await message.answer("Штрафа сегодня нет. Но перевод в safemoney засчитываю как красавчик 💪")
+            await message.answer("Штрафа сегодня нет. Но перевод засчитываю как красавчик 💪")
             return
-        ids, title = ["fine"], "Штраф €5"
-    elif not quest.boss_done(day):
-        ids, title = quest.BOSS_IDS, "Видео"
+        ids, title = ["fine"], f"Штраф €{(P.get('penalty') or {}).get('fine') or 0}"
     else:
-        ids, title = ["vid2"], "Второе видео"
+        got = _proof_ids(day, it)
+        if not got:
+            await message.answer(f"«{html.escape(it['name'])}» сегодня уже засчитано 👍")
+            return
+        ids, title = got
 
     day = await quest.mark_done(message.from_user.id, ids)
     extra = ""
-    if kind == "cbr":
+    if it and it.get("tutor") == "cbr" and result.get("score") is not None:
         st = await database.get_quest_state(message.from_user.id)
         line = theory.record(st, result.get("score"), result.get("total"), result.get("weak", ""), quest.today_key())
         if line:
             await database.save_quest_state(message.from_user.id, st)
             extra += "\n\n" + line
     if quest.reward_state(day) == "open":
-        extra = "\n\n🌿 Все 4 дела закрыты. Награда открыта."
+        extra += "\n\n🌿 Все главные дела закрыты. Награда открыта."
     await message.answer(
-        f"✅ {title} засчитано.\n{html.escape(comment)}{extra}\n\n{_reward(day)}",
+        f"✅ {html.escape(title)}: засчитано.\n{html.escape(comment)}{extra}\n\n{_reward(day)}",
         reply_markup=quest_keyboard(),
     )

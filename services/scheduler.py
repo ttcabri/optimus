@@ -15,15 +15,6 @@ logger = logging.getLogger(__name__)
 
 # --- Квест дня: напоминания по живому плану ---
 
-HINTS = {
-    "cbr": "TheorieExamen.nl. Скрин результата сюда.",
-    "video": "Открой квест и жми «Начать фокус». Телефон экраном вниз.",
-    "gym": "До зала без травы. Селфи из зала сюда.",
-    "fight": "До тренировки без травы. Фото сюда.",
-    "eng": "Duolingo, урок или два. Скрин сюда.",
-    "vid2": "Ссылку на второе видео сюда.",
-    "fine": "Переведи €5 в safemoney и кинь скрин Trading 212.",
-}
 _sent: set[str] = set()
 
 
@@ -69,8 +60,11 @@ def quest_messages(day: dict, now_min: int, today: str, wd: int) -> list[str]:
         once(f"late:{first['id']}", f"⏱ «{first['name']}» идёт на {first['late']} мин дольше плана. Закрывай или режь лишнее, иначе вечер уедет.")
     elif first and not first.get("started") and (not first.get("minor") or str(first["id"]).startswith("ch_")) and first["start"] <= now_min + 2 \
             and not _has_reminder(day, first["start"]):
-        hint = HINTS.get(first["id"], "") or ("Дом, дело с повтором. Сделал, отметь в квесте или скажи боту." if str(first["id"]).startswith("ch_") else "")
-        if first["id"] == "cbr":
+        it = quest.item(P, first["id"]) or {}
+        hint = it.get("hint") or ("Дом, дело с повтором. Сделал, отметь в квесте или скажи боту." if str(first["id"]).startswith("ch_") else "")
+        if first["id"] == "fine":
+            hint = f"Переведи €{(P.get('penalty') or {}).get('fine')} в {(P.get('penalty') or {}).get('to')} и кинь скрин."
+        if it.get("tutor") == "cbr":
             from services import theory
             hint = f"Сегодня: {theory.stage_name(day.get('_theory_i', 0))}. Напиши «теория», расскажу что учить."
         once(f"start:{first['id']}", f"▶️ Пора: <b>{first['name']}</b>, до {quest.hm(first['end'])}. {hint}".strip())
@@ -125,11 +119,15 @@ async def send_quest_night(bot: Bot) -> None:
         if not morning.notify(await database.get_quest_state(TELEGRAM_USER_ID))["evening"]:
             return
         day = await quest.get_day(TELEGRAM_USER_ID)
+        P = quest.prof(day)
+        pi = quest.pen_item(P)
+        pen = P.get("penalty") or {}
+        miss = pi and quest.on_day(pi, quest.js_weekday()) and not quest.item_done(day, pi)
         text = (
-            "🌙 <b>22:30. Итог дня</b>\n\n" + quest.day_summary(day)
-            + ("" if quest.boss_done(day) else "\n\n⚠️ Видео сегодня не вышло. Завтра штрафной день: два видео и €5 в safemoney. Серия обнулится.")
-            + "\n\nЧто завтра, кроме основы? Напиши так:\n<code>завтра: отвезти Audi; письмо в UWV</code>"
-            + "\n\nЭкран выкл, 15 минут повтор теории и спать в 23:30."
+            "🌙 <b>Итог дня</b>\n\n" + quest.day_summary(day)
+            + (f"\n\n⚠️ «{pi['name']}» сегодня не сделано. Завтра штрафной день: повторить" + (f" и €{pen['fine']} в {pen.get('to')}." if pen.get("fine") else ".") if miss else "")
+            + "\n\nЧто завтра, кроме распорядка? Напиши так:\n<code>завтра: отвезти Audi; письмо в UWV</code>"
+            + f"\n\nЭкран выкл и спать в {P['bed']}."
         )
         await bot.send_message(TELEGRAM_USER_ID, text)
     except Exception as e:
@@ -143,23 +141,23 @@ async def send_quest_week(bot: Bot) -> None:
         if not morning.notify(await database.get_quest_state(TELEGRAM_USER_ID))["week"]:
             return
         state = await database.get_quest_state(TELEGRAM_USER_ID)
-        all_days = state.get("days", {})
+        P = quest.full_profile(state)
         today = quest.now().date()
-        keys = [(today - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)]
-        days = [all_days.get(k) or {} for k in keys]
-        vids = sum(1 for d in days if quest.boss_done(d))
-        gym = sum(1 for d in days if "gym" in d.get("done", []))
-        cbr = sum(1 for d in days if "cbr" in d.get("done", []))
-        eng = sum(1 for d in days if "eng" in d.get("done", []))
-        streak, i = 0, (0 if quest.boss_done(days[0]) else 1)
-        while quest.boss_done(all_days.get((today - timedelta(days=i)).strftime("%Y-%m-%d"))):
-            streak += 1
-            i += 1
-        verdict = ("Сильная неделя. Так держать." if vids >= 6 else
-                   "Нормально, но можно жёстче." if vids >= 4 else
-                   "Слабая неделя. Видео — главное, начни завтра с него.")
-        text = (f"📊 <b>Неделя в квесте</b>\n\nВидео: {vids}/7\nЗал: {gym}\nТеория: {cbr}/7\nDuolingo: {eng}/7\n"
-                f"Серия сейчас: {streak} дн.\n\n{verdict}")
+        ks = [today - timedelta(days=i) for i in range(7)]
+        views = [quest.day_view(state, k.strftime("%Y-%m-%d")) for k in ks]
+        closed = sum(1 for v, k in zip(views, ks) if quest.day_closed(v, k.weekday()))
+        rows = []
+        for it in quest.items(P):
+            if not it.get("main"):
+                continue
+            need = sum(1 for k in ks if quest.on_day(it, (k.weekday() + 1) % 7))
+            got = sum(1 for v, k in zip(views, ks) if quest.on_day(it, (k.weekday() + 1) % 7) and quest.item_done(v, it))
+            rows.append(f"{it['name']}: {got}/{need}")
+        verdict = ("Сильная неделя. Так держать." if closed >= 6 else
+                   "Нормально, но можно жёстче." if closed >= 4 else
+                   "Слабая неделя. Начни завтра с главного дела.")
+        text = (f"📊 <b>Неделя в квесте</b>\n\nДней закрыто полностью: {closed}/7\n" + "\n".join(rows)
+                + f"\nПодряд сейчас: {quest.closed_streak(state)} дн.\n\n{verdict}")
         await bot.send_message(TELEGRAM_USER_ID, text)
     except Exception as e:
         logger.error(f"Quest week error: {e}")
