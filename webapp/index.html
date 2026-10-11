@@ -794,13 +794,9 @@ function goalHero(gid,icon,sub){const T=TPL[gid],v=T.val(),steps=goalOf(gid).ste
     const pct=Math.max(0,Math.min(1,Math.abs(v-from)/span)),left=Math.abs(Math.round((nx.at-v)*10)/10);
     ringH=ring(pct,fmtN(left),"до "+(gid==="body"?nx.at+" кг":fmtN(nx.at)))}
   else if(!nx&&steps.length)ringH=ring(1,"✓","все ступени");
-  const pts=(gid==="body"?state.body.map(x=>x.kg):gid==="chan"?(state.chanLog||[]).map(x=>x.subs):(goalsSt().valLog||[]).map(x=>x.v)).slice(-30);
   const act=gid==="body"?'data-w-open="weight"':gid==="chan"?'data-chan="1"':'data-gval="1"';
-  return `<button type="button" class="hero" ${act} style="width:calc(100% - 32px);color:inherit;font:inherit;text-align:left"><div class="hl2"><span class="flame${gid==="chan"?" yt":""}">${icon}</span><div><b>${v==null?"—":gid==="body"?v:fmtN(v)}</b><small>${esc(sub)}</small>${spark(pts,gid==="body"&&tdir("body")<0)}</div></div>${ringH}</button>`}
-// мини-график: последние значения, зелёный, если идёт в нужную сторону
-function spark(a,down){if(a.length<2)return "";const mn=Math.min(...a),mx=Math.max(...a),w=120,h=24,sx=w/(a.length-1),sy=mx>mn?(h-4)/(mx-mn):0;
-  const p=a.map((v,i)=>(i*sx).toFixed(1)+","+(h-2-(v-mn)*sy).toFixed(1)).join(" "),good=down?a[a.length-1]<=a[0]:a[a.length-1]>=a[0];
-  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="display:block;margin-top:4px" aria-hidden="true"><polyline fill="none" stroke="${good?"var(--okl)":"var(--red)"}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="${p}"/></svg>`}
+  return `<button type="button" class="hero" ${act} style="width:calc(100% - 32px);color:inherit;font:inherit;text-align:left"><div class="hl2"><span class="flame${gid==="chan"?" yt":""}">${icon}</span><div><b>${v==null?"—":gid==="body"?v:fmtN(v)}</b><small>${esc(sub)}</small></div></div>${ringH}</button>`}
+
 const dayW=n=>n===1?"день":n>1&&n<5?"дня":"дней";
 const ladOpen=new Set();
 function ladder(store,title){
