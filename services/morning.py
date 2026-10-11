@@ -36,6 +36,9 @@ def facts(state: dict, day: dict, uid) -> str:
         lines.append("Тема теории: " + theory.stage_name(day.get("_theory_i", 0)))
     h = state.get("house")
     if isinstance(h, dict):
+        preps = [x for x in h.get("items", []) if x.get("cat") == "prep" and int(x.get("n") or 0) > 0]
+        if preps:
+            lines.append("Заготовки: " + ", ".join(f"{x['name']} {x['n']} порц." for x in preps))
         exp = house.expiring(h)
         if exp:
             lines.append("Скоро испортится: " + ", ".join(x["name"] for x in exp))

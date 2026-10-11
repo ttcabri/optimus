@@ -82,9 +82,9 @@ TOOLS = [
      "description": "Запомнить домашний адрес для расчёта дороги. Вызывай, когда он называет, где живёт, или переезжает. Если он говорит «я дома» и есть свежая геолокация, передай address=here.",
      "input_schema": {"type": "object", "properties": {"address": {"type": "string"}}, "required": ["address"]}},
     {"name": "house_add",
-     "description": "Купил или положил продукты/вещи домой. items: [{name, cat: fridge|pantry|home, days: сколько дней хранится (только холодильник, если знаешь точнее), qty: «2 кг» и т.п.}]. fridge = Холодильник (свежее со сроком), pantry = Кладовка (крупы, макароны, консервы, специи, масло), home = Хозтовары (мыло, порошок, бумага).",
+     "description": "Купил или положил продукты/вещи домой. items: [{name, cat, days: сколько дней годно, если знаешь точнее, qty: «2 кг»}]. cat: meat мясо и рыба, dairy молочное и яйца, veg овощи и фрукты, grain крупы и макароны, canned консервы и соусы, bread хлеб и сладкое, drinks напитки, spice специи и масло, other другое, home хозтовары. Можно не указывать: определится по названию. Заготовки готовой еды: prep_add.",
      "input_schema": {"type": "object", "properties": {"items": {"type": "array", "items": {"type": "object", "properties": {
-         "name": {"type": "string"}, "cat": {"type": "string", "enum": ["fridge", "pantry", "home"]}, "days": {"type": "integer"}, "qty": {"type": "string"}}, "required": ["name"]}}},
+         "name": {"type": "string"}, "cat": {"type": "string", "enum": ["prep", "meat", "dairy", "veg", "grain", "canned", "bread", "drinks", "spice", "other", "home"]}, "days": {"type": "integer"}, "qty": {"type": "string"}}, "required": ["name"]}}},
          "required": ["items"]}},
     {"name": "house_level",
      "description": "Изменить уровень запаса: ok = есть, low = мало, out = кончилось. «Молоко кончилось» = out, «риса мало» = low.",
@@ -96,8 +96,20 @@ TOOLS = [
     {"name": "chore_set",
      "description": "Добавить или изменить домашнее дело с повтором: name, every (раз в сколько дней), dur (минут). Или remove=true, чтобы удалить.",
      "input_schema": {"type": "object", "properties": {"name": {"type": "string"}, "every": {"type": "integer"}, "dur": {"type": "integer"}, "remove": {"type": "boolean"}}, "required": ["name"]}},
+    {"name": "prep_add",
+     "description": "Приготовил заготовку: блюдо и сколько порций (days: сколько дней годна, по умолчанию 4). «Сделал курицу с рисом на 4 порции».",
+     "input_schema": {"type": "object", "properties": {"name": {"type": "string"}, "portions": {"type": "integer"}, "days": {"type": "integer"}}, "required": ["name", "portions"]}},
+    {"name": "prep_eat",
+     "description": "Съел порцию заготовки (n порций, по умолчанию 1). name пустое = та, что раньше испортится.",
+     "input_schema": {"type": "object", "properties": {"name": {"type": "string"}, "n": {"type": "integer"}}}},
+    {"name": "move_task",
+     "description": "Перенести дело из плана на другой день: id из плана, to: tomorrow / YYYY-MM-DD. Своё дело переезжает целиком, дело распорядка на сегодня убирается и добавляется в тот день, если его там нет.",
+     "input_schema": {"type": "object", "properties": {"id": {"type": "string"}, "to": {"type": "string"}}, "required": ["id", "to"]}},
+    {"name": "project_new",
+     "description": "Завести проект: разовое большое дело из нескольких шагов (переезд, оформление WW, ремонт машины, поездка). due: срок YYYY-MM-DD, если есть. Шаги добавляй project_step add=true.",
+     "input_schema": {"type": "object", "properties": {"name": {"type": "string"}, "due": {"type": "string"}}, "required": ["name"]}},
     {"name": "project_step",
-     "description": "Отметить шаг домашнего проекта (например переезда) сделанным или снова открытым, или добавить новый шаг (add=true).",
+     "description": "Отметить шаг проекта (например переезда) сделанным или снова открытым, или добавить новый шаг (add=true). Взять шаг в план: house_take с текстом шага.",
      "input_schema": {"type": "object", "properties": {"text": {"type": "string"}, "done": {"type": "boolean"}, "add": {"type": "boolean"}, "project": {"type": "string"}}, "required": ["text"]}},
     {"name": "house_take",
      "description": "Взять на себя дело из Быта или покупку (тогда оно попадает в его план), или отдать обратно (give=true). what: название дела/покупки или «покупки» = все покупки из списка.",
@@ -154,6 +166,9 @@ def _names(state: dict) -> dict:
 
 
 def _name(state: dict, qid: str) -> str:
+    if qid.startswith("pr_"):
+        st = next((x for p in (state.get("house") or {}).get("projects", []) for x in p.get("steps", []) if f"pr_{p['id']}_{x['id']}" == qid), None)
+        return st["t"] if st else qid
     if qid.startswith("ch_"):
         c = next((x for x in (state.get("house") or {}).get("chores", []) if x.get("id") == qid[3:]), None)
         return c["name"] if c else qid
@@ -277,6 +292,14 @@ def run(state: dict, name: str, a: dict) -> str | None:
             c = house.chore_done(house.get(state), qid[3:])
             if not c:
                 return "не нашёл такое домашнее дело"
+        elif qid.startswith("pr_"):
+            from services import house
+            h = house.get(state)
+            st = next((x for p in h.get("projects", []) for x in p.get("steps", []) if f"pr_{p['id']}_{x['id']}" == qid), None)
+            if not st:
+                return "не нашёл такой шаг проекта"
+            st.update({"done": True, "u": house.now_ms()})
+            st.pop("who", None)
         elif qid not in BASE_NAMES and not _find_custom(state, qid, "today")[2]:
             return "не нашёл такое дело на сегодня"
         if qid in td["done"]:
@@ -390,9 +413,19 @@ def run(state: dict, name: str, a: dict) -> str | None:
         state["reminders"] = [x for x in state.get("reminders") or [] if x.get("id") != a.get("id")]
         return "удалено" if len(state["reminders"]) < before else "нет такого"
 
-    if name in ("house_add", "house_level", "house_remove", "shop_add", "chore_set", "project_step", "house_note", "house_take"):
+    if name == "move_task":
+        return quest.move_task(state, str(a.get("id") or ""), _key(a.get("to") or "tomorrow"))
+
+    if name in ("house_add", "house_level", "house_remove", "shop_add", "chore_set", "project_step", "house_note", "house_take",
+                "prep_add", "prep_eat", "project_new"):
         from services import house
         h = house.get(state)
+        if name == "prep_add":
+            return house.prep_add(h, str(a.get("name", "")), int(a.get("portions") or 1), a.get("days"))
+        if name == "prep_eat":
+            return house.prep_eat(h, str(a.get("name") or ""), int(a.get("n") or 1))
+        if name == "project_new":
+            return house.project_new(h, str(a.get("name", "")), a.get("due"))
         if name == "house_take":
             return house.take(h, str(a.get("what", "")), h.get("owner"), bool(a.get("give")))
         if name == "house_note":

@@ -325,6 +325,12 @@ def chores_for_plan(state: dict, uid=None) -> list[dict]:
     # взял на себя = дело в плане, даже если срок ещё не подошёл
     out = [{"id": "ch_" + c["id"], "name": c["name"], "dur": int(c.get("dur") or 20)}
            for c in h.get("chores", []) if mine(c.get("who")) or (c.get("last") == today and "ch_" + c["id"] in done)]
+    # шаги проектов, которые взял на себя
+    for pr in h.get("projects", []):
+        for st in pr.get("steps", []):
+            sid = f"pr_{pr['id']}_{st['id']}"
+            if (not st.get("done") and mine(st.get("who"))) or sid in done:
+                out.append({"id": sid, "name": st["t"], "dur": int(st.get("dur") or 30)})
     buys = [x for _, x in house.my_buys(h, uid)]
     if buys or "buy" in done:
         out.append({"id": "buy", "name": "Купить: " + ", ".join(x["name"] for x in buys) if buys else "Покупки",
@@ -747,3 +753,42 @@ def habit_streak(state: dict, qid: str) -> int:
         elif i:
             break
     return n
+
+
+def move_task(state: dict, qid: str, to_key: str, from_key: str | None = None) -> str:
+    """Перенести дело с дня на день (то же в приложении). Своё дело переезжает целиком.
+    Дело распорядка: сегодня убирается, а в тот день добавляется, только если его там нет по распорядку.
+    Дом и шаги проектов: убираются на сегодня, взятые сами вернутся завтра."""
+    fk = from_key or today_key()
+    if to_key <= fk:
+        return "переносить можно только вперёд"
+    d = _day(state, fk)
+    P = full_profile(state)
+    pi = pen_item(P)
+    if qid in ("vid2", "fine") or (pi and qid == pi["id"]):
+        return "штрафное дело не переносится"
+    td = _day(state, to_key)
+    c = next((x for x in d["custom"] if x.get("id") == qid), None)
+    name = None
+    if c:
+        d["custom"] = [x for x in d["custom"] if x is not c]
+        d["del"] = sorted(set(d.get("del", [])) | {qid})
+        td["custom"].append(dict(c, id="t" + format(int(time.time() * 1000), "x")))
+        name = c["name"]
+    else:
+        it = item(P, qid)
+        if it:
+            wd = (datetime.strptime(to_key, "%Y-%m-%d").weekday() + 1) % 7
+            if not on_day(it, wd):
+                td["custom"].append({"id": "t" + format(int(time.time() * 1000), "x"), "name": it["name"], "dur": it.get("dur", 30), "from": qid})
+            name = it["name"]
+        elif qid.startswith(("ch_", "pr_")) or qid == "buy":
+            name = next((c["name"] for c in chores_for_plan(state) if c["id"] == qid), qid)
+        else:
+            return "не нашёл такое дело"
+        d.setdefault("skip", [])
+        if qid not in d["skip"]:
+            d["skip"].append(qid)
+    d["moved"] = dict(d.get("moved") or {}, **{qid: {"to": to_key, "n": name}})
+    log_ev(d, "move", qid)
+    return f"перенесено на {to_key[8:10]}.{to_key[5:7]}: {name}"

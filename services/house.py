@@ -10,14 +10,29 @@ from datetime import datetime, timedelta
 
 from services import quest
 
-CATS = {"fridge": "Холодильник", "pantry": "Кладовка", "home": "Хозтовары"}
+# Категории: еда по видам (как плитки в приложении) и хозтовары. Срок по умолчанию в днях, None = без срока.
+CATS = {"prep": "Заготовки", "meat": "Мясо, рыба", "dairy": "Молочное, яйца", "veg": "Овощи, фрукты",
+        "grain": "Крупы, макароны", "canned": "Консервы, соусы", "bread": "Хлеб, сладкое", "drinks": "Напитки",
+        "spice": "Специи, масло", "other": "Другое", "home": "Хозтовары"}
+CAT_DAYS = {"prep": 4, "meat": 3, "dairy": 5, "veg": 5, "bread": 4}
+CAT_WORDS = {
+    "prep": ("заготов", "мил-преп", "порци"),
+    "meat": ("мяс", "фарш", "курин", "курица", "индейк", "говяд", "свинин", "колбас", "сосиск", "ветчин", "бекон", "рыб", "лосос", "тунец свеж", "креветк", "филе"),
+    "dairy": ("молок", "кефир", "творог", "сметан", "йогурт", "сыр", "сливк", "масло слив", "яйц", "ряженк"),
+    "veg": ("овощ", "помидор", "томат", "огур", "картош", "картоф", "лук", "морков", "капуст", "перец", "салат", "зелень", "брокол", "кабач", "фрукт", "яблок", "банан", "апельсин", "лимон", "груш", "виноград", "ягод", "авокадо", "чеснок", "гриб"),
+    "grain": ("рис", "гречк", "макарон", "паста", "спагетти", "овсян", "хлопь", "мука", "крупа", "булгур", "киноа", "лапш", "мюсли"),
+    "canned": ("консерв", "тунец", "фасол", "горошек", "кукуруз", "соус", "кетчуп", "майонез", "горчиц", "томатная паста", "варенье", "мёд", "мед"),
+    "bread": ("хлеб", "батон", "лаваш", "булк", "печень", "шоколад", "конфет", "торт", "вафл", "круассан", "чипс", "орех"),
+    "drinks": ("вода", "сок", "чай", "кофе", "кола", "пиво", "вино", "напит", "лимонад", "энергет"),
+    "spice": ("соль", "сахар", "перец молот", "специ", "приправ", "масло раст", "оливк", "масло подсол", "уксус", "паприк", "куркум", "базилик", "орегано", "соевый"),
+}
 LEVELS = {"ok": "есть", "low": "мало", "out": "нет"}
 
-# Сколько дней живёт в холодильнике после покупки (по умолчанию 5)
+# Точнее, чем по категории: сколько дней живёт после покупки
 SHELF = [("фарш", 1), ("рыба", 1), ("курин", 2), ("курица", 2), ("мясо", 3), ("говяд", 3), ("свинин", 3),
-         ("заготов", 3), ("мил-преп", 3), ("молоко", 5), ("кефир", 5), ("творог", 5), ("сметан", 7),
-         ("йогурт", 7), ("ветчин", 5), ("колбас", 7), ("сыр", 14), ("яйц", 21), ("масло слив", 21),
-         ("зелень", 4), ("салат", 3), ("овощ", 5), ("помидор", 5), ("огур", 5), ("фрукт", 6), ("банан", 4)]
+         ("молоко", 5), ("кефир", 5), ("творог", 5), ("сметан", 7), ("йогурт", 7), ("ветчин", 5), ("колбас", 7),
+         ("сыр", 14), ("яйц", 21), ("масло слив", 21), ("зелень", 4), ("салат", 3), ("банан", 4)]
+OLD_CATS = {"fridge", "pantry"}  # было до категорий
 
 DEFAULT_CHORES = [
     {"id": "c_wash", "name": "Стирка", "every": 7, "dur": 20},
@@ -69,17 +84,29 @@ def guess_cat(name: str) -> str:
     n = name.lower()
     if any(w in n for w in HOME_WORDS):
         return "home"
-    if any(k in n for k, _ in SHELF):
-        return "fridge"
-    return "pantry"
+    for cat, words in CAT_WORDS.items():
+        if any(w in n for w in words):
+            return cat
+    return "other"
 
 
-def shelf_days(name: str) -> int:
+def shelf_days(name: str, cat: str | None = None) -> int | None:
+    """Сколько дней годно после покупки; None = без срока."""
     n = name.lower()
+    cat = cat or guess_cat(name)
+    if cat in ("home", "grain", "canned", "spice", "drinks", "other"):
+        return None
     for k, d in SHELF:
         if k in n:
             return d
-    return 5
+    return CAT_DAYS.get(cat)
+
+
+def until_for(name: str, cat: str, days: int | None = None, today: str | None = None) -> str | None:
+    days = days or shelf_days(name, cat)
+    if not days:
+        return None
+    return (datetime.strptime(today or quest.today_key(), "%Y-%m-%d") + timedelta(days=int(days))).strftime("%Y-%m-%d")
 
 
 def get(state: dict, uid: int | None = None) -> dict:
@@ -97,6 +124,9 @@ def get(state: dict, uid: int | None = None) -> dict:
         state["house"] = h
     for k in ("items", "shop", "chores", "projects", "del", "notes"):
         h.setdefault(k, [])
+    for x in h["items"]:  # старые «холодильник/кладовка» -> категории
+        if x.get("cat") in OLD_CATS or x.get("cat") not in CATS:
+            x["cat"] = guess_cat(x.get("name", ""))
     h.setdefault("roles", [dict(r, u=0) for r in DEFAULT_ROLES])
     # старый формат участников (просто id) -> записи с должностью
     h["members"] = [m if isinstance(m, dict) else {"uid": m, "name": me, "role": "owner", "u": 0} for m in h.get("members", [])]
@@ -171,7 +201,7 @@ def due_chores(h: dict, today: str | None = None) -> list[dict]:
 def expiring(h: dict, today: str | None = None, within: int = 1) -> list[dict]:
     today = today or quest.today_key()
     lim = (datetime.strptime(today, "%Y-%m-%d") + timedelta(days=within)).strftime("%Y-%m-%d")
-    return [x for x in h.get("items", []) if x.get("cat") == "fridge" and x.get("level") != "out"
+    return [x for x in h.get("items", []) if x.get("cat") != "home" and x.get("level") != "out"
             and x.get("until") and x["until"] <= lim]
 
 
@@ -204,39 +234,72 @@ def _find(lst: list, name_or_id: str):
 # --- действия (бот) ---
 
 def add_items(h: dict, items: list[dict]) -> list[str]:
-    """Купил / положил: добавляет или обновляет. Для холодильника ставит срок."""
-    today = quest.today_key()
+    """Купил / положил: добавляет или обновляет. Срок годности ставит по продукту и категории."""
     done = []
     for it in items:
         name = str(it.get("name") or "").strip()[:60]
         if not name:
             continue
-        cat = it.get("cat") if it.get("cat") in CATS else guess_cat(name)
+        cat = it.get("cat") if it.get("cat") in CATS and it.get("cat") not in OLD_CATS else guess_cat(name)
         x = _find([y for y in h["items"] if y.get("cat") == cat], name)
-        days = it.get("days")
-        until = None
-        if cat == "fridge":
-            days = int(days) if days else shelf_days(name)
-            until = (datetime.strptime(today, "%Y-%m-%d") + timedelta(days=days)).strftime("%Y-%m-%d")
+        until = until_for(name, cat, it.get("days"))
         if x:
             x.update({"level": "ok", "u": now_ms()})
             if until:
                 x["until"] = until
-            if it.get("qty"):
-                x["qty"] = str(it["qty"])[:20]
         else:
             x = {"id": new_id("i"), "name": name, "cat": cat, "level": "ok", "u": now_ms()}
             if until:
                 x["until"] = until
-            if it.get("qty"):
-                x["qty"] = str(it["qty"])[:20]
             h["items"].append(x)
+        if it.get("qty"):
+            x["qty"] = str(it["qty"])[:20]
         # купленное убираем из ручного списка покупок
         s = _find([y for y in h["shop"] if not y.get("done")], name)
         if s:
             s.update({"done": True, "u": now_ms()})
         done.append(name + (f" (до {until[8:10]}.{until[5:7]})" if until else ""))
     return done
+
+
+# --- заготовки: блюдо с порциями ---
+
+def prep_add(h: dict, name: str, portions: int, days: int | None = None) -> str:
+    name = str(name or "").strip()[:60] or "Заготовка"
+    n = max(1, min(int(portions or 1), 30))
+    x = _find([y for y in h["items"] if y.get("cat") == "prep" and y.get("level") != "out"], name)
+    until = until_for(name, "prep", days or 4)
+    if x and x.get("name", "").lower() == name.lower():
+        x.update({"n": int(x.get("n") or 0) + n, "until": until, "level": "ok", "u": now_ms()})
+    else:
+        x = {"id": new_id("i"), "name": name, "cat": "prep", "n": n, "until": until, "level": "ok", "u": now_ms()}
+        h["items"].append(x)
+    return f"заготовка: {x['name']}, {x['n']} порц., годна до {until[8:10]}.{until[5:7]}"
+
+
+def prep_eat(h: dict, name: str, k: int = 1) -> str:
+    live = [y for y in h["items"] if y.get("cat") == "prep" and y.get("level") != "out" and int(y.get("n") or 0) > 0]
+    x = _find(live, name) if name else (sorted(live, key=lambda y: y.get("until") or "9")[0] if live else None)
+    if not x:
+        return "заготовок нет" if not live else "не нашёл такую заготовку"
+    x["n"] = max(0, int(x.get("n") or 0) - max(1, int(k or 1)))
+    x["u"] = now_ms()
+    if x["n"] == 0:  # съедено: заготовка просто исчезает (в покупки её не кладём)
+        h["items"] = [y for y in h["items"] if y is not x]
+        h["del"].append(x["id"])
+        return f"{x['name']}: съедено всё, заготовок этого больше нет"
+    return f"{x['name']}: осталось {x['n']} порц."
+
+
+def project_new(h: dict, name: str, due: str | None = None) -> str:
+    name = str(name or "").strip()[:60]
+    if not name:
+        return "нужно название"
+    p = {"id": new_id("p"), "name": name, "steps": [], "u": now_ms()}
+    if due:
+        p["due"] = str(due)[:10]
+    h["projects"].append(p)
+    return f"проект «{name}» заведён" + (f", срок {due}" if due else "")
 
 
 def set_level(h: dict, name: str, level: str) -> str:
@@ -247,6 +310,10 @@ def set_level(h: dict, name: str, level: str) -> str:
         x = {"id": new_id("i"), "name": name[:60], "cat": guess_cat(name), "level": level, "u": now_ms()}
         h["items"].append(x)
         return f"{name}: {LEVELS[level]} (новая позиция: {CATS[x['cat']].lower()})"
+    if level == "ok" and x.get("cat") != "prep":
+        u = until_for(x["name"], x.get("cat"))
+        if u:
+            x["until"] = u
     x.update({"level": level, "u": now_ms()})
     return f"{x['name']}: {LEVELS[level]}"
 
@@ -292,8 +359,9 @@ def my_buys(h: dict, uid) -> list[tuple[str, dict]]:
 def mark_bought(h: dict, kind: str, x: dict) -> None:
     if kind == "item":
         x["level"] = "ok"
-        if x.get("cat") == "fridge":
-            x["until"] = (datetime.strptime(quest.today_key(), "%Y-%m-%d") + timedelta(days=shelf_days(x["name"]))).strftime("%Y-%m-%d")
+        u = until_for(x["name"], x.get("cat"))
+        if u:
+            x["until"] = u
     else:
         x["done"] = True
         add_items(h, [{"name": x["name"]}])
@@ -315,13 +383,21 @@ def take(h: dict, what: str, uid, give: bool = False) -> str:
     x = _find(h["chores"], what) or _find([y for y in h["items"] if y.get("level") in ("low", "out")], what) \
         or _find([y for y in h["shop"] if not y.get("done")], what)
     if not x:
-        return "не нашёл такое дело или покупку"
+        for p in h.get("projects", []):
+            st = _find([dict(y, name=y["t"]) for y in p.get("steps", []) if not y.get("done")], what)
+            if st:
+                x = next(y for y in p["steps"] if y["id"] == st["id"])
+                x["name"] = x["t"]
+                break
+    if not x:
+        return "не нашёл такое дело, покупку или шаг проекта"
     if give:
         x.pop("who", None)
     else:
         x["who"] = uid
     x["u"] = now_ms()
-    return f"{'отдал' if give else 'взял на себя'}: {x['name']}"
+    nm = x.pop("name") if "t" in x else x["name"]
+    return f"{'отдал' if give else 'взял на себя'}: {nm}" + ("" if give else ", дело в плане")
 
 
 def step_done(h: dict, text: str, done: bool = True) -> str:
@@ -330,6 +406,7 @@ def step_done(h: dict, text: str, done: bool = True) -> str:
         if s:
             real = next(x for x in p["steps"] if x["id"] == s["id"])
             real.update({"done": done, "u": now_ms()})
+            real.pop("who", None)
             return f"{p['name']}: «{real['t']}» {'сделано' if done else 'снова открыто'}"
     return "не нашёл такой шаг"
 
@@ -341,7 +418,7 @@ def summary(h: dict) -> str:
         its = [x for x in h.get("items", []) if x.get("cat") == cat]
         if its:
             lines.append(f"{title}: " + "; ".join(
-                x["name"] + (f" {x['qty']}" if x.get("qty") else "") + (f" [{LEVELS.get(x.get('level'), '')}]" if x.get("level") != "ok" else "")
+                x["name"] + (f" {x['n']} порц." if cat == "prep" else "") + (f" {x['qty']}" if x.get("qty") else "") + (f" [{LEVELS.get(x.get('level'), '')}]" if x.get("level") != "ok" else "")
                 + (f" до {x['until'][8:10]}.{x['until'][5:7]}" if x.get("until") and x.get("level") != "out" else "") for x in its))
     exp = expiring(h, today)
     if exp:
@@ -354,11 +431,11 @@ def summary(h: dict) -> str:
         f"{c['name']} (раз в {c['every']} дн, {'ПОРА' if c in dc else 'было ' + (c.get('last') or 'никогда')}"
         + (f", взял {c['who']}" if c.get("who") is not None else (", никто не взял" if c in dc else "")) + ")" for c in h.get("chores", [])))
     for p in h.get("projects", []):
-        left = [s["t"] for s in p.get("steps", []) if not s.get("done")]
+        left = [s["t"] + (" [взял " + str(s["who"]) + "]" if s.get("who") is not None else "") for s in p.get("steps", []) if not s.get("done")]
         if left:
-            lines.append(f"ПРОЕКТ {p['name']}: осталось " + "; ".join(left))
+            lines.append(f"ПРОЕКТ {p['name']}" + (f" (срок {p['due']})" if p.get("due") else "") + ": осталось " + "; ".join(left))
     if h.get("notes"):
-        lines.append("ПАМЯТЬ ДОМА (общая для всех участников): " + "; ".join(n["t"] for n in h["notes"]))
+        lines.append("ПРАВИЛА ДОМА (общие для всех участников): " + "; ".join(n["t"] for n in h["notes"]))
     return "\n".join(lines) or "Дом пока пустой."
 
 
