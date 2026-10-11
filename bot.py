@@ -1,33 +1,17 @@
 import asyncio
 import logging
-from typing import Any, Awaitable, Callable
-
-from aiogram import BaseMiddleware, Bot, Dispatcher
+from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import TelegramObject
 
 import database
 from aiogram.types import MenuButtonWebApp, WebAppInfo
 
 from config import TELEGRAM_BOT_TOKEN, TELEGRAM_USER_ID, WEBAPP_URL
-from handlers import commands, proof, text, voice
+from handlers import access, commands, proof, text, voice
 from webserver import start_web
 from services.scheduler import setup_scheduler
-
-
-class AllowedUserMiddleware(BaseMiddleware):
-    async def __call__(
-        self,
-        handler: Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]],
-        event: TelegramObject,
-        data: dict[str, Any],
-    ) -> Any:
-        user = data.get("event_from_user")
-        if user is None or user.id != TELEGRAM_USER_ID:
-            return None
-        return await handler(event, data)
 
 
 async def main() -> None:
@@ -41,8 +25,10 @@ async def main() -> None:
     )
     dispatcher = Dispatcher(storage=MemoryStorage())
 
-    dispatcher.message.middleware(AllowedUserMiddleware())
+    # закрытый бот: проверка на каждом обновлении (сообщения, правки, кнопки)
+    dispatcher.update.outer_middleware(access.AccessMiddleware())
 
+    dispatcher.include_router(access.router)
     dispatcher.include_router(commands.router)
     dispatcher.include_router(proof.router)
     dispatcher.include_router(voice.router)

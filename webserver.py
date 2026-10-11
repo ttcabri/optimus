@@ -6,6 +6,7 @@
 import hashlib
 import hmac
 import json
+import time
 import logging
 from pathlib import Path
 from urllib.parse import parse_qsl
@@ -42,9 +43,16 @@ def validate_init_data(init_data: str) -> int | None:
         return None
 
 
-def _auth(request: web.Request) -> int:
-    uid = validate_init_data(request.headers.get("X-Init-Data", ""))
-    if uid is None or uid != TELEGRAM_USER_ID:
+async def _auth(request: web.Request) -> int:
+    """Подпись Telegram, свежесть (не старше 7 дней) и доступ к боту: владелец или одобренный им."""
+    from handlers.access import allowed
+    init = request.headers.get("X-Init-Data", "")
+    uid = validate_init_data(init)
+    try:
+        fresh = time.time() - int(dict(parse_qsl(init)).get("auth_date", "0")) < 7 * 86400
+    except ValueError:
+        fresh = False
+    if uid is None or not fresh or not await allowed(uid):
         raise web.HTTPUnauthorized(text="unauthorized")
     return uid
 
@@ -54,12 +62,12 @@ async def index(request: web.Request) -> web.FileResponse:
 
 
 async def get_state(request: web.Request) -> web.Response:
-    uid = _auth(request)
+    uid = await _auth(request)
     return web.json_response({**await database.get_quest_state(uid), "_me": uid})
 
 
 async def post_state(request: web.Request) -> web.Response:
-    uid = _auth(request)
+    uid = await _auth(request)
     try:
         incoming = await request.json()
     except ValueError:
@@ -74,7 +82,7 @@ async def post_state(request: web.Request) -> web.Response:
 
 
 async def post_gifts(request: web.Request) -> web.Response:
-    uid = _auth(request)
+    uid = await _auth(request)
     try:
         body = await request.json()
     except ValueError:
@@ -95,7 +103,7 @@ async def post_gifts(request: web.Request) -> web.Response:
 
 async def post_cook(request: web.Request) -> web.Response:
     """Что приготовить из того, что есть дома."""
-    uid = _auth(request)
+    uid = await _auth(request)
     state = await database.get_quest_state(uid)
     from services import claude, house
     h = house.get(state, uid)

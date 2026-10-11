@@ -429,7 +429,7 @@ def merge_incoming(server: dict, incoming: dict) -> dict:
         from services import house as _house
         incoming["house"] = _house.merge(server.get("house"), incoming.get("house"))
     # то, что ведёт только бот: приложение это не меняет, берём с сервера
-    for k in ("notes", "temp", "theory", "settings", "home", "loc"):
+    for k in ("notes", "temp", "theory", "settings", "home", "loc", "insights"):
         if server.get(k) is not None:
             incoming[k] = server[k]
     if server.get("reminders") or incoming.get("reminders"):

@@ -13,7 +13,7 @@ DAYS = ["понедельник", "вторник", "среда", "четвер�
 
 def notify(state: dict) -> dict:
     """Какие уведомления присылать. Меняются в приложении: Я → Настройки."""
-    n = {"morning": True, "voice": True, "pora": True, "rest": True, "evening": True, "week": True}
+    n = {"morning": True, "voice": True, "pora": True, "rest": True, "evening": True, "week": True, "review": True}
     n.update({k: bool(v) for k, v in (state.get("notify") or {}).items() if k in n})
     return n
 

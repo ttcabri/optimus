@@ -824,7 +824,7 @@ function viewHist(){const k=key(),ks=Object.keys(state.days).filter(x=>x<=k&&day
     const lbl=x===k?"Сегодня":new Date(x+"T12:00:00").toLocaleDateString("ru-RU",{weekday:"short",day:"numeric",month:"long"});
     return `<div class="hday"><button type="button" data-hday="${x}" aria-expanded="${o}"><span class="nm"><b>${esc(lbl)}</b><br><small>${R.length?(cl?"всё главное закрыто":R.filter(r=>r.t).length+" из "+R.length+" главных"):""}${debtOf(x)?" · штрафной":""}</small></span><span class="rs${cl?" ok":""}">${cl?IC.check:""}</span></button>
       ${o?L.map(e=>`<div class="hev ${e.c}"><time>${esc(e.t)}</time><span>${esc(e.n)}</span><em>${e.m?durTxt(e.m):""}</em></div>`).join("")+(x<k?R.filter(r=>!r.t).map(r=>`<div class="hev skip"><time>✕</time><span>${esc(r.name)}</span><em>не сделано</em></div>`).join(""):""):""}</div>`}).join("")}
-const NOTIFY=[["morning","Утренняя сводка","план дня, дом, теория, после подъёма"],["voice","Сводка голосом","голосовое вместе с текстом"],["pora","«Пора» по делам","когда начинается дело из плана"],["rest","Отдых","отдых закончился, отдыха много"],["evening","Итог дня","в 22:30"],["week","Итог недели","воскресенье 21:00"]];
+const NOTIFY=[["morning","Утренняя сводка","план дня, дом, теория, после подъёма"],["voice","Сводка голосом","голосовое вместе с текстом"],["pora","«Пора» по делам","когда начинается дело из плана"],["rest","Отдых","отдых закончился, отдыха много"],["evening","Итог дня","в 22:30"],["week","Итог недели","воскресенье 21:00"],["review","Разбор недели","вс 20:30: что бот понял о тебе"]];
 const notifyOn=k=>((state.notify||{})[k])!==false;
 let rolesOpen=false,homeSeg="food",foodCat="fridge",cookIdeas=null,cookBusy=false,meSeg="goal";
 const WD=["Вс","Пн","Вт","Ср","Чт","Пт","Сб"],WD_ORDER=[1,2,3,4,5,6,0];
@@ -910,6 +910,7 @@ function viewMe(){
       <div class="list">${NOTIFY.map(([k,t,sub])=>`<div class="hrow"><span class="nm"><b>${t}</b><small>${sub}</small></span><button type="button" class="lvl${notifyOn(k)?"":" out"}" data-notify="${k}" aria-pressed="${notifyOn(k)}">${notifyOn(k)?"вкл":"выкл"}</button></div>`).join("")}</div>
       <div class="sec"><h3>Мои вкусы</h3><button type="button" data-prefs="1">изменить</button></div>
       <div class="card"><p class="empty">${state.prefs?esc([state.prefs.city,"до €"+state.prefs.budget,...(state.prefs.likes||[]),...(state.prefs.foods||[])].filter(Boolean).join(" · ")):"Не заполнено. Нужно, чтобы бот подбирал подарки."}</p></div>
+      ${((state.insights||{}).items||[]).length?`<div class="sec"><h3>Что бот понял</h3><span>${ddmm(state.insights.d)}</span></div><div class="list">${state.insights.items.map(n=>`<div class="hrow"><span class="nm"><b style="font-weight:600">${esc(n)}</b></span></div>`).join("")}</div>`:""}
       <div class="sec"><h3>Что бот помнит</h3><span>${notes.length}</span></div>
       <div class="list">${notes.map(n=>`<div class="hrow"><span class="nm"><b style="font-weight:600">${esc(n)}</b></span></div>`).join("")||'<p class="empty" style="padding:0 4px">Пока ничего.</p>'}
       ${temp.map(n=>`<div class="hrow"><span class="nm"><b style="font-weight:600">${esc(n.t)}</b><small>временно, до ${ddmm(n.until)}</small></span></div>`).join("")}</div>

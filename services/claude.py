@@ -80,6 +80,8 @@ async def build_context_block(telegram_id: int, state: dict, day: dict) -> str:
         + f"ОТВЕТЫ НА ГОЛОСОВЫЕ СЕЙЧАС: {MODE_NAMES[reply_mode(state)]}\n\n"
         + _where(state)
         + "ЧТО ТЫ ЗНАЕШЬ О НЁМ (постоянная память, номера для forget):\n" + ("\n".join(f"{i + 1}. {x}" for i, x in enumerate(notes)) or "пока ничего") + "\n"
+        + ("ЧТО ТЫ ПОНЯЛ О НЁМ ПО ФАКТАМ (разбор недели " + (state.get("insights") or {}).get("d", "") + "), учитывай в советах и плане:\n"
+           + "\n".join(f"- {x}" for x in (state.get("insights") or {}).get("items") or []) + "\n" if (state.get("insights") or {}).get("items") else "")
         + ("ВРЕМЕННОЕ (само забудется):\n" + "\n".join(f"- {x['t']} (до {x['until']})" for x in live_temp(state)) + "\n" if live_temp(state) else "")
         + "================\n"
     )
@@ -186,7 +188,10 @@ async def get_ai_response(telegram_id: int, user_message: str, voice: bool = Fal
         messages.append({"role": "assistant", "content": [b.model_dump() for b in response.content]})
         results = []
         for b in uses:
-            if b.name == "read_history":
+            if b.name == "weekly_review":
+                from services import review
+                res = await review.run(telegram_id) or "разбор не получился, попробуй позже"
+            elif b.name == "read_history":
                 from datetime import timedelta
                 n = max(1, min(int((b.input or {}).get("days") or 7), 60))
                 since = (quest.now() - timedelta(days=n - 1)).strftime("%Y-%m-%d")

@@ -163,6 +163,15 @@ async def send_quest_week(bot: Bot) -> None:
         logger.error(f"Quest week error: {e}")
 
 
+async def send_review(bot: Bot) -> None:
+    """Воскресенье 20:30: разбор недели, бот записывает, что понял."""
+    try:
+        from services import review
+        await review.send(bot, TELEGRAM_USER_ID)
+    except Exception as e:
+        logger.error(f"Review error: {e}")
+
+
 def setup_scheduler(bot: Bot) -> AsyncIOScheduler:
     tz = pytz.timezone(TIMEZONE)
     scheduler = AsyncIOScheduler(timezone=tz)
@@ -172,5 +181,6 @@ def setup_scheduler(bot: Bot) -> AsyncIOScheduler:
     scheduler.add_job(send_reminders, "cron", minute="*", kwargs={"bot": bot})
     scheduler.add_job(send_quest_night, "cron", hour=22, minute=30, kwargs={"bot": bot})
     scheduler.add_job(send_quest_week, "cron", day_of_week="sun", hour=21, minute=0, kwargs={"bot": bot})
+    scheduler.add_job(send_review, "cron", day_of_week="sun", hour=20, minute=30, kwargs={"bot": bot})
 
     return scheduler

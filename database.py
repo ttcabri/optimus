@@ -65,6 +65,13 @@ CREATE TABLE IF NOT EXISTS quest_log (
     UNIQUE (telegram_id, day, t, ev, task)
 );
 
+CREATE TABLE IF NOT EXISTS bot_access (
+    telegram_id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'wait',
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS households (
     id TEXT PRIMARY KEY,
     data TEXT,
@@ -422,6 +429,30 @@ async def _log_events(db, telegram_id: int, state: dict) -> None:
             rows.append((telegram_id, k, t, kind, q or "", name, m))
     if rows:
         await db.executemany("INSERT OR IGNORE INTO quest_log (telegram_id, day, t, ev, task, name, min) VALUES (?, ?, ?, ?, ?, ?, ?)", rows)
+
+
+# --- доступ к боту: владелец всегда, остальные только после одобрения владельцем ---
+
+async def access_status(telegram_id: int) -> str | None:
+    """ok, wait, no или None (ещё не просился)."""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        cur = await db.execute("SELECT status FROM bot_access WHERE telegram_id = ?", (telegram_id,))
+        row = await cur.fetchone()
+        return row[0] if row else None
+
+
+async def set_access(telegram_id: int, status: str, name: str | None = None) -> None:
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute("INSERT INTO bot_access (telegram_id, name, status) VALUES (?, ?, ?) "
+                         "ON CONFLICT(telegram_id) DO UPDATE SET status = excluded.status, name = COALESCE(NULLIF(?, ''), bot_access.name)",
+                         (telegram_id, name or "", status, name or ""))
+        await db.commit()
+
+
+async def access_list() -> list[tuple]:
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        cur = await db.execute("SELECT telegram_id, name, status FROM bot_access ORDER BY created_at")
+        return await cur.fetchall()
 
 
 async def get_log(telegram_id: int, since: str) -> list[tuple]:
