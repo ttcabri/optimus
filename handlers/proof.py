@@ -142,6 +142,31 @@ async def add_tomorrow(message: Message) -> None:
         await message.answer("🗓 На завтра, кроме основы:\n" + "\n".join(f"• {a}" for a in added) + "\n\nУтром будут в очереди.")
 
 
+async def _save_loc(message: Message) -> dict:
+    import time as _t
+    loc = message.location
+    state = await database.get_quest_state(message.from_user.id)
+    state["loc"] = {"lat": loc.latitude, "lon": loc.longitude, "t": int(_t.time()), "live": bool(loc.live_period)}
+    await database.save_quest_state(message.from_user.id, state)
+    return state
+
+
+@router.message(F.location)
+async def got_location(message: Message) -> None:
+    state = await _save_loc(message)
+    text = "📍 Вижу, где ты. Дорогу теперь считаю отсюда."
+    if message.location.live_period:
+        text = "📍 Вижу тебя в реальном времени, пока идёт трансляция. Дорогу считаю от того места, где ты сейчас."
+    if not (state.get("home") or {}).get("lat"):
+        text += "\nЕсли ты сейчас дома, напиши «я дома, запомни», и я сохраню это как дом."
+    await message.answer(text)
+
+
+@router.edited_message(F.location)
+async def live_location(message: Message) -> None:
+    await _save_loc(message)  # обновления трансляции: молча
+
+
 @router.message(F.photo)
 async def proof_photo(message: Message, bot: Bot) -> None:
     photo = message.photo[-1]

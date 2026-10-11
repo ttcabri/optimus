@@ -60,6 +60,12 @@ TOOLS = [
     {"name": "web_lookup",
      "description": "Поиск в интернете: часы работы магазина, адрес, цена, расписание, любой свежий факт. Используй, когда для решения нужен факт из мира (например, до скольки работает Kruidvat в Дронтене).",
      "input_schema": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}},
+    {"name": "travel_time",
+     "description": "Сколько ехать или идти до места по реальному маршруту (OpenStreetMap). to: место или адрес («Kruidvat Dronten», «Albert Heijn De Rede»). from: пусто = откуда он сейчас (свежая геолокация, иначе дом), home = от дома, или адрес. mode: car (по умолчанию, он ездит на машине), bike, foot. Используй всегда, когда планируешь поездку, вместо догадок.",
+     "input_schema": {"type": "object", "properties": {"to": {"type": "string"}, "from": {"type": "string"}, "mode": {"type": "string", "enum": ["car", "bike", "foot"]}}, "required": ["to"]}},
+    {"name": "set_home",
+     "description": "Запомнить домашний адрес для расчёта дороги. Вызывай, когда он называет, где живёт, или переезжает. Если он говорит «я дома» и есть свежая геолокация, передай address=here.",
+     "input_schema": {"type": "object", "properties": {"address": {"type": "string"}}, "required": ["address"]}},
     {"name": "take_reward", "description": "Отметить, что Андрей взял награду дня. Только если он прямо сказал, что взял.",
      "input_schema": {"type": "object", "properties": {}}},
 ]

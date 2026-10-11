@@ -44,6 +44,18 @@ def reply_mode(state: dict) -> str:
     return "text" if st.get("voice") is False else "both"
 
 
+def _where(state: dict) -> str:
+    import time as _t
+    home, loc = state.get("home") or {}, state.get("loc") or {}
+    out = "ГДЕ ОН: "
+    if loc.get("lat") and _t.time() - loc.get("t", 0) < 7200:
+        out += f"геолокация {int((_t.time() - loc['t']) / 60)} мин назад ({loc['lat']:.4f}, {loc['lon']:.4f})" + (", живая" if loc.get("live") else "")
+    else:
+        out += "свежей геолокации нет"
+    out += f"; дом: {home['address']}" if home.get("address") else "; адрес дома не сохранён"
+    return out + "\n\n"
+
+
 async def build_context_block(telegram_id: int, state: dict, day: dict) -> str:
     from services import actions, quest, theory
     n = quest.now()
@@ -59,6 +71,7 @@ async def build_context_block(telegram_id: int, state: dict, day: dict) -> str:
         + (f"ВЕС: {body[-1]['kg']} кг ({body[-1]['d']})" + (f", цель {goals['goalKg']} кг" if goals.get("goalKg") else "") + "\n" if body else "")
         + f"\nТЕОРИЯ CBR:\n{theory.context(state)}\n\n"
         + f"ОТВЕТЫ НА ГОЛОСОВЫЕ СЕЙЧАС: {MODE_NAMES[reply_mode(state)]}\n\n"
+        + _where(state)
         + "ЧТО ТЫ ЗНАЕШЬ О НЁМ (память):\n" + ("\n".join(f"{i + 1}. {x}" for i, x in enumerate(notes)) or "пока ничего") + "\n"
         "================\n"
     )
@@ -159,6 +172,25 @@ async def get_ai_response(telegram_id: int, user_message: str, voice: bool = Fal
             if b.name == "web_lookup":
                 from services import websearch
                 res = await websearch.look_up(str((b.input or {}).get("query", "")))
+            elif b.name == "travel_time":
+                from services import geo
+                i = b.input or {}
+                res = await geo.travel(state, str(i.get("to", "")), str(i.get("from", "") or ""), str(i.get("mode", "car") or "car"))
+            elif b.name == "set_home":
+                from services import geo
+                addr = str((b.input or {}).get("address", ""))[:120]
+                loc = state.get("loc") or {}
+                if addr.lower() in ("here", "сейчас", "тут", "здесь", "геолокация") and loc.get("lat"):
+                    g = {"lat": loc["lat"], "lon": loc["lon"], "name": "точка с геолокации"}
+                    addr = "по геолокации"
+                else:
+                    g = await geo.geocode(addr if "," in addr or "dronten" in addr.lower() else addr + ", Dronten")
+                if g:
+                    state["home"] = {"address": addr, "lat": g["lat"], "lon": g["lon"]}
+                    res = f"дом сохранён: {g['name']}"
+                    changed = acted = True
+                else:
+                    res = "не нашёл адрес на карте, уточни"
             else:
                 res = _run_tool(state, b.name, b.input or {})
                 changed = acted = True
