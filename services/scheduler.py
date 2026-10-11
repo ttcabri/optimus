@@ -27,6 +27,13 @@ HINTS = {
 _sent: set[str] = set()
 
 
+def _has_reminder(day: dict, start_min: int) -> bool:
+    """На это время уже стоит напоминание от помощника: «Пора» не дублируем."""
+    today = quest.today_key()
+    return any(r.get("d") == today and abs(quest.to_min(r.get("at", "00:00")) - start_min) <= 20
+               for r in day.get("_reminders") or [])
+
+
 def quest_messages(day: dict, now_min: int, today: str, wd: int) -> list[str]:
     """Что сказать сейчас по живому плану. Каждое сообщение один раз за день."""
     out = []
@@ -57,7 +64,8 @@ def quest_messages(day: dict, now_min: int, today: str, wd: int) -> list[str]:
     first = next((it for it in p["items"] if not it.get("game")), None)
     if first and first.get("started") and first.get("late", 0) >= 10:
         once(f"late:{first['id']}", f"⏱ «{first['name']}» идёт на {first['late']} мин дольше плана. Закрывай или режь лишнее, иначе вечер уедет.")
-    elif first and not first.get("started") and not first.get("minor") and first["start"] <= now_min + 2:
+    elif first and not first.get("started") and not first.get("minor") and first["start"] <= now_min + 2 \
+            and not _has_reminder(day, first["start"]):
         hint = HINTS.get(first["id"], "")
         if first["id"] == "cbr":
             from services import theory

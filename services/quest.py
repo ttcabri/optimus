@@ -229,6 +229,7 @@ async def get_day(telegram_id: int) -> dict:
     day["_profile"] = state.get("profile")
     day["_theory_i"] = (state.get("theory") or {}).get("i", 0)
     day["_learn"] = learned(state)
+    day["_reminders"] = state.get("reminders") or []
     return day
 
 

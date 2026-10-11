@@ -104,13 +104,14 @@ def _run_tool(state: dict, name: str, args: dict) -> str:
             state["notes"] = ((state.get("notes") or []) + [fact])[-40:]
         return "сохранено навсегда"
     if name == "forget":
+        # номера как в контексте: удаляем пометкой, сжимаем в конце хода, чтобы несколько forget подряд не сбивали номера
         notes = state.get("notes") or []
         k = int(args.get("n", 0)) - 1
-        if 0 <= k < len(notes):
-            notes.pop(k)
+        if 0 <= k < len(notes) and notes[k]:
+            notes[k] = ""
             state["notes"] = notes
             return "удалено"
-        return "нет такого номера"
+        return "нет такого номера или уже удалено"
     if name == "set_reply_mode":
         mode = args.get("mode")
         if mode not in ("text", "voice", "both"):
@@ -214,6 +215,8 @@ async def get_ai_response(telegram_id: int, user_message: str, voice: bool = Fal
             results.append({"type": "tool_result", "tool_use_id": b.id, "content": res})
         messages.append({"role": "user", "content": results})
 
+    if state.get("notes"):
+        state["notes"] = [x for x in state["notes"] if x]
     if changed:
         # пока модель думала, приложение могло что-то сохранить: сливаем, а не затираем
         fresh = await database.get_quest_state(telegram_id)
