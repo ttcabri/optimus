@@ -7,15 +7,23 @@ from config import ANTHROPIC_API_KEY
 
 logger = logging.getLogger(__name__)
 API_URL = "https://api.anthropic.com/v1/messages"
-MODELS = ["claude-haiku-4-5", "claude-sonnet-4-5"]
+MODELS = ["claude-sonnet-4-5", "claude-haiku-4-5"]
 
 
 async def look_up(query: str) -> str:
     headers = {"x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json"}
-    prompt = ("Найди в интернете и ответь коротко по-русски, 1-4 предложения, только факты. "
-              "Человек живёт в Дронтене (Нидерланды), если место не указано, ищи там. "
-              "Для магазинов: часы работы на сегодня и адрес. Если не нашёл точно, так и скажи.\n\nВопрос: " + query[:300])
-    body = {"max_tokens": 600, "tools": [{"type": "web_search_20250305", "name": "web_search", "max_uses": 3}],
+    from services import quest
+    n = quest.now()
+    days = ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"]
+    prompt = (f"Сегодня {days[n.weekday()]} {n.strftime('%d.%m.%Y')}, сейчас {n.strftime('%H:%M')}. "
+              "Найди в интернете и ответь по-русски, коротко, только факты. "
+              "Человек живёт в Дронтене (Нидерланды); если город не указан, ищи там. "
+              "Для магазина или сервиса: часы работы ИМЕННО СЕГОДНЯ и адрес. Ищи по-нидерландски "
+              "(например «Kruidvat Dronten openingstijden»), в первую очередь официальный сайт сети (страница филиала), "
+              "потом Google Maps, openingstijden.nl и подобные. Если источники расходятся, назови самый надёжный "
+              "(официальный сайт) и укажи источник. Не отказывайся: дай лучший найденный ответ и пометку, насколько он точный.\n\n"
+              "Вопрос: " + query[:300])
+    body = {"max_tokens": 800, "tools": [{"type": "web_search_20250305", "name": "web_search", "max_uses": 5}],
             "messages": [{"role": "user", "content": prompt}]}
     async with httpx.AsyncClient(timeout=90) as client:
         for model in MODELS:

@@ -1,3 +1,6 @@
+import asyncio
+import json
+import logging
 import os
 import re
 
@@ -8,9 +11,10 @@ from config import ANTHROPIC_API_KEY
 from prompts.system import SYSTEM_PROMPT
 
 client = AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
+logger = logging.getLogger(__name__)
 
 
-CHAT_MODEL = os.getenv("CHAT_MODEL", "claude-haiku-4-5")
+CHAT_MODEL = os.getenv("CHAT_MODEL", "claude-sonnet-4-5")
 # старые сообщения «ментора по Upwork» в историю не берём
 CHAT_SINCE = "2026-10-11 08:58:00"
 
@@ -55,7 +59,7 @@ async def build_context_block(telegram_id: int, state: dict, day: dict) -> str:
         + (f"ВЕС: {body[-1]['kg']} кг ({body[-1]['d']})" + (f", цель {goals['goalKg']} кг" if goals.get("goalKg") else "") + "\n" if body else "")
         + f"\nТЕОРИЯ CBR:\n{theory.context(state)}\n\n"
         + f"ОТВЕТЫ НА ГОЛОСОВЫЕ СЕЙЧАС: {MODE_NAMES[reply_mode(state)]}\n\n"
-        + "ЧТО ТЫ ЗАПОМНИЛ РАНЬШЕ:\n" + ("\n".join(f"{i + 1}. {x}" for i, x in enumerate(notes)) or "пока ничего") + "\n"
+        + "ЧТО ТЫ ЗНАЕШЬ О НЁМ (память):\n" + ("\n".join(f"{i + 1}. {x}" for i, x in enumerate(notes)) or "пока ничего") + "\n"
         "================\n"
     )
 
@@ -94,12 +98,28 @@ def _actions_tools() -> list:
     return actions.TOOLS
 
 
+CLAIM_RE = re.compile(r"(?i)\b(добавил|поставил|записал|запомнил|сохранил|удалил|убрал|перенёс|перенес|отметил|напомню|изменил|сдвинул)\b")
+FALLBACK_MODEL = "claude-haiku-4-5"
+
+
+async def _create(**kw):
+    try:
+        return await client.messages.create(model=CHAT_MODEL, **kw)
+    except Exception as e:
+        logger.error(f"chat model {CHAT_MODEL} failed: {e}; fallback")
+        return await client.messages.create(model=FALLBACK_MODEL, **kw)
+
+
 async def get_ai_response(telegram_id: int, user_message: str, voice: bool = False) -> str:
     """Свободный диалог: Claude с контекстом дня, памятью и инструментами."""
     from services import quest
     day = await quest.get_day(telegram_id)
     state = await database.get_quest_state(telegram_id)
-    system = await build_context_block(telegram_id, state, day) + "\n" + SYSTEM_PROMPT
+    # постоянная часть кэшируется (дешевле), контекст дня идёт после неё
+    system = [{"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}},
+              {"type": "text", "text": await build_context_block(telegram_id, state, day)}]
+    tools = TOOLS + _actions_tools()
+    tools = tools[:-1] + [dict(tools[-1], cache_control={"type": "ephemeral"})]
 
     history = await database.get_recent_messages(telegram_id, limit=24, since=CHAT_SINCE)
     messages = []
@@ -117,14 +137,21 @@ async def get_ai_response(telegram_id: int, user_message: str, voice: bool = Fal
         messages.append({"role": "user", "content": text_in})
 
     changed = False
+    acted = False   # был ли хоть один инструмент, который что-то меняет
+    checked = False
     reply = ""
-    for _ in range(6):
-        response = await client.messages.create(
-            model=CHAT_MODEL, max_tokens=1200, system=system, messages=messages, tools=TOOLS + _actions_tools(),
-        )
+    for _ in range(8):
+        response = await _create(max_tokens=1200, system=system, messages=messages, tools=tools)
         reply = "".join(b.text for b in response.content if b.type == "text").strip()
         uses = [b for b in response.content if b.type == "tool_use"]
         if response.stop_reason != "tool_use" or not uses:
+            # сказал «сделал», а инструмент не вызывал: один раз заставляем сделать по-честному
+            if not acted and not checked and CLAIM_RE.search(reply):
+                checked = True
+                logger.warning(f"claim without tool: {reply[:120]!r}")
+                messages.append({"role": "assistant", "content": reply or "..."})
+                messages.append({"role": "user", "content": "[проверка бота] Ты написал, что сделал действие, но не вызвал ни одного инструмента, поэтому ничего не сохранилось. Сделай это сейчас нужным инструментом. Если сделать нельзя, честно напиши, что не сделал и почему. Пользователю ответь заново, без упоминания этой проверки."})
+                continue
             break
         messages.append({"role": "assistant", "content": [b.model_dump() for b in response.content]})
         results = []
@@ -134,7 +161,8 @@ async def get_ai_response(telegram_id: int, user_message: str, voice: bool = Fal
                 res = await websearch.look_up(str((b.input or {}).get("query", "")))
             else:
                 res = _run_tool(state, b.name, b.input or {})
-                changed = True
+                changed = acted = True
+            logger.info(f"tool {b.name} {json.dumps(b.input, ensure_ascii=False)[:200]} -> {str(res)[:200]}")
             results.append({"type": "tool_result", "tool_use_id": b.id, "content": res})
         messages.append({"role": "user", "content": results})
 
@@ -142,10 +170,57 @@ async def get_ai_response(telegram_id: int, user_message: str, voice: bool = Fal
         # пока модель думала, приложение могло что-то сохранить: сливаем, а не затираем
         fresh = await database.get_quest_state(telegram_id)
         await database.save_quest_state(telegram_id, quest.merge_incoming(fresh, state))
-    reply = reply or "Записал."
+    reply = reply or "Готово."
     await database.add_message(telegram_id, "user", text_in)
     await database.add_message(telegram_id, "assistant", reply)
+    asyncio.create_task(learn_facts(telegram_id, user_message, reply))
     return reply
+
+
+FACTS_PROMPT = """Ты ведёшь память о человеке (Андрей). Вот что уже записано:
+{notes}
+
+Новый обмен сообщениями:
+Андрей: {user}
+Помощник: {reply}
+
+Вытащи из слов АНДРЕЯ новые долгие факты о нём, которых ещё нет в памяти: где живёт (адрес, район), машина, сколько ехать или идти до мест, режим, привычки, предпочтения, люди, планы и решения, важные даты, что он купил или сделал важного. Только то, что он сам сказал. Не дублируй уже записанное. Если факт обновляет старый, напиши новую версию и в "replace" номер старого.
+Ответь ТОЛЬКО JSON: {{"add": ["короткий факт", ...], "replace": {{"номер": "новая версия"}}}}. Если нечего, {{"add": [], "replace": {{}}}}."""
+
+
+async def learn_facts(telegram_id: int, user: str, reply: str) -> None:
+    """После каждого сообщения дешёвая модель сама дописывает в память важное о нём."""
+    try:
+        if len(user.strip()) < 12:
+            return
+        st = await database.get_quest_state(telegram_id)
+        notes = list(st.get("notes") or [])
+        r = await client.messages.create(
+            model=FALLBACK_MODEL, max_tokens=400,
+            messages=[{"role": "user", "content": FACTS_PROMPT.format(
+                notes="\n".join(f"{i + 1}. {x}" for i, x in enumerate(notes)) or "пусто",
+                user=user[:1500], reply=reply[:800])}])
+        text = "".join(b.text for b in r.content if b.type == "text")
+        m = re.search(r"\{.*\}", text, re.S)
+        data = json.loads(m.group(0)) if m else {}
+        changed = False
+        for k, v in (data.get("replace") or {}).items():
+            i = int(k) - 1
+            if 0 <= i < len(notes) and str(v).strip():
+                notes[i] = str(v).strip()[:200]
+                changed = True
+        for f in data.get("add") or []:
+            f = str(f).strip()[:200]
+            if f and f not in notes:
+                notes.append(f)
+                changed = True
+        if changed:
+            fresh = await database.get_quest_state(telegram_id)
+            fresh["notes"] = notes[-80:]
+            await database.save_quest_state(telegram_id, fresh)
+            logger.info(f"memory: {data}")
+    except Exception as e:
+        logger.error(f"learn_facts error: {e}")
 
 
 PROOF_PROMPT = """Ты проверяешь пруф выполнения задачи для Андрея. Он прислал фото.
