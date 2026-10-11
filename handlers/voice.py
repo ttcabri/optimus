@@ -13,9 +13,8 @@ router = Router()
 logger = logging.getLogger(__name__)
 
 
-async def voice_replies_on(telegram_id: int) -> bool:
-    state = await database.get_quest_state(telegram_id)
-    return (state.get("settings") or {}).get("voice", True)
+async def reply_mode(telegram_id: int) -> str:
+    return claude.reply_mode(await database.get_quest_state(telegram_id))
 
 
 @router.message(F.voice)
@@ -40,7 +39,9 @@ async def handle_voice(message: Message, bot: Bot) -> None:
         logger.error(f"Voice chat error: {e}")
         await message.answer("Не получилось ответить, попробуй ещё раз через минуту.")
         return
-    audio = await tts.speak(reply) if await voice_replies_on(message.from_user.id) else None
+    mode = await reply_mode(message.from_user.id)  # читаем после ответа: режим мог смениться этим же голосовым
+    audio = await tts.speak(reply) if mode in ("voice", "both") else None
     if audio:
         await message.answer_voice(BufferedInputFile(audio, "reply.ogg"))
-    await message.answer(f"<i>🎙 {html.escape(text[:300])}</i>\n\n{html.escape(reply)}")
+    if mode != "voice" or not audio:
+        await message.answer(f"<i>🎙 {html.escape(text[:300])}</i>\n\n{html.escape(reply)}")

@@ -19,9 +19,9 @@ VOICE_TOGGLE = r"(?i)^\s*голосом\s+(вкл|выкл|on|off)\s*$"
 async def toggle_voice(message: Message) -> None:
     on = re.match(VOICE_TOGGLE, message.text).group(1).lower() in ("вкл", "on")
     state = await database.get_quest_state(message.from_user.id)
-    state["settings"] = dict(state.get("settings") or {}, voice=on)
+    state["settings"] = dict(state.get("settings") or {}, reply="both" if on else "text")
     await database.save_quest_state(message.from_user.id, state)
-    await message.answer("На голосовые буду отвечать голосом." if on else "На голосовые отвечаю только текстом.")
+    await message.answer("На голосовые отвечаю голосом и текстом." if on else "На голосовые отвечаю только текстом.")
 
 
 @router.message(F.text)

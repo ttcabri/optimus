@@ -21,10 +21,23 @@ TOOLS = [
     {"name": "forget",
      "description": "Удалить сохранённый факт, если он устарел или Андрей просит забыть. Передай номер факта из списка.",
      "input_schema": {"type": "object", "properties": {"n": {"type": "integer"}}, "required": ["n"]}},
+    {"name": "set_reply_mode",
+     "description": "Как отвечать на голосовые Андрея: text = только текстом, voice = только голосом, both = голосом и текстом. Вызывай ВСЕГДА, когда он просит включить, выключить или поменять голосовые ответы, в любой формулировке. Не говори, что поменял, если не вызвал.",
+     "input_schema": {"type": "object", "properties": {"mode": {"type": "string", "enum": ["text", "voice", "both"]}}, "required": ["mode"]}},
     {"name": "set_theory_topic",
      "description": "Перейти на тему теории CBR по номеру из плана (1–8 темы, 9 = полные пробные экзамены).",
      "input_schema": {"type": "object", "properties": {"n": {"type": "integer"}}, "required": ["n"]}},
 ]
+
+
+MODE_NAMES = {"text": "только текстом", "voice": "только голосом", "both": "голосом и текстом"}
+
+
+def reply_mode(state: dict) -> str:
+    st = state.get("settings") or {}
+    if st.get("reply") in MODE_NAMES:
+        return st["reply"]
+    return "text" if st.get("voice") is False else "both"
 
 
 async def build_context_block(telegram_id: int, state: dict, day: dict) -> str:
@@ -40,6 +53,7 @@ async def build_context_block(telegram_id: int, state: dict, day: dict) -> str:
         f"КАНАЛ: подписчиков {goals.get('subs', 0)}, лучшее видео {goals.get('maxViews', 0)} просмотров\n"
         + (f"ВЕС: {body[-1]['kg']} кг ({body[-1]['d']})" + (f", цель {goals['goalKg']} кг" if goals.get("goalKg") else "") + "\n" if body else "")
         + f"\nТЕОРИЯ CBR:\n{theory.context(state)}\n\n"
+        + f"ОТВЕТЫ НА ГОЛОСОВЫЕ СЕЙЧАС: {MODE_NAMES[reply_mode(state)]}\n\n"
         + "ЧТО ТЫ ЗАПОМНИЛ РАНЬШЕ:\n" + ("\n".join(f"{i + 1}. {x}" for i, x in enumerate(notes)) or "пока ничего") + "\n"
         "================\n"
     )
@@ -60,6 +74,12 @@ def _run_tool(state: dict, name: str, args: dict) -> str:
             state["notes"] = notes
             return "удалено"
         return "нет такого номера"
+    if name == "set_reply_mode":
+        mode = args.get("mode")
+        if mode not in ("text", "voice", "both"):
+            return "неизвестный режим"
+        state["settings"] = dict(state.get("settings") or {}, reply=mode)
+        return {"text": "теперь только текст", "voice": "теперь только голос", "both": "теперь голос и текст"}[mode]
     if name == "set_theory_topic":
         return "теперь: " + theory.set_topic(state, int(args.get("n", 1)) - 1)
     return "неизвестный инструмент"
@@ -106,7 +126,7 @@ async def get_ai_response(telegram_id: int, user_message: str, voice: bool = Fal
 
     if changed:
         fresh = await database.get_quest_state(telegram_id)
-        for k in ("notes", "theory"):
+        for k in ("notes", "theory", "settings"):
             if k in state:
                 fresh[k] = state[k]
         await database.save_quest_state(telegram_id, fresh)
