@@ -318,7 +318,7 @@ def merge_incoming(server: dict, incoming: dict) -> dict:
     have_l = {(x.get("d"), x.get("ex"), x.get("kg"), x.get("reps")) for x in incoming["lifts"]}
     incoming["lifts"] += [x for x in server.get("lifts", []) if (x.get("d"), x.get("ex"), x.get("kg"), x.get("reps")) not in have_l]
     # то, что ведёт только бот: приложение это не меняет, берём с сервера
-    for k in ("notes", "theory", "settings", "home", "loc"):
+    for k in ("notes", "temp", "theory", "settings", "home", "loc"):
         if server.get(k) is not None:
             incoming[k] = server[k]
     if server.get("reminders") or incoming.get("reminders"):

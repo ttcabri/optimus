@@ -84,6 +84,8 @@ async def travel(state: dict, to: str, frm: str = "", mode: str = "car") -> str:
         home = state.get("home") or {}
         if home.get("lat"):
             o, label = (home["lat"], home["lon"]), f"от дома ({home.get('address', '')})"
+        elif o:
+            label += ". Адрес дома не сохранён, поэтому считал не от дома: спроси адрес и вызови set_home"
     if not o:
         return "не знаю, откуда считать: нет адреса дома и свежей геолокации. Попроси скинуть геолокацию (скрепка → Геопозиция) или назвать адрес."
     dest = await geocode(to, near=o)

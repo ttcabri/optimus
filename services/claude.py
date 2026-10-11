@@ -1,4 +1,5 @@
 import asyncio
+from datetime import timedelta
 import json
 import logging
 import os
@@ -20,8 +21,8 @@ CHAT_SINCE = "2026-10-11 08:58:00"
 
 TOOLS = [
     {"name": "remember",
-     "description": "Сохранить важный долгий факт об Андрее (решение, цель, изменение в жизни, договорённость). Не для мелочей.",
-     "input_schema": {"type": "object", "properties": {"fact": {"type": "string"}}, "required": ["fact"]}},
+     "description": "Сохранить факт об Андрее. Постоянный (адрес, машина, привычки, цели, решения): без days. Временный (нужен пару дней, пока дело не сделано): days = через сколько дней забыть (1–14). Разовые дела не сюда, а в план.",
+     "input_schema": {"type": "object", "properties": {"fact": {"type": "string"}, "days": {"type": "integer"}}, "required": ["fact"]}},
     {"name": "forget",
      "description": "Удалить сохранённый факт, если он устарел или Андрей просит забыть. Передай номер факта из списка.",
      "input_schema": {"type": "object", "properties": {"n": {"type": "integer"}}, "required": ["n"]}},
@@ -42,6 +43,12 @@ def reply_mode(state: dict) -> str:
     if st.get("reply") in MODE_NAMES:
         return st["reply"]
     return "text" if st.get("voice") is False else "both"
+
+
+def live_temp(state: dict) -> list:
+    from services import quest
+    today = quest.today_key()
+    return [x for x in state.get("temp") or [] if x.get("until", "") >= today]
 
 
 def _where(state: dict) -> str:
@@ -72,8 +79,9 @@ async def build_context_block(telegram_id: int, state: dict, day: dict) -> str:
         + f"\nТЕОРИЯ CBR:\n{theory.context(state)}\n\n"
         + f"ОТВЕТЫ НА ГОЛОСОВЫЕ СЕЙЧАС: {MODE_NAMES[reply_mode(state)]}\n\n"
         + _where(state)
-        + "ЧТО ТЫ ЗНАЕШЬ О НЁМ (память):\n" + ("\n".join(f"{i + 1}. {x}" for i, x in enumerate(notes)) or "пока ничего") + "\n"
-        "================\n"
+        + "ЧТО ТЫ ЗНАЕШЬ О НЁМ (постоянная память, номера для forget):\n" + ("\n".join(f"{i + 1}. {x}" for i, x in enumerate(notes)) or "пока ничего") + "\n"
+        + ("ВРЕМЕННОЕ (само забудется):\n" + "\n".join(f"- {x['t']} (до {x['until']})" for x in live_temp(state)) + "\n" if live_temp(state) else "")
+        + "================\n"
     )
 
 
@@ -84,9 +92,17 @@ def _run_tool(state: dict, name: str, args: dict) -> str:
         return res
     if name == "remember":
         fact = str(args.get("fact", "")).strip()[:200]
-        if fact:
+        if not fact:
+            return "пусто"
+        days = int(args.get("days") or 0)
+        if days > 0:
+            from services import quest
+            until = (quest.now() + timedelta(days=min(days, 14))).strftime("%Y-%m-%d")
+            state["temp"] = (live_temp(state) + [{"t": fact, "until": until}])[-20:]
+            return f"сохранено до {until}"
+        if fact not in (state.get("notes") or []):
             state["notes"] = ((state.get("notes") or []) + [fact])[-40:]
-        return "сохранено"
+        return "сохранено навсегда"
     if name == "forget":
         notes = state.get("notes") or []
         k = int(args.get("n", 0)) - 1
