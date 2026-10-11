@@ -322,8 +322,9 @@ def chores_for_plan(state: dict, uid=None) -> list[dict]:
     mine = (lambda w: house.is_me(w, uid) or (solo and str(w) == "me"))
     today = today_key()
     done = set((state.get("days", {}).get(today) or {}).get("done", []))
+    # взял на себя = дело в плане, даже если срок ещё не подошёл
     out = [{"id": "ch_" + c["id"], "name": c["name"], "dur": int(c.get("dur") or 20)}
-           for c in h.get("chores", []) if (house.chore_due(c, today) and mine(c.get("who"))) or (c.get("last") == today and "ch_" + c["id"] in done)]
+           for c in h.get("chores", []) if mine(c.get("who")) or (c.get("last") == today and "ch_" + c["id"] in done)]
     buys = [x for _, x in house.my_buys(h, uid)]
     if buys or "buy" in done:
         out.append({"id": "buy", "name": "Купить: " + ", ".join(x["name"] for x in buys) if buys else "Покупки",
@@ -429,9 +430,12 @@ def merge_incoming(server: dict, incoming: dict) -> dict:
         from services import house as _house
         incoming["house"] = _house.merge(server.get("house"), incoming.get("house"))
     # то, что ведёт только бот: приложение это не меняет, берём с сервера
-    for k in ("notes", "temp", "theory", "settings", "home", "loc", "insights"):
+    for k in ("notes", "temp", "theory", "home", "loc", "insights"):
         if server.get(k) is not None:
             incoming[k] = server[k]
+    ss, si = server.get("settings") or {}, incoming.get("settings") or {}
+    if ss and not si.get("u", 0) > ss.get("u", 0):  # режим голоса: приложение меняет только поверх более старого
+        incoming["settings"] = ss
     if server.get("reminders") or incoming.get("reminders"):
         byid = {r.get("id"): r for r in incoming.get("reminders") or []}
         for r in server.get("reminders") or []:

@@ -1,3 +1,4 @@
+import time
 import html
 import logging
 import re
@@ -19,7 +20,7 @@ VOICE_TOGGLE = r"(?i)^\s*голосом\s+(вкл|выкл|on|off)\s*$"
 async def toggle_voice(message: Message) -> None:
     on = re.match(VOICE_TOGGLE, message.text).group(1).lower() in ("вкл", "on")
     state = await database.get_quest_state(message.from_user.id)
-    state["settings"] = dict(state.get("settings") or {}, reply="both" if on else "text")
+    state["settings"] = dict(state.get("settings") or {}, reply="both" if on else "text", u=int(time.time() * 1000))
     await database.save_quest_state(message.from_user.id, state)
     await message.answer("На голосовые отвечаю голосом и текстом." if on else "На голосовые отвечаю только текстом.")
 

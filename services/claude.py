@@ -1,3 +1,4 @@
+import time
 import asyncio
 from datetime import timedelta
 import json
@@ -118,7 +119,7 @@ def _run_tool(state: dict, name: str, args: dict) -> str:
         mode = args.get("mode")
         if mode not in ("text", "voice", "both"):
             return "неизвестный режим"
-        state["settings"] = dict(state.get("settings") or {}, reply=mode)
+        state["settings"] = dict(state.get("settings") or {}, reply=mode, u=int(time.time() * 1000))
         return {"text": "теперь только текст", "voice": "теперь только голос", "both": "теперь голос и текст"}[mode]
     if name == "set_theory_topic":
         return "теперь: " + theory.set_topic(state, int(args.get("n", 1)) - 1)

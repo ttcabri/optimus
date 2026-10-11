@@ -93,13 +93,27 @@ button{cursor:pointer}
 .now.free .ghost{border-color:var(--line2);color:var(--fg)}
 
 
-.sec{display:flex;justify-content:space-between;align-items:baseline;padding:18px 20px 8px}
+.sec{display:flex;justify-content:space-between;align-items:baseline;padding:14px 20px 6px}
 .sec h3{margin:0;font-size:15px;font-weight:800}
 .sec span,.sec button{font-size:13px;font-weight:700;color:var(--muted);background:none;border:none;padding:0}
+.sec button{color:var(--gold);padding:6px 0 6px 12px;margin:-6px 0}
 .list{display:flex;flex-direction:column;gap:6px;padding:0 16px}
 nav.tabs .ico{position:relative;display:grid}
 .badge{position:absolute;top:-6px;right:-10px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--red);color:#fff;font-style:normal;font-size:11px;font-weight:800;line-height:18px;text-align:center}
-.hrow{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:14px;background:var(--panel);min-height:50px}
+.hrow{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:14px;background:var(--panel);min-height:46px}
+.list:has(>.hrow){gap:0}
+.list>.hrow{border-radius:0}.list>.hrow+.hrow{border-top:1px solid var(--line)}
+.list>.hrow:first-child{border-top-left-radius:14px;border-top-right-radius:14px}.list>.hrow:last-child{border-bottom-left-radius:14px;border-bottom-right-radius:14px}
+button.hrow{width:100%;border:none;color:inherit;font:inherit;text-align:left}
+.go::after{content:"";width:8px;height:8px;border-right:2px solid var(--dim);border-top:2px solid var(--dim);transform:rotate(45deg);flex-shrink:0;margin:0 4px 0 2px}
+.hrow .val{font-size:13px;font-weight:700;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:45%}
+.sw{width:46px;height:28px;border-radius:14px;border:none;background:var(--line2);position:relative;flex-shrink:0;padding:0}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:var(--muted);transition:left .15s}
+.sw[aria-pressed="true"]{background:var(--ok)}.sw[aria-pressed="true"]::after{left:21px;background:#fff}
+.subh{display:flex;align-items:center;gap:10px;padding:2px 16px 8px}
+.subh h2{margin:0;font-size:20px;font-weight:800}
+.subh .bk{width:40px;height:40px;border-radius:12px;border:1px solid var(--line2);background:var(--panel);color:var(--fg);display:grid;place-items:center;flex-shrink:0}
+.glabel{padding:14px 20px 6px;font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
 .hrow .nm{flex:1;min-width:0;display:flex;flex-direction:column}
 .hrow .nm b{font-size:15px;font-weight:700;overflow-wrap:anywhere}.hrow .nm small{font-size:12px;font-weight:700;color:var(--muted)}
 .hrow .nm small.bad{color:var(--red)}
@@ -144,13 +158,13 @@ nav.tabs .ico{position:relative;display:grid}
 .over .it b{flex:1;min-width:0;font-size:14px}
 .chip{border-radius:10px;border:1px solid var(--line2);background:transparent;font-size:13px;font-weight:700;padding:6px 10px;min-height:36px}
 
-.add{display:flex;flex-direction:column;gap:8px;margin:10px 16px 0;padding:12px;border-radius:16px;background:var(--panel)}
+.add{display:flex;flex-direction:column;gap:8px;margin:8px 16px 0;padding:8px;border-radius:14px;background:var(--panel)}
 .add .r{display:flex;gap:8px}
 .add input,.add select{min-width:0;height:44px;border-radius:12px;border:1px solid var(--line2);background:var(--bg);padding:0 10px;color:var(--fg)}
 .add input[name=t]{flex:1}
 .add input::placeholder{color:var(--dim)}
 .add .lab{font-size:12px;color:var(--muted);font-weight:700}
-.add button{height:44px;border-radius:12px;border:none;background:var(--gold);color:var(--ink);font-weight:800;padding:0 16px}
+.add button{height:44px;min-width:44px;border-radius:12px;border:none;background:var(--gold);color:var(--ink);font-weight:800;font-size:16px;padding:0 14px}
 
 .card{margin:0 16px;padding:14px;border-radius:18px;background:var(--panel);display:flex;flex-direction:column;gap:10px}
 .tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 16px 0}
@@ -375,7 +389,7 @@ function queue(k){
   const extra=()=>{if(pi&&(debt||(pi.bonus&&itemDone(d,pi)&&!d.skip.includes("vid2"))))
     out.push({id:"vid2",name:debt?(pi.debt||`Долг: ещё раз «${pi.name}»`):pi.bonus,sub:debt?"За вчера. Без него награды нет":"Плюс к цели",dur:pi.dur||30,proof:penProof()?1:0,opt:debt?0:1,penalty:debt?1:0})};
   const customs=()=>{for(const c of d.custom)out.push({id:c.id,name:c.name,dur:c.dur||30,fixed:c.at||null,custom:1});
-    if(k===key()){for(const c of houseOf().chores)if(((choreDue(c,k)&&isMe(c.who))||(c.last===k&&has(d,"ch_"+c.id)))&&!d.skip.includes("ch_"+c.id))out.push({id:"ch_"+c.id,name:c.name,sub:"Дом · взял на себя",dur:c.dur||20,minor:1,chore:1});
+    if(k===key()){for(const c of houseOf().chores)if((isMe(c.who)||(c.last===k&&has(d,"ch_"+c.id)))&&!d.skip.includes("ch_"+c.id))out.push({id:"ch_"+c.id,name:c.name,sub:"Дом · взял на себя",dur:c.dur||20,minor:1,chore:1});
       const mb=myBuys();if((mb.length||has(d,"buy"))&&!d.skip.includes("buy"))out.push({id:"buy",name:mb.length?"Купить: "+mb.map(({x})=>x.name).join(", "):"Покупки",sub:"Дом · взял на себя",dur:Math.min(60,20+5*mb.length),minor:1,chore:1});}
     extra()};
   for(const it of P.routine){
@@ -739,28 +753,20 @@ function viewGym(){
   const bodyCard=body.length?`${goal?`<span style="font-size:13px;font-weight:700;color:var(--muted)">Цель ${goal} кг · осталось ${Math.abs(Math.round((goal-cur)*10)/10)} кг</span>`:""}<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span class="big">${body[body.length-1].kg} кг</span>${dl!==null?`<span style="font-size:13px;font-weight:700;color:var(--muted)">${dl>0?"+":""}${dl} кг с ${dd(body[0].d)}</span>`:""}</div>
     <div class="mini">${body.slice().reverse().map(b=>`<div><span>${dd(b.d)}</span><b>${b.kg} кг</b></div>`).join("")}</div>`:'<p class="empty">Пока нет записей.</p>';
   const exs=[...new Set(state.lifts.filter(l=>l.ex).map(l=>l.ex))];
-  const exCards=exs.map(ex=>{const L=liftsOf(ex),last=L[L.length-1],best=L.reduce((a,l)=>e1rm(l)>e1rm(a)?l:a,L[0]),first=L[0];
-    const isPR=L.length>1&&last===best;
-    const prog=L.length>1?Math.round((last.kg-first.kg)*10)/10:0;
-    return `<div class="card ex" style="margin-top:8px"><div class="top"><b>${esc(ex)}</b>${isPR?'<span class="pr">РЕКОРД</span>':prog?`<span>${prog>0?"+":""}${prog} кг</span>`:""}</div>
-      <div class="mini"><div><span>Последний раз</span><b>${last.kg} кг × ${last.reps}</b></div><div><span>Лучший</span><b>${best.kg} кг × ${best.reps}</b></div></div>
-      <div class="mini">${L.slice(-4).reverse().map(l=>`<div><span>${dd(l.d)}${l.clean?" · чистый":""}</span><b>${l.kg} × ${l.reps}</b></div>`).join("")}</div></div>`}).join("");
   const cleanW=state.lifts.filter(l=>l.ex&&l.clean).length,allW=state.lifts.filter(l=>l.ex).length;
+  const exRows=exs.map(ex=>{const L=liftsOf(ex),last=L[L.length-1],best=L.reduce((a,l)=>e1rm(l)>e1rm(a)?l:a,L[0]),isPR=L.length>1&&last===best;
+    return `<div class="hrow"><span class="nm"><b>${esc(ex)}${isPR?' <span class="pin">РЕКОРД</span>':""}</b><small>лучший ${best.kg}×${best.reps} · ${dd(last.d)}</small></span><span class="val" style="color:var(--fg)">${last.kg} × ${last.reps}</span></div>`}).join("");
   const hero=goalHero("body",'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 5v14M18 5v14M6 12h12M3 8v8M21 8v8"/></svg>',
-    goal?`кг · цель ${goal} кг`:"кг · задай цель по весу");
-  return hero+`<div class="segfoot" style="padding:10px 16px 0"><button type="button" class="line" data-goalkg="1">${goal?"Цель по весу: "+goal+" кг":"Задать цель по весу"}</button></div>${goal?ladder("body","Подарки"):""}
-    ${bh?`<div class="card" style="margin-top:12px"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><b>Сегодня</b><span style="font-size:13px;font-weight:700;color:var(--muted)">${trToday?esc(bh.name):"День отдыха"}</span></div>
-      <div class="mini">${learned()[bh.id]?`<div><span>${esc(bh.name)} у тебя обычно</span><b>${durTxt(learned()[bh.id].min)}</b></div>`:""}<div><span>${esc(bh.name)}</span><b>${trToday?(itemDone(d,bh)?"сделано":"ещё нет"):"не нужно"}</b></div></div></div>
-      ${habitCard("body",bh)}`:`<p class="empty" style="padding:12px 20px 0">Дело для тела отмечается в ⚙ → Распорядок.</p>`}
-
-    <div class="sec"><h3>Вес тела</h3></div><div class="card">${bodyCard}</div>
-    <form class="add" data-add="weight"><div class="r"><input name="t" inputmode="decimal" placeholder="Вес, кг (например 82.5)" aria-label="Вес в кг" autocomplete="off"><button type="submit">Записать</button></div></form>
-    <div class="sec"><h3>Рабочие веса</h3><span>${allW?`чистых подходов ${cleanW} из ${allW}`:""}</span></div>
-    <form class="add" data-add="lift"><div class="r"><input name="ex" list="exlist" placeholder="Упражнение" aria-label="Упражнение" autocomplete="off"></div>
-      <datalist id="exlist">${[...new Set(EXERCISES.concat(exs))].map(e=>`<option value="${esc(e)}">`).join("")}</datalist>
-      <div class="r"><input name="kg" inputmode="decimal" placeholder="Вес, кг" aria-label="Вес, кг" style="flex:1"><input name="reps" inputmode="numeric" placeholder="Повторы" aria-label="Повторы" style="flex:1"></div>
-      <button type="submit">Записать подход</button></form>
-    ${exCards||'<p class="empty" style="padding:10px 20px 0">Пока нет подходов.</p>'}`;
+    (goal?`кг · цель ${goal}`:"кг")+(dl!==null?` · ${dl>0?"+":""}${dl} с ${dd(body[0].d)}`:""));
+  return hero+`<div class="sec"><h3>Вес</h3><button type="button" data-goalkg="1">${goal?"цель "+goal+" кг":"задать цель"}</button></div>
+    <form class="add" data-add="weight" style="margin-top:0"><div class="r"><input name="t" inputmode="decimal" placeholder="Сегодня, кг" aria-label="Вес в кг" autocomplete="off"><button type="submit" aria-label="Записать вес">+</button></div>
+      ${body.length?`<div class="mini" style="padding:0 4px">${body.slice().reverse().map(b=>`<div><span>${dd(b.d)}</span><b>${b.kg}</b></div>`).join("")}</div>`:""}</form>
+    ${bh?habitCard("body",bh):`<p class="empty" style="padding:12px 20px 0">Дело для тела: ⚙ → Распорядок.</p>`}
+    ${goal?ladder("body","Подарки за вес"):""}
+    <div class="sec"><h3>Рабочие веса</h3><span>${allW?`чистых ${cleanW} из ${allW}`:""}</span></div>
+    <form class="add" data-add="lift" style="margin-top:0"><div class="r"><input name="ex" list="exlist" placeholder="Упражнение" aria-label="Упражнение" autocomplete="off" style="flex:2"><input name="kg" inputmode="decimal" placeholder="кг" aria-label="Вес, кг" style="width:56px"><input name="reps" inputmode="numeric" placeholder="раз" aria-label="Повторы" style="width:52px"><button type="submit" aria-label="Записать подход">+</button></div>
+      <datalist id="exlist">${[...new Set(EXERCISES.concat(exs))].map(e=>`<option value="${esc(e)}">`).join("")}</datalist></form>
+    ${exRows?`<div class="list" style="margin-top:8px">${exRows}</div>`:""}`;
 }
 function timeCard(it){
   if(!it||!it.steps)return "";const L=learned(),v=L[it.id],steps=it.steps.filter(x=>L[x.id]),st=stepIds(it);
@@ -826,18 +832,38 @@ function viewHist(){const k=key(),ks=Object.keys(state.days).filter(x=>x<=k&&day
       ${o?L.map(e=>`<div class="hev ${e.c}"><time>${esc(e.t)}</time><span>${esc(e.n)}</span><em>${e.m?durTxt(e.m):""}</em></div>`).join("")+(x<k?R.filter(r=>!r.t).map(r=>`<div class="hev skip"><time>✕</time><span>${esc(r.name)}</span><em>не сделано</em></div>`).join(""):""):""}</div>`}).join("")}
 const NOTIFY=[["morning","Утренняя сводка","план дня, дом, теория, после подъёма"],["voice","Сводка голосом","голосовое вместе с текстом"],["pora","«Пора» по делам","когда начинается дело из плана"],["rest","Отдых","отдых закончился, отдыха много"],["evening","Итог дня","в 22:30"],["week","Итог недели","воскресенье 21:00"],["review","Разбор недели","вс 20:30: что бот понял о тебе"]];
 const notifyOn=k=>((state.notify||{})[k])!==false;
-let rolesOpen=false,homeSeg="food",foodCat="fridge",cookIdeas=null,cookBusy=false,meSeg="goal";
+let choreEdit=false,setSub="",rolesOpen=false,homeSeg="food",foodCat="fridge",cookIdeas=null,cookBusy=false,meSeg="goal";
 const WD=["Вс","Пн","Вт","Ср","Чт","Пт","Сб"],WD_ORDER=[1,2,3,4,5,6,0];
 const daysTxt=it=>!it.days||!it.days.length||it.days.length===7?"каждый день":it.days.length===6?"кроме "+WD[[0,1,2,3,4,5,6].find(x=>!it.days.includes(x))].toLowerCase():WD_ORDER.filter(x=>it.days.includes(x)).map(x=>WD[x].toLowerCase()).join(", ");
-function routineCard(){const P=prof(),pen=P.penalty,mains=ritems().filter(it=>it.main);
-  return `<div class="sec"><h3>Распорядок</h3></div>
-    <div class="list">${ritems().map(it=>`<button type="button" class="hrow" data-redit="${esc(it.id)}" style="text-align:left;border:none;color:inherit;font:inherit"><span class="nm"><b>${esc(it.name)}${it.main?' <span class="pin">ГЛАВНОЕ</span>':""}</b><small>${durTxt(it.dur||30)} · ${daysTxt(it)}${it.at?" · "+(it.at==="end"?"перед отбоем":"в "+it.at):""}${it.proof||(it.steps||[]).some(x=>x.proof)?" · пруф":""}${it.goal==="body"?" · тело":""}${GOAL()&&GOAL().habit===it.id?" · цель":""}</small></span></button>`).join("")}</div>
-    <div class="segfoot"><button type="button" class="line" data-redit="+">+ Дело в распорядок</button></div>
-    <div class="card" style="margin-top:10px"><b>Награда и штраф</b><div class="mini">
-      <div><span>Награда дня</span><input class="gnum" style="width:120px" data-pf="reward" value="${esc(P.reward||"")}" aria-label="Награда дня" maxlength="30"></div>
-      <div><span>Провал, если не сделано</span><select data-pen="task" aria-label="Штрафное дело"><option value="">штраф выключен</option>${mains.map(it=>`<option value="${esc(it.id)}"${pen&&pen.task===it.id?" selected":""}>${esc(it.name)}</option>`).join("")}</select></div>
-      ${pen?`<div><span>Штраф, €</span><input class="gnum" data-pen="fine" inputmode="numeric" value="${pen.fine||0}" aria-label="Штраф в евро"></div><div><span>Куда переводить</span><input class="gnum" style="width:120px" data-pen="to" value="${esc(pen.to||"")}" aria-label="Куда переводить штраф" maxlength="30"></div>`:""}</div>
-</div>`}
+const SET_T={profile:"Профиль",routine:"Распорядок",pen:"Штраф",notify:"Уведомления",voice:"Голосовые ответы",memory:"Память бота"};
+const VOICE=[["text","Только текстом"],["voice","Только голосом"],["both","Голосом и текстом"]];
+const voiceMode=()=>{const st=state.settings||{};return st.reply||(st.voice===false?"text":"both")};
+const srow=(attr,title,val)=>`<button type="button" class="hrow go" ${attr}><span class="nm"><b>${esc(title)}</b></span>${val!=null&&val!==""?`<span class="val">${esc(val)}</span>`:""}</button>`;
+function viewSet(){const P=prof(),pen=P.penalty,pi=penItem(),on=NOTIFY.filter(([k])=>notifyOn(k)).length,notes=state.notes||[],temp=(state.temp||[]).filter(x=>x.until>=key()),ins=(state.insights||{}).items||[];
+  const opt=(v,list)=>list.map(t=>`<option value="${t}"${t===v?" selected":""}>${t}</option>`).join("");
+  if(setSub==="profile")return `<div class="list">
+      <div class="hrow"><span class="nm"><b>Имя</b></span><input class="gnum" style="width:150px" data-pf="name" value="${esc(P.name||"")}" maxlength="30" placeholder="как зовут" aria-label="Имя"></div>
+      <div class="hrow"><span class="nm"><b>Подъём</b></span><select data-pf="wake" aria-label="Подъём">${opt(P.wake,["06:00","06:30","07:00","07:30","08:00","08:30","09:00","09:30","10:00"])}</select></div>
+      <div class="hrow"><span class="nm"><b>Отбой</b></span><select data-pf="bed" aria-label="Отбой">${opt(P.bed,["22:00","22:30","23:00","23:30","00:00","00:30","01:00"])}</select></div>
+      <div class="hrow"><span class="nm"><b>Награда дня</b><small>за все главные дела</small></span><input class="gnum" style="width:150px" data-pf="reward" value="${esc(P.reward||"")}" maxlength="30" aria-label="Награда дня"></div></div>
+    <div class="list" style="margin-top:12px">${srow('data-prefs="1"',"Вкусы для подарков",state.prefs?[state.prefs.city,"до €"+state.prefs.budget].filter(Boolean).join(" · "):"не заполнено")}</div>`;
+  if(setSub==="routine")return routineCard();
+  if(setSub==="pen"){const mains=ritems().filter(it=>it.main);
+    return `<div class="list"><div class="hrow"><span class="nm"><b>Провал, если не сделано</b></span><select data-pen="task" aria-label="Штрафное дело"><option value="">выключен</option>${mains.map(it=>`<option value="${esc(it.id)}"${pen&&pen.task===it.id?" selected":""}>${esc(it.name)}</option>`).join("")}</select></div>
+      ${pen?`<div class="hrow"><span class="nm"><b>Штраф, €</b></span><input class="gnum" data-pen="fine" inputmode="numeric" value="${pen.fine||0}" aria-label="Штраф в евро"></div><div class="hrow"><span class="nm"><b>Куда переводить</b></span><input class="gnum" style="width:150px" data-pen="to" value="${esc(pen.to||"")}" maxlength="30" aria-label="Куда переводить"></div>`:""}</div>
+      ${pen?`<p class="empty" style="padding:8px 20px 0">Пропуск: завтра долг, повторить${pen.fine?` и €${pen.fine}`:""}. Отдых после долга.</p>`:""}`}
+  if(setSub==="notify")return `<div class="list">${NOTIFY.map(([k,t,sub])=>`<div class="hrow"><span class="nm"><b>${t}</b><small>${sub}</small></span><button type="button" class="sw" data-notify="${k}" aria-pressed="${notifyOn(k)}" aria-label="${t}"></button></div>`).join("")}</div>`;
+  if(setSub==="voice")return `<div class="list">${VOICE.map(([k,t])=>`<button type="button" class="hrow" data-voice="${k}"><span class="nm"><b>${t}</b></span>${voiceMode()===k?`<span class="rs ok">${IC.check}</span>`:""}</button>`).join("")}</div><p class="empty" style="padding:8px 20px 0">Как бот отвечает на твои голосовые.</p>`;
+  if(setSub==="memory")return `${ins.length?`<div class="glabel">Что понял · ${ddmm(state.insights.d)}</div><div class="list">${ins.map(n=>`<div class="hrow"><span class="nm"><b style="font-weight:600">${esc(n)}</b></span></div>`).join("")}</div>`:""}
+    <div class="glabel">Что помнит · ${notes.length}</div><div class="list">${notes.map(n=>`<div class="hrow"><span class="nm"><b style="font-weight:600">${esc(n)}</b></span></div>`).join("")}${temp.map(n=>`<div class="hrow"><span class="nm"><b style="font-weight:600">${esc(n.t)}</b><small>до ${ddmm(n.until)}</small></span></div>`).join("")}</div>${notes.length||temp.length?"":'<p class="empty" style="padding:0 20px">Пока ничего.</p>'}
+    ${state.home&&state.home.address?`<div class="glabel">Дом на карте</div><div class="list"><div class="hrow"><span class="nm"><b style="font-weight:600">${esc(state.home.address)}</b></span></div></div>`:""}
+    <p class="empty" style="padding:8px 20px 0">Править: скажи боту «забудь …» или «запомни …».</p>`;
+  return `<div class="glabel">Ты</div><div class="list">${srow('data-sset="profile"',"Профиль",[P.name,P.wake+"–"+P.bed].filter(Boolean).join(" · "))}</div>
+    <div class="glabel">День</div><div class="list">${srow('data-sset="routine"',"Распорядок",ritems().length+" дел")}${srow('data-sset="pen"',"Штраф",pi?pi.name+(pen.fine?" · €"+pen.fine:""):"выключен")}${srow('data-goalnew="1"',"Цель",GOAL()?GOAL().name:"не задана")}</div>
+    <div class="glabel">Бот</div><div class="list">${srow('data-sset="notify"',"Уведомления",on+" из "+NOTIFY.length)}${srow('data-sset="voice"',"Голосовые ответы",(VOICE.find(([k])=>k===voiceMode())||[,""])[1].toLowerCase())}${srow('data-sset="memory"',"Память",(notes.length+ins.length)+" записей")}</div>`}
+function routineCard(){
+  return `<div class="list">${ritems().map(it=>`<button type="button" class="hrow go" data-redit="${esc(it.id)}"><span class="nm"><b>${esc(it.name)}${it.main?' <span class="pin">ГЛАВНОЕ</span>':""}</b><small>${durTxt(it.dur||30)} · ${daysTxt(it)}${it.at?" · "+(it.at==="end"?"перед сном":"в "+it.at):""}${it.proof||(it.steps||[]).some(x=>x.proof)?" · пруф":""}${it.goal==="body"?" · тело":""}${GOAL()&&GOAL().habit===it.id?" · цель":""}</small></span></button>`).join("")}</div>
+    <div class="segfoot"><button type="button" class="line" data-redit="+">+ Дело в распорядок</button></div>`}
 function viewHome(){
   const h=houseOf(),k=key(),exp=expiringH(h),due=h.chores.filter(c=>choreDue(c,k)),sl=shopListH(h);
   const outN=h.items.filter(x=>x.level==="out").length,stepsLeft=h.projects.reduce((n,p)=>n+p.steps.filter(x=>!x.done).length,0);
@@ -866,10 +892,10 @@ function viewHome(){
     const dd0=dayOf(k);
     body=`<div class="list">${rows.map(c=>{const isDue=choreDue(c,k),next=c.last?addDays(c.last,c.every):k,dl=daysLeft(next),today=c.last===k&&has(dd0,"ch_"+c.id);
       const who=c.who!=null&&!today?(isMe(c.who)?" · у тебя в плане":" · взял "+whoName(c.who)):"";
-      const take=isDue&&!today&&c.who==null?`<button type="button" class="chip take" data-take="chore:${c.id}">Взять</button>`:isDue&&isMe(c.who)&&!today?`<button type="button" class="chip" data-untake="chore:${c.id}">Отдать</button>`:"";
-      return `<div class="hrow"><button type="button" class="chk${today?" on":""}" data-chore="${c.id}" aria-label="Сделал «${esc(c.name)}»">${today?IC.check:""}</button><span class="nm"><b>${esc(c.name)}</b><small class="${isDue&&c.who==null?"bad":""}">${today?"сделано сегодня":isDue?(dl<0?"просрочено на "+(-dl)+" дн":"пора"):"через "+dl+" дн"}${who} · раз в ${c.every} дн · ${durTxt(c.dur||20)}</small></span>${take}<button type="button" class="x" data-cdel="${c.id}" aria-label="Удалить">${IC.x}</button></div>`}).join("")}</div>
-      <form class="add" data-add="chore"><div class="r"><input name="t" maxlength="50" placeholder="Новое дело, например «Полить цветы»" aria-label="Новое домашнее дело" autocomplete="off"></div>
-        <div class="r"><select name="every" aria-label="Как часто">${[[1,"каждый день"],[2,"раз в 2 дня"],[3,"раз в 3 дня"],[7,"раз в неделю"],[14,"раз в 2 недели"],[30,"раз в месяц"]].map(([v,t])=>`<option value="${v}"${v===7?" selected":""}>${t}</option>`).join("")}</select><button type="submit">Добавить</button></div></form>
+      const take=today?"":c.who==null?`<button type="button" class="chip take" data-take="chore:${c.id}">Взять</button>`:isMe(c.who)?`<button type="button" class="chip" data-untake="chore:${c.id}">Отдать</button>`:"";
+      return `<div class="hrow">${choreEdit?`<button type="button" class="x" data-cdel="${c.id}" aria-label="Удалить «${esc(c.name)}»" style="color:var(--red)">${IC.x}</button>`:""}<button type="button" class="chk${today?" on":""}" data-chore="${c.id}" aria-label="Сделал «${esc(c.name)}»">${today?IC.check:""}</button><span class="nm"><b>${esc(c.name)}</b><small class="${isDue&&c.who==null?"bad":""}">${today?"сделано сегодня":isDue?(dl<0?"просрочено на "+(-dl)+" дн":"пора"):"через "+dl+" дн"}${who} · раз в ${c.every} дн · ${durTxt(c.dur||20)}</small></span>${take}</div>`}).join("")}</div>
+      <form class="add" data-add="chore"><div class="r"><input name="t" maxlength="50" placeholder="Новое дело" aria-label="Новое домашнее дело" autocomplete="off"><select name="every" aria-label="Как часто" style="flex:0 0 auto;width:auto">${[[1,"каждый день"],[2,"раз в 2 дня"],[3,"раз в 3 дня"],[7,"раз в неделю"],[14,"раз в 2 нед"],[30,"раз в месяц"]].map(([v,t])=>`<option value="${v}"${v===7?" selected":""}>${t}</option>`).join("")}</select><button type="submit" aria-label="Добавить">+</button></div></form>
+      ${rows.length?`<div class="sec" style="justify-content:flex-end;padding-top:6px"><button type="button" data-cedit="1">${choreEdit?"готово":"удалить дела"}</button></div>`:""}
       `;
   }
   if(homeSeg==="more"){
@@ -889,10 +915,10 @@ function viewHome(){
       <div class="segfoot" style="display:flex;flex-direction:column;gap:8px"><button type="button" class="line" data-roles="1">${rolesOpen?"Скрыть должности":"Должности и права"}</button><button type="button" class="line" data-invite="1">Пригласить человека</button></div>`;
   }
   const att=exp.length+fd.length;
-  return `<section class="card"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><b>${att?att+" требует внимания":"Всё в порядке"}</b><span style="font-size:13px;font-weight:700;color:var(--muted)">${h.items.length} в учёте</span></div>
+  return (homeSeg==="people"?"":`<section class="card"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><b>${att?att+" требует внимания":"Всё в порядке"}</b><span style="font-size:13px;font-weight:700;color:var(--muted)">${h.items.length} в учёте</span></div>
       ${exp.length?`<p class="empty" style="color:var(--red)">Скоро испортится: ${exp.map(x=>esc(x.name)).join(", ")}</p>`:""}
-      ${fd.length?`<p class="empty">Пора, никто не взял: ${fd.map(c=>esc(c.name)).join(", ")}</p>`:""}</section>
-    ${homeSeg==="people"?`<div class="sec"><h3>Жильцы и правила</h3><button type="button" data-gear="1">назад</button></div>`:`<div class="segc" role="tablist" style="grid-template-columns:repeat(4,minmax(0,1fr))">${segs.map(([id,t])=>`<button type="button" role="tab" data-hseg="${id}" aria-selected="${homeSeg===id}">${t}</button>`).join("")}</div>`}${body}`;
+      ${fd.length?`<p class="empty">Пора, никто не взял: ${fd.map(c=>esc(c.name)).join(", ")}</p>`:""}</section>`)+`
+    ${homeSeg==="people"?`<div class="subh"><button type="button" class="bk" data-gear="1" aria-label="Назад">${IC.back}</button><h2>Жильцы и правила</h2></div>`:`<div class="segc" role="tablist" style="grid-template-columns:repeat(4,minmax(0,1fr))">${segs.map(([id,t])=>`<button type="button" role="tab" data-hseg="${id}" aria-selected="${homeSeg===id}">${t}</button>`).join("")}</div>`}${body}`;
 }
 function viewMe(){
   if(!["set","body","hist"].includes(meSeg))meSeg="goal";
@@ -901,22 +927,8 @@ function viewMe(){
   if(meSeg==="hist")body=viewHist();
   if(meSeg==="goal")body=viewGoal();
   if(meSeg==="body")body=viewGym();
-  if(meSeg==="set"){const P=prof(),notes=state.notes||[],temp=(state.temp||[]).filter(x=>x.until>=key());
-    const opt=(v,list)=>list.map(t=>`<option value="${t}"${t===v?" selected":""}>${t}</option>`).join("");
-    body=`<div class="card"><b>Режим</b><div class="mini"><div><span>Подъём</span><select data-pf="wake" aria-label="Подъём">${opt(P.wake,["06:00","06:30","07:00","07:30","08:00","08:30","09:00","09:30","10:00"])}</select></div>
-      <div><span>Отбой</span><select data-pf="bed" aria-label="Отбой">${opt(P.bed,["22:00","22:30","23:00","23:30","00:00","00:30","01:00"])}</select></div></div></div>
-      ${routineCard()}
-      <div class="sec"><h3>Уведомления</h3></div>
-      <div class="list">${NOTIFY.map(([k,t,sub])=>`<div class="hrow"><span class="nm"><b>${t}</b><small>${sub}</small></span><button type="button" class="lvl${notifyOn(k)?"":" out"}" data-notify="${k}" aria-pressed="${notifyOn(k)}">${notifyOn(k)?"вкл":"выкл"}</button></div>`).join("")}</div>
-      <div class="sec"><h3>Мои вкусы</h3><button type="button" data-prefs="1">изменить</button></div>
-      <div class="card"><p class="empty">${state.prefs?esc([state.prefs.city,"до €"+state.prefs.budget,...(state.prefs.likes||[]),...(state.prefs.foods||[])].filter(Boolean).join(" · ")):"Не заполнено. Нужно, чтобы бот подбирал подарки."}</p></div>
-      ${((state.insights||{}).items||[]).length?`<div class="sec"><h3>Что бот понял</h3><span>${ddmm(state.insights.d)}</span></div><div class="list">${state.insights.items.map(n=>`<div class="hrow"><span class="nm"><b style="font-weight:600">${esc(n)}</b></span></div>`).join("")}</div>`:""}
-      <div class="sec"><h3>Что бот помнит</h3><span>${notes.length}</span></div>
-      <div class="list">${notes.map(n=>`<div class="hrow"><span class="nm"><b style="font-weight:600">${esc(n)}</b></span></div>`).join("")||'<p class="empty" style="padding:0 4px">Пока ничего.</p>'}
-      ${temp.map(n=>`<div class="hrow"><span class="nm"><b style="font-weight:600">${esc(n.t)}</b><small>временно, до ${ddmm(n.until)}</small></span></div>`).join("")}</div>
-      <p class="empty" style="padding:10px 20px 0">Править: «забудь …» или «запомни …» боту.</p>
-      ${state.home&&state.home.address?`<div class="sec"><h3>Дом на карте</h3></div><div class="card"><p class="empty">${esc(state.home.address)}</p></div>`:""}`}
-  return (meSeg==="set"?`<div class="sec" style="margin-top:4px"><h3>Настройки</h3><button type="button" data-gear="1">назад</button></div>`
+  if(meSeg==="set")body=viewSet();
+  return (meSeg==="set"?`<div class="subh"><button type="button" class="bk" data-setback="1" aria-label="Назад">${IC.back}</button><h2>${esc(SET_T[setSub]||"Настройки")}</h2></div>`
     :`<div class="segc" role="tablist" style="grid-template-columns:repeat(3,minmax(0,1fr))">${segs.map(([id,t])=>`<button type="button" role="tab" data-meseg="${id}" aria-selected="${meSeg===id}">${esc(t)}</button>`).join("")}</div>`)+body;
 }
 function rungState(r){const open=rungOpen(r),claimed=rungClaimed(r);
@@ -1003,7 +1015,11 @@ document.addEventListener("click",e=>{
     if(st)mutate(()=>{st.done=!st.done;touch(st);if(st.done&&/договор/i.test(st.t))state.goals=Object.assign({},goalsSt(),{house:true})});return}
   if(t.dataset.perm){const [rid,pk]=t.dataset.perm.split(":"),r=houseOf().roles.find(x=>x.id===rid);
     if(r&&!r.fixed)mutate(()=>{r.perms=r.perms.includes(pk)?r.perms.filter(x=>x!==pk):r.perms.concat([pk]);touch(r)});return}
-  if(t.dataset.gear){if(tab==="home")homeSeg=homeSeg==="people"?"food":"people";else meSeg=meSeg==="set"?"goal":"set";render();window.scrollTo(0,0);return}
+  if(t.dataset.gear){if(tab==="home")homeSeg=homeSeg==="people"?"food":"people";else{meSeg=meSeg==="set"?"goal":"set";setSub=""}render();window.scrollTo(0,0);return}
+  if(t.dataset.setback){if(setSub)setSub="";else meSeg="goal";render();window.scrollTo(0,0);return}
+  if(t.dataset.sset){setSub=t.dataset.sset;render();window.scrollTo(0,0);return}
+  if(t.dataset.cedit){choreEdit=!choreEdit;render();return}
+  if(t.dataset.voice){const v=t.dataset.voice;mutate(()=>{state.settings=Object.assign({},state.settings||{},{reply:v,u:Date.now()})});toast("Готово");return}
   if(t.dataset.gedit!==undefined){goalEdit=t.dataset.gedit||false;render();return}
   if(t.dataset.gdel){const [gid,sid]=t.dataset.gdel.split(":"),g=goalOf(gid);mutate(()=>{g.steps=g.steps.filter(x=>x.id!==sid)});return}
   if(t.dataset.gadd){const gid=t.dataset.gadd,g=goalOf(gid),last=g.steps.slice().sort((a,b)=>tdir(gid)*(a.at-b.at)).pop(),v=gid.startsWith("h_")?0:(TPL[gid].val()||0);
