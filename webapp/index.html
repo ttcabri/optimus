@@ -246,9 +246,12 @@ span.go{display:inline-flex;align-items:center}
 .hday{display:flex;flex-direction:column;gap:0;margin:0 16px 8px;border-radius:16px;background:var(--panel);overflow:hidden}
 .hday>button{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px 14px;background:none;border:none;color:inherit;font:inherit;text-align:left}
 .hday>button b{font-size:15px}.hday>button small{font-size:12px;font-weight:700;color:var(--muted)}
-.hev{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:8px;padding:6px 14px;font-size:14px;border-top:1px solid var(--line)}
+.hev{display:grid;grid-template-columns:22px 44px minmax(0,1fr) auto;gap:8px;align-items:center;padding:7px 14px;font-size:14px;border-top:1px solid var(--line)}
+.hev i{font-style:normal;font-weight:800;text-align:center;font-size:14px}
+.hev.ok i{color:var(--okl)}.hev.no i,.hev.no em{color:var(--red)}.hev.mv i,.hev.mv em{color:var(--gold)}
+.hev.skip span,.hev.skip i,.hev.skip em{color:var(--dim)}.hev.rest i,.hev.rew i{color:var(--gold)}
 .hev time{color:var(--muted);font-weight:700;font-variant-numeric:tabular-nums}.hev em{font-style:normal;font-size:12px;color:var(--dim);font-weight:700}
-.hev.skip span{color:var(--dim);text-decoration:line-through}.hev.rest span,.hev.rew span{color:var(--gold)}
+.hev.rest span,.hev.rew span{color:var(--gold)}
 .lrow{display:flex;align-items:center;gap:12px;width:100%;padding:12px 14px;border-radius:16px;background:var(--panel);border:1px solid transparent;text-align:left;color:inherit}
 .lrow.open{border-color:var(--gold);background:#2a2014}
 .lrow.got{opacity:.6}
@@ -551,7 +554,7 @@ function houseOf(){
 const hid=p=>p+Date.now().toString(16)+Math.random().toString(16).slice(2,6);
 // кто я в доме: бот присылает свой Telegram id в _me
 const ME=()=>state._me!=null?String(state._me):"me";
-const isMe=w=>w!=null&&(String(w)===ME()||(String(w)==="me"&&houseOf().members.length<=1));
+const isMe=w=>w!=null&&(String(w)===ME()||String(w)==="me");
 const whoName=w=>{const m=houseOf().members.find(x=>String(x.uid)===String(w));return isMe(w)?"ты":(m&&m.name)||"кто-то"};
 // покупки, которые я взял на себя и ещё не купил
 function myBuys(){const h=houseOf();return shopListH(h).filter(({x})=>isMe(x.who))}
@@ -791,6 +794,7 @@ function viewToday(){
     `<div class="sec"><h3>Дальше</h3><span>до ${DAY_END_()}</span></div>
      <div class="list">${shown.map(it=>planRow(d,it,{edit:dayOpen})).join("")||'<p class="empty">Больше ничего.</p>'}</div>
      ${dayOpen?`${done.length?`<div class="sec"><h3>Сделано</h3><span>${done.length}</span></div><div class="list">${done.map(q=>doneRow(d,q)).join("")}</div>`:""}
+       ${(d.skip||[]).length?`<div class="sec"><h3>Убрано и перенесено</h3><span>${d.skip.length}</span></div><div class="list">${d.skip.map(id=>{const m=(d.moved||{})[id];return `<div class="hrow"><span class="nm"><b style="font-weight:600;color:var(--muted)">${esc(m&&m.n||nameOf(id,d))}</b><small>${m?"перенесено на "+ddmm(m.to||m):"убрано на сегодня"}</small></span><button type="button" class="chip" data-unskip="${esc(id)}">Вернуть</button></div>`}).join("")}</div>`:""}
        <div class="sec"><h3>Запланировано вперёд</h3><span>${up.length} дел</span></div>
        <div class="list">${tl||'<p class="empty">Пусто.</p>'}</div>`:""}
      <div class="segfoot">${more}</div>`;
@@ -872,17 +876,18 @@ function viewGoal(){
     ${hb?`<div class="tiles"><div class="tile"><b>${doneIn(7)}/7</b><span>${esc(hb.name.toLowerCase())} за неделю</span></div><div class="tile"><b>${doneIn(30)}</b><span>за 30 дней</span></div></div>`:""}`;
 }
 // История: каждый день, что и во сколько сделано, сколько заняло, что убрал, отдых и награда
-function nameOf(id,d){if(id==="vid2")return (penItem()||{}).bonus||"Повтор";if(id==="fine")return "Штраф";if(id==="buy")return "Покупки";
+function nameOf(id,d){if(id==="house")return "Жильё";if(id.startsWith("pr_")){const st=stepOf(id);return st?st.t:"Шаг проекта"}if(id==="vid2")return (penItem()||{}).bonus||"Повтор";if(id==="fine")return "Штраф";if(id==="buy")return "Покупки";
   if(id.startsWith("ch_")){const c=houseOf().chores.find(x=>"ch_"+x.id===id);return c?c.name:"Дело по дому"}
   const c=(d.custom||[]).find(x=>x.id===id);if(c)return c.name;const it=ritem(id);if(it)return it.name;
   const p=parentOf(id);if(p){const s=p.steps.find(x=>x.id===id);return p.name+": "+s.name}return id}
+// записи дня: ✓ сделано, ↷ перенесено, — убрано, ✕ не сделано, отдых и награда
 function dayLog(k){const d=peek(k);if(!d)return [];const out=[];
-  for(const [id,t] of Object.entries(d.at||{}))out.push({t,c:"",n:nameOf(id,d),m:((d.span||{})[id]||{}).m});
-  for(const r of restsOf(d))out.push({t:r.at,c:"rest",n:"Отдых",m:r.min});
-  if(d.firstSmoke)out.push({t:d.firstSmoke,c:"rew",n:"Награда: "+(prof().reward||"взял")});
+  for(const [id,t] of Object.entries(d.at||{})){const m=((d.span||{})[id]||{}).m;out.push({t,c:"ok",i:"✓",n:nameOf(id,d),r:m?durTxt(m):""})}
+  for(const r of restsOf(d))out.push({t:r.at,c:"rest",i:"☕",n:"Отдых",r:durTxt(r.min)});
+  if(d.firstSmoke)out.push({t:d.firstSmoke,c:"rew",i:"🌿",n:"Награда: "+(prof().reward||"взял"),r:""});
   const mv=d.moved||{},evT=(e,id)=>((d.ev||[]).find(x=>x[1]===e&&x[2]===id)||["—"])[0];
-  for(const [id,m] of Object.entries(mv))out.push({t:evT("move",id),c:"mv",n:(m.n||nameOf(id,d))+" → перенесено на "+ddmm(m.to||m)});
-  for(const id of d.skip||[])if(!mv[id])out.push({t:evT("skip",id),c:"skip",n:nameOf(id,d)+" · убрано"});
+  for(const [id,m] of Object.entries(mv))out.push({t:evT("move",id),c:"mv",i:"↷",n:m.n||nameOf(id,d),r:"на "+ddmm(m.to||m)});
+  for(const id of d.skip||[])if(!mv[id])out.push({t:evT("skip",id),c:"skip",i:"—",n:nameOf(id,d),r:"убрано"});
   return out.sort((a,b)=>String(a.t).localeCompare(String(b.t)))}
 let histOpen=null;
 function viewHist(){const k=key(),ks=Object.keys(state.days).filter(x=>x<=k&&dayLog(x).length).sort().reverse().slice(0,60);
@@ -890,7 +895,7 @@ function viewHist(){const k=key(),ks=Object.keys(state.days).filter(x=>x<=k&&day
   return ks.map(x=>{const L=dayLog(x),R=reqs(x),cl=dayClosed(x),o=histOpen===x||(histOpen===null&&x===ks[0]);
     const lbl=x===k?"Сегодня":new Date(x+"T12:00:00").toLocaleDateString("ru-RU",{weekday:"short",day:"numeric",month:"long"});
     return `<div class="hday"><button type="button" data-hday="${x}" aria-expanded="${o}"><span class="nm"><b>${esc(lbl)}</b><br><small>${R.length?(cl?"всё главное закрыто":R.filter(r=>r.t).length+" из "+R.length+" главных"):""}${debtOf(x)?" · штрафной":""}</small></span><span class="rs${cl?" ok":""}">${cl?IC.check:""}</span></button>
-      ${o?L.map(e=>`<div class="hev ${e.c}"><time>${esc(e.t)}</time><span>${esc(e.n)}</span><em>${e.m?durTxt(e.m):""}</em></div>`).join("")+(x<k?R.filter(r=>!r.t).map(r=>`<div class="hev skip"><time>✕</time><span>${esc(r.name)}</span><em>не сделано</em></div>`).join(""):""):""}</div>`}).join("")}
+      ${o?L.map(e=>`<div class="hev ${e.c}"><i>${e.i}</i><time>${esc(e.t)}</time><span>${esc(e.n)}</span><em>${esc(e.r)}</em></div>`).join("")+(x<k?R.filter(r=>!r.t).map(r=>`<div class="hev no"><i>✕</i><time></time><span>${esc(r.name)}</span><em>не сделано</em></div>`).join(""):""):""}</div>`}).join("")}
 const NOTIFY=[["morning","Утренняя сводка","план дня, дом, теория, после подъёма"],["voice","Сводка голосом","голосовое вместе с текстом"],["pora","«Пора» по делам","когда начинается дело из плана"],["rest","Отдых","отдых закончился, отдыха много"],["evening","Итог дня","в 22:30"],["week","Итог недели","воскресенье 21:00"],["review","Разбор недели","вс 20:30: что бот понял о тебе"]];
 const notifyOn=k=>((state.notify||{})[k])!==false;
 let choreEdit=false,setSub="",homeSeg="",foodCat="fridge",cookIdeas=null,cookBusy=false,meSeg="goal";
@@ -1049,6 +1054,8 @@ document.addEventListener("click",e=>{
   if(t.dataset.tabGo){tab=t.dataset.tabGo;if(t.dataset.meseg)meSeg=t.dataset.meseg;render();window.scrollTo(0,0);return}
   if(t.dataset.t){const id=t.dataset.t,it=ritem(id),was=has(dayOf(key()),id);toggle(id);
     if(it&&(it.meal==="prep"||id==="prep")&&!was&&has(dayOf(key()),id)){W={step:"prepnew",name:"",n:4};renderSheet()}return}
+  if(t.dataset.unskip){const id=t.dataset.unskip,d=dayOf(key()),m=(d.moved||{})[id];
+    mutate(()=>{d.skip=d.skip.filter(x=>x!==id);if(m){const td=dayOf(m.to||m);td.custom=td.custom.filter(c=>c.from!==id);const mv=Object.assign({},d.moved);delete mv[id];d.moved=mv}logEv(d,"back",id)});toast("Вернул в план");return}
   if(t.dataset.hitem){W={step:"hitem",id:t.dataset.hitem};renderSheet();return}
   if(t.dataset.prepeat){const x=houseOf().items.find(i=>i.id===t.dataset.prepeat);if(x){const nm=x.name;mutate(()=>prepEat(x));toast(x.n?nm+": осталось "+x.n+" порц.":nm+": съедено всё")}return}
   if(t.dataset.hnew){W={step:"hnew",what:t.dataset.hnew,name:"",cat:t.dataset.hnew.startsWith("cat:")?t.dataset.hnew.slice(4):(HCATS[t.dataset.hnew]?t.dataset.hnew:""),n:4,every:7,due:""};renderSheet();return}
@@ -1285,7 +1292,8 @@ $("sheet").addEventListener("click",e=>{
   if(a==="sok"){const x=H.items.find(i=>i.id===W.id);closeSheet();if(x)mutate(()=>{x.level="ok";delete x.who;touch(x)});return}
   if(a==="sdel2"){const id=W.id;closeSheet();mutate(()=>{H.shop=H.shop.filter(i=>i.id!==id);H.del.push(id)});return}
   if(a==="cdone"){const c=H.chores.find(i=>i.id===W.id),id="ch_"+W.id;closeSheet();if(!c)return;
-    if(c.who!=null&&isMe(c.who)||choreDue(c,key()))toggle(id);else{mutate(()=>{c.last=key();delete c.who;touch(c)});toast("Отмечено")}return}
+    if(c.last===key()&&has(dayOf(key()),id)){toast("Уже отмечено сегодня");return}
+    toggle(id);toast("Сделано: "+c.name);return}
   if(a==="ctake"){const c=H.chores.find(i=>i.id===W.id);closeSheet();if(c)mutate(()=>{if(isMe(c.who))delete c.who;else c.who=ME();touch(c)});toast(c&&c.who!=null?"Взял. Уже в твоём плане":"Убрал из плана");return}
   if(a==="cdel2"){const id=W.id;closeSheet();mutate(()=>{H.chores=H.chores.filter(i=>i.id!==id);H.del.push(id)});toast("Дело удалено");return}
   if(a==="stdone"){const p=H.projects.find(x=>x.id===W.pid),st=p&&p.steps.find(x=>x.id===W.sid);closeSheet();if(st){const sid="pr_"+p.id+"_"+st.id;if(has(dayOf(key()),sid)||(!st.done&&isMe(st.who)))toggle(sid);else mutate(()=>{st.done=!st.done;if(st.done)delete st.who;touch(st)})}return}

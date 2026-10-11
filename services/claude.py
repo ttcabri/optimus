@@ -299,7 +299,7 @@ async def learn_facts(telegram_id: int, user: str, reply: str) -> None:
 
 
 EV_RU = {"done": "сделал", "undo": "снял отметку", "start": "начал", "skip": "убрал на сегодня", "rest": "отдых",
-         "reward": "взял награду", "add": "добавил", "move": "перенёс"}
+         "reward": "взял награду", "add": "добавил", "move": "перенёс", "back": "вернул в план"}
 
 PROOF_PROMPT = """Ты проверяешь пруф выполнения дела. Человек прислал фото.
 Подпись к фото: "{caption}"
