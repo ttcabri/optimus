@@ -3,7 +3,7 @@
 Состояние: один JSON на пользователя, формат совпадает с webapp/index.html:
 {"days": {"YYYY-MM-DD": {"done": [...], "at": {"id": "HH:MM"}, "games": 0, "smokes": 0,
                          "firstSmoke": "HH:MM", "custom": [{"id", "name"}], "del": [...]}},
- "body": [{"d": "YYYY-MM-DD", "kg": 82.5}], "lifts": [{"d", "t", "clean"}]}
+ "body": [{"d": "YYYY-MM-DD", "kg": 82.5}], "lifts": [{"d", "ex", "kg", "reps"}]}
 """
 import json
 import re

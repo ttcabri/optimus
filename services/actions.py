@@ -106,8 +106,8 @@ TOOLS = [
      "description": "Память ДОМА, общая для всех, кто там живёт: правила и факты о жилье (мусор вывозят по четвергам, стиралка в подвале, код домофона нет, хозяин такой-то). Личное об Андрее сюда не пиши, это remember. remove=true удаляет запись по тексту.",
      "input_schema": {"type": "object", "properties": {"text": {"type": "string"}, "remove": {"type": "boolean"}}, "required": ["text"]}},
     {"name": "goal_flag",
-     "description": "Отметить разовый результат для целей: cbr = сдал теорию CBR, license = получил права, earned = первые деньги с YouTube, house = подписал договор на жильё. Только если он прямо сказал, что это произошло.",
-     "input_schema": {"type": "object", "properties": {"flag": {"type": "string", "enum": ["cbr", "license", "earned", "house"]}}, "required": ["flag"]}},
+     "description": "Отметить разовый результат: earned = первые деньги с YouTube (открывает подарок в цели Канал). Только если он прямо сказал, что это произошло.",
+     "input_schema": {"type": "object", "properties": {"flag": {"type": "string", "enum": ["earned"]}}, "required": ["flag"]}},
     {"name": "take_reward", "description": "Отметить, что он взял награду дня. Только если он прямо сказал, что взял.",
      "input_schema": {"type": "object", "properties": {}}},
 ]
@@ -360,7 +360,7 @@ def run(state: dict, name: str, a: dict) -> str | None:
             return "не хватает данных: упражнение, вес, повторы"
         prev = [x for x in state.get("lifts", []) if x.get("ex", "").lower() == ex.lower()]
         best = max((x["kg"] * (1 + x.get("reps", 1) / 30) for x in prev), default=0)
-        state.setdefault("lifts", []).append({"d": today, "ex": ex, "kg": round(kg, 1), "reps": reps, "clean": not td.get("firstSmoke")})
+        state.setdefault("lifts", []).append({"d": today, "ex": ex, "kg": round(kg, 1), "reps": reps})
         return f"записал {ex} {kg} × {reps}" + (", это рекорд" if prev and kg * (1 + reps / 30) > best else "")
 
     if name == "set_channel":
@@ -441,18 +441,14 @@ def run(state: dict, name: str, a: dict) -> str | None:
                     h["projects"].append(p)
                 p["steps"].append({"id": house.new_id("s"), "t": str(a["text"])[:100], "done": False, "u": house.now_ms()})
                 return f"шаг добавлен в «{p['name']}»"
-            res = house.step_done(h, str(a.get("text", "")), a.get("done", True) is not False)
-            if "договор" in res.lower() and a.get("done", True) is not False:
-                state["goals"] = dict(state.get("goals") or {}, house=True)  # цель «подписал договор» в Прогрессе
-            return res
+            return house.step_done(h, str(a.get("text", "")), a.get("done", True) is not False)
 
     if name == "goal_flag":
         f = a.get("flag")
-        if f not in ("cbr", "license", "earned", "house"):
+        if f != "earned":
             return "нет такого флага"
-        state["goals"] = dict(state.get("goals") or {}, **{f: True})
-        return {"cbr": "отмечено: теория CBR сдана", "license": "отмечено: права получены",
-                "earned": "отмечено: первые деньги с YouTube", "house": "отмечено: договор на жильё"}[f] + ". Ступень с подарком открыта, если она есть."
+        state["goals"] = dict(state.get("goals") or {}, earned=True)
+        return "отмечено: первые деньги с YouTube, подарок в цели открыт"
 
     if name == "take_reward":
         if not td.get("smokes"):
