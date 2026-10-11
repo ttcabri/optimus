@@ -275,10 +275,57 @@ def shop_add(h: dict, names: list[str]) -> str:
 
 
 def chore_done(h: dict, name: str, day: str | None = None) -> dict | None:
+    """Сделано: отсчёт заново, дело снова общее (до следующего раза)."""
     c = _find(h["chores"], name)
     if c:
         c.update({"last": day or quest.today_key(), "u": now_ms()})
+        c.pop("who", None)
     return c
+
+
+def is_me(who, uid) -> bool:
+    return who is not None and (str(who) == str(uid) or str(who) == "me")
+
+
+def my_buys(h: dict, uid) -> list[tuple[str, dict]]:
+    out = [("item", x) for x in h.get("items", []) if x.get("level") in ("low", "out") and is_me(x.get("who"), uid)]
+    out += [("shop", x) for x in h.get("shop", []) if not x.get("done") and is_me(x.get("who"), uid)]
+    return out
+
+
+def mark_bought(h: dict, kind: str, x: dict) -> None:
+    if kind == "item":
+        x["level"] = "ok"
+        if x.get("cat") == "fridge":
+            x["until"] = (datetime.strptime(quest.today_key(), "%Y-%m-%d") + timedelta(days=shelf_days(x["name"]))).strftime("%Y-%m-%d")
+    else:
+        x["done"] = True
+        add_items(h, [{"name": x["name"]}])
+    x.pop("who", None)
+    x["u"] = now_ms()
+
+
+def take(h: dict, what: str, uid, give: bool = False) -> str:
+    """Взять на себя (или отдать обратно): домашнее дело, покупку или все покупки."""
+    w = str(what or "").strip().lower()
+    if w in ("покупки", "все покупки", "всё", "shop", "all"):
+        n = 0
+        for kind, x in [("item", y) for y in h["items"] if y.get("level") in ("low", "out")] + [("shop", y) for y in h["shop"] if not y.get("done")]:
+            if give and is_me(x.get("who"), uid):
+                x.pop("who", None); x["u"] = now_ms(); n += 1
+            elif not give and x.get("who") is None:
+                x["who"] = uid; x["u"] = now_ms(); n += 1
+        return (f"отдал {n} покупок" if give else f"взял на себя {n} покупок, в плане появится «Купить: …»") if n else "нечего брать"
+    x = _find(h["chores"], what) or _find([y for y in h["items"] if y.get("level") in ("low", "out")], what) \
+        or _find([y for y in h["shop"] if not y.get("done")], what)
+    if not x:
+        return "не нашёл такое дело или покупку"
+    if give:
+        x.pop("who", None)
+    else:
+        x["who"] = uid
+    x["u"] = now_ms()
+    return f"{'отдал' if give else 'взял на себя'}: {x['name']}"
 
 
 def step_done(h: dict, text: str, done: bool = True) -> str:
@@ -307,8 +354,9 @@ def summary(h: dict) -> str:
     if sl:
         lines.append("СПИСОК ПОКУПОК: " + ", ".join(sl))
     dc = due_chores(h, today)
-    lines.append("ДЕЛА ПО ДОМУ: " + "; ".join(
-        f"{c['name']} (раз в {c['every']} дн, {'пора' if c in dc else 'было ' + (c.get('last') or 'никогда')})" for c in h.get("chores", [])))
+    lines.append("БЫТ (дела с повтором; берут на себя, тогда попадает в план): " + "; ".join(
+        f"{c['name']} (раз в {c['every']} дн, {'ПОРА' if c in dc else 'было ' + (c.get('last') or 'никогда')}"
+        + (f", взял {c['who']}" if c.get("who") is not None else (", никто не взял" if c in dc else "")) + ")" for c in h.get("chores", [])))
     for p in h.get("projects", []):
         left = [s["t"] for s in p.get("steps", []) if not s.get("done")]
         if left:

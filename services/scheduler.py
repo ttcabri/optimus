@@ -66,9 +66,9 @@ def quest_messages(day: dict, now_min: int, today: str, wd: int) -> list[str]:
     first = next((it for it in p["items"] if not it.get("game")), None)
     if first and first.get("started") and first.get("late", 0) >= 10:
         once(f"late:{first['id']}", f"⏱ «{first['name']}» идёт на {first['late']} мин дольше плана. Закрывай или режь лишнее, иначе вечер уедет.")
-    elif first and not first.get("started") and not first.get("minor") and first["start"] <= now_min + 2 \
+    elif first and not first.get("started") and (not first.get("minor") or str(first["id"]).startswith("ch_")) and first["start"] <= now_min + 2 \
             and not _has_reminder(day, first["start"]):
-        hint = HINTS.get(first["id"], "")
+        hint = HINTS.get(first["id"], "") or ("Дом, дело с повтором. Сделал, отметь в квесте или скажи боту." if str(first["id"]).startswith("ch_") else "")
         if first["id"] == "cbr":
             from services import theory
             hint = f"Сегодня: {theory.stage_name(day.get('_theory_i', 0))}. Напиши «теория», расскажу что учить."

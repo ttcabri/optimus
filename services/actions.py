@@ -84,6 +84,9 @@ TOOLS = [
     {"name": "project_step",
      "description": "Отметить шаг домашнего проекта (например переезда) сделанным или снова открытым, или добавить новый шаг (add=true).",
      "input_schema": {"type": "object", "properties": {"text": {"type": "string"}, "done": {"type": "boolean"}, "add": {"type": "boolean"}, "project": {"type": "string"}}, "required": ["text"]}},
+    {"name": "house_take",
+     "description": "Взять на себя дело из Быта или покупку (тогда оно попадает в его план), или отдать обратно (give=true). what: название дела/покупки или «покупки» = все покупки из списка.",
+     "input_schema": {"type": "object", "properties": {"what": {"type": "string"}, "give": {"type": "boolean"}}, "required": ["what"]}},
     {"name": "house_note",
      "description": "Память ДОМА, общая для всех, кто там живёт: правила и факты о жилье (мусор вывозят по четвергам, стиралка в подвале, код домофона нет, хозяин такой-то). Личное об Андрее сюда не пиши, это remember. remove=true удаляет запись по тексту.",
      "input_schema": {"type": "object", "properties": {"text": {"type": "string"}, "remove": {"type": "boolean"}}, "required": ["text"]}},
@@ -205,7 +208,13 @@ def run(state: dict, name: str, a: dict) -> str | None:
             qid = next((b for b in quest.BOSS_IDS if b not in td["done"]), "b5")
         if qid in PROOF_ONLY:
             return f"{_name(state, qid)} закрывается только пруфом: фото или ссылкой в этот чат"
-        if qid.startswith("ch_"):
+        if qid == "buy":
+            from services import house
+            h = house.get(state)
+            got = house.my_buys(h, h.get("owner"))
+            for kind, x in got:
+                house.mark_bought(h, kind, x)
+        elif qid.startswith("ch_"):
             from services import house
             c = house.chore_done(house.get(state), qid[3:])
             if not c:
@@ -222,7 +231,7 @@ def run(state: dict, name: str, a: dict) -> str | None:
         if cur.get("id") == qid or (cur.get("id") == "video" and quest.boss_done(td)):
             td.pop("cur", None)
         sp = (td.get("span") or {}).get(qid)
-        return f"отмечено: {_name(state, qid)}" + (f", заняло {sp['m']} мин" if sp else "")
+        return f"отмечено: {_name(state, qid)}" + (f", заняло {sp['m']} мин" if sp and not sp.get("g") else "")
 
     if name == "uncomplete_task":
         qid = str(a.get("id") or "")
@@ -324,9 +333,11 @@ def run(state: dict, name: str, a: dict) -> str | None:
         state["reminders"] = [x for x in state.get("reminders") or [] if x.get("id") != a.get("id")]
         return "удалено" if len(state["reminders"]) < before else "нет такого"
 
-    if name in ("house_add", "house_level", "house_remove", "shop_add", "chore_set", "project_step", "house_note"):
+    if name in ("house_add", "house_level", "house_remove", "shop_add", "chore_set", "project_step", "house_note", "house_take"):
         from services import house
         h = house.get(state)
+        if name == "house_take":
+            return house.take(h, str(a.get("what", "")), h.get("owner"), bool(a.get("give")))
         if name == "house_note":
             t = str(a.get("text", "")).strip()[:200]
             if a.get("remove"):

@@ -176,7 +176,12 @@ nav.tabs .ico{position:relative;display:grid}
 .fcard .fh{display:flex;align-items:center;gap:12px}
 .fcard .fh b{display:block;font-size:17px}.fcard .fh small{font-size:13px;font-weight:700;color:var(--muted)}
 .fcard p{margin:0;font-size:14px;color:#d9c9b9}
-.segc{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin:18px 16px 10px;padding:4px;border-radius:14px;background:var(--panel)}
+.segc{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin:18px 16px 10px;padding:4px;overflow:visible;border-radius:14px;background:var(--panel)}
+.segc button{position:relative;}
+.sbadge{position:absolute;top:-6px;right:2px;display:grid;place-items:center;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--red);color:#fff;font-style:normal;font-size:11px;font-weight:800;line-height:1;vertical-align:1px}
+.sbadge.soft{background:#4a3a2e;color:var(--fg)}
+.chip.take{border-color:var(--gold);color:var(--gold);flex-shrink:0}
+.chip .dot{display:inline-block;width:7px;height:7px;margin-left:6px;border-radius:50%;background:var(--red);vertical-align:2px}
 .segc button{height:38px;border:none;border-radius:10px;background:transparent;color:var(--muted);font-weight:800;font-size:14px}
 .segc button[aria-selected="true"]{background:var(--panel2);color:var(--fg);box-shadow:inset 0 0 0 1px var(--line2)}
 .lrow{display:flex;align-items:center;gap:12px;width:100%;padding:12px 14px;border-radius:16px;background:var(--panel);border:1px solid transparent;text-align:left;color:inherit}
@@ -354,7 +359,8 @@ function queue(k){
     if(q.id==="screen"){out.push({...q,fixed:DAY_END_(),sub:"Отбой в "+BED_()});continue}
     if(q.kind==="video"&&prof().videoMin!==q.dur){out.push({...q,dur:prof().videoMin});continue}
     if(q.id==="_custom"){for(const c of d.custom)out.push({id:c.id,name:c.name,dur:c.dur||30,fixed:c.at||null,xp:15,custom:1});
-      if(k===key())for(const c of houseOf().chores)if((choreDue(c,k)||(c.last===k&&has(d,"ch_"+c.id)))&&!d.skip.includes("ch_"+c.id))out.push({id:"ch_"+c.id,name:c.name,sub:"Дом · раз в "+c.every+" дн",dur:c.dur||20,minor:1,chore:1});
+      if(k===key()){for(const c of houseOf().chores)if(((choreDue(c,k)&&isMe(c.who))||(c.last===k&&has(d,"ch_"+c.id)))&&!d.skip.includes("ch_"+c.id))out.push({id:"ch_"+c.id,name:c.name,sub:"Дом · взял на себя",dur:c.dur||20,minor:1,chore:1});
+        const mb=myBuys();if((mb.length||has(d,"buy"))&&!d.skip.includes("buy"))out.push({id:"buy",name:mb.length?"Купить: "+mb.map(({x})=>x.name).join(", "):"Покупки",sub:"Дом · взял на себя",dur:Math.min(60,20+5*mb.length),minor:1,chore:1});}
       continue}
     const debt=debtOf(k);
     if(q.id==="fine"&&!debt)continue;
@@ -462,6 +468,13 @@ function houseOf(){
   return h;
 }
 const hid=p=>p+Date.now().toString(16)+Math.random().toString(16).slice(2,6);
+// кто я в доме: бот присылает свой Telegram id в _me
+const ME=()=>state._me!=null?String(state._me):"me";
+const isMe=w=>w!=null&&(String(w)===ME()||(String(w)==="me"&&houseOf().members.length<=1));
+const whoName=w=>{const m=houseOf().members.find(x=>String(x.uid)===String(w));return isMe(w)?"ты":(m&&m.name)||"кто-то"};
+// покупки, которые я взял на себя и ещё не купил
+function myBuys(){const h=houseOf();return shopListH(h).filter(({x})=>isMe(x.who))}
+function markBought(kind,x){if(kind==="item"){x.level="ok";if(x.cat==="fridge")x.until=addDays(key(),shelfDays(x.name))}else{x.done=true;hAdd(x.name)}delete x.who;touch(x)}
 const touch=x=>{x.u=Date.now();return x};
 const addDays=(k,n)=>shift(k,n);
 function choreDue(c,k){return !c.last||addDays(c.last,c.every||7)<=k}
@@ -558,15 +571,16 @@ function mutate(fn){
   if(fresh.length){const r=findRung(fresh[0]),g=(state.gifts||{})[r.id];setTimeout(()=>toast(`Открыт подарок: ${r.t}!${g?" "+g:""}`),delay+2700);haptic("success")}
   render();save();
 }
-function findQ(id){if(String(id).startsWith("ch_"))return queue(key()).find(x=>x.id===id);return QUESTS.find(x=>x.id===id)||VIDEO_STEPS.find(x=>x.id===id)||dayOf(key()).custom.find(c=>c.id===id)}
+function findQ(id){if(String(id).startsWith("ch_")||id==="buy")return queue(key()).find(x=>x.id===id);return QUESTS.find(x=>x.id===id)||VIDEO_STEPS.find(x=>x.id===id)||dayOf(key()).custom.find(c=>c.id===id)}
 function toggle(id){
   const q=findQ(id),d=dayOf(key());
   if(q&&locked(q)&&!has(d,id)){toast("Это закрывается пруфом. Кинь его боту.");haptic("warning");return}
   mutate(()=>{const i=d.done.indexOf(id);
     if(i>=0){if(q&&locked(q))return;d.done.splice(i,1);delete d.at[id];if(d.span)delete d.span[id];logEv(d,"undo",id);
-      if(id.startsWith("ch_")){const c=houseOf().chores.find(x=>"ch_"+x.id===id);if(c){c.last=(d.chPrev||{})[id]||null;c.u=Date.now()}}}
+      if(id.startsWith("ch_")){const c=houseOf().chores.find(x=>"ch_"+x.id===id),pv=(d.chPrev||{})[id]||{};if(c){c.last=pv.last||null;c.who=pv.who||ME();c.u=Date.now()}}}
     else{recSpan(d,id);d.done.push(id);d.at[id]=hhmm();logEv(d,"done",id);
-      if(id.startsWith("ch_")){const c=houseOf().chores.find(x=>"ch_"+x.id===id);if(c){d.chPrev=Object.assign({},d.chPrev,{[id]:c.last});c.last=key();c.u=Date.now()}}if(d.cur&&(d.cur.id===id||(d.cur.id==="video"&&bossDone(d))))delete d.cur}});
+      if(id.startsWith("ch_")){const c=houseOf().chores.find(x=>"ch_"+x.id===id);if(c){d.chPrev=Object.assign({},d.chPrev,{[id]:{last:c.last,who:c.who}});c.last=key();delete c.who;c.u=Date.now()}}
+      if(id==="buy"){for(const {kind,x} of myBuys())markBought(kind,x)}if(d.cur&&(d.cur.id===id||(d.cur.id==="video"&&bossDone(d))))delete d.cur}});
 }
 function startTask(id){const d=dayOf(key());mutate(()=>{d.cur={id,at:hhmm()};logEv(d,"start",id)});const q=findQ(id);if(q)toast("Начал: "+q.name+". Остальное сдвинулось")}
 const nextStep=d=>VIDEO_STEPS.find(s=>!has(d,s.id));
@@ -738,11 +752,13 @@ function viewChan(){
 let rolesOpen=false,homeSeg="food",foodCat="fridge",cookIdeas=null,cookBusy=false,meSeg="chan";
 function viewHome(){
   const h=houseOf(),k=key(),exp=expiringH(h),due=h.chores.filter(c=>choreDue(c,k)),sl=shopListH(h);
-  const segs=[["food","Запасы"],["shop","Покупки"+(sl.length?" "+sl.length:"")],["chores","Быт"+(due.length?" "+due.length:"")],["more","Проекты"]];
+  const outN=h.items.filter(x=>x.level==="out").length,stepsLeft=h.projects.reduce((n,p)=>n+p.steps.filter(x=>!x.done).length,0);
+  const bdg=(n,c)=>n?`<i class="sbadge${c?" "+c:""}">${n>9?"9+":n}</i>`:"";
+  const segs=[["food","Запасы"+bdg(exp.length+outN)],["shop","Покупки"+bdg(sl.length,"soft")],["chores","Быт"+bdg(due.length)],["more","Проекты"+bdg(stepsLeft,"soft")]];
   let body="";
   if(homeSeg==="food"){
     const its=h.items.filter(x=>x.cat===foodCat).sort((a,b)=>(a.until||"9").localeCompare(b.until||"9")||a.name.localeCompare(b.name));
-    body=`<div class="cats" style="margin:0 16px 10px">${Object.entries(HCATS).map(([c,t])=>`<button type="button" class="chip" data-hcat="${c}" aria-pressed="${foodCat===c}">${t} ${h.items.filter(x=>x.cat===c).length}</button>`).join("")}</div>
+    body=`<div class="cats" style="margin:0 16px 10px">${Object.entries(HCATS).map(([c,t])=>`<button type="button" class="chip" data-hcat="${c}" aria-pressed="${foodCat===c}">${t} ${h.items.filter(x=>x.cat===c).length}${(c==="fridge"?exp.length:0)+h.items.filter(x=>x.cat===c&&x.level==="out").length?'<i class="dot"></i>':""}</button>`).join("")}</div>
       <div class="list">${its.map(x=>{const dl=x.until?daysLeft(x.until):null;
         const sub=x.cat==="fridge"&&x.until&&x.level!=="out"?(dl<0?`<small class="bad">просрочено ${ddmm(x.until)}</small>`:dl<=1?`<small class="bad">${dl===0?"сегодня последний день":"до завтра"}</small>`:`<small>до ${ddmm(x.until)}</small>`):(x.qty?`<small>${esc(x.qty)}</small>`:"");
         return `<div class="hrow"><span class="nm"><b>${esc(x.name)}</b>${sub}</span><button type="button" class="lvl ${x.level}" data-hlvl="${x.id}">${HLVL[x.level]||"есть"}</button><button type="button" class="x" data-hdel="${x.id}" aria-label="Убрать">${IC.x}</button></div>`}).join("")||'<p class="empty" style="padding:0 4px">Пусто. Скажи боту «купил курицу, рис, яйца» или кинь фото чека.</p>'}</div>
@@ -751,18 +767,21 @@ function viewHome(){
       ${cookIdeas?`<div class="list">${cookIdeas.map(c=>`<div class="idea"><b>${esc(c.name)}${c.prep?' <span class="pin">ЗАГОТОВКА</span>':""}</b><small style="color:var(--muted);font-weight:700">${esc(c.uses||"")}${c.time?" · "+esc(String(c.time))+" мин":""}</small>${c.buy?`<small style="color:var(--gold);font-weight:700">Докупить: ${esc(c.buy)}</small>`:""}</div>`).join("")}</div>`:'<p class="empty" style="padding:0 20px">Бот предложит блюда из того, что есть, сначала из того, что скоро испортится.</p>'}`;
   }
   if(homeSeg==="shop"){
-    body=`<div class="list">${sl.map(({kind,x})=>`<div class="hrow"><button type="button" class="chk" data-bought="${kind}:${x.id}" aria-label="Купил «${esc(x.name)}»"></button><span class="nm"><b>${esc(x.name)}</b><small>${kind==="item"?(x.level==="out"?"кончилось":"мало")+" · "+HCATS[x.cat].toLowerCase():"добавлено вручную"}</small></span>${kind==="shop"?`<button type="button" class="x" data-sdel="${x.id}" aria-label="Убрать">${IC.x}</button>`:""}</div>`).join("")||'<p class="empty" style="padding:0 4px">Список пуст. Всё, что «мало» или «нет», появится тут само.</p>'}</div>
+    const free=sl.filter(({x})=>x.who==null).length;
+    body=`${free?`<div class="segfoot" style="padding:0 16px 10px"><button type="button" class="line" data-take="shopall:1">Взять всё на себя (${free})</button></div>`:""}<div class="list">${sl.map(({kind,x})=>`<div class="hrow"><button type="button" class="chk" data-bought="${kind}:${x.id}" aria-label="Купил «${esc(x.name)}»"></button><span class="nm"><b>${esc(x.name)}</b><small>${kind==="item"?(x.level==="out"?"кончилось":"мало")+" · "+HCATS[x.cat].toLowerCase():"добавлено вручную"}${x.who!=null?" · взял "+whoName(x.who):""}</small></span>${x.who==null?`<button type="button" class="chip take" data-take="${kind}:${x.id}">Взять</button>`:isMe(x.who)?`<button type="button" class="chip" data-untake="${kind}:${x.id}">Отдать</button>`:""}${kind==="shop"?`<button type="button" class="x" data-sdel="${x.id}" aria-label="Убрать">${IC.x}</button>`:""}</div>`).join("")||'<p class="empty" style="padding:0 4px">Список пуст. Всё, что «мало» или «нет», появится тут само.</p>'}</div>
       <form class="add" data-add="shop"><div class="r"><input name="t" maxlength="60" placeholder="Добавить в покупки" aria-label="Что купить" autocomplete="off"><button type="submit">+</button></div></form>
-      ${sl.length?'<p class="empty" style="padding:10px 20px 0">Отметил «купил», и позиция вернулась в «есть». Можно попросить бота поставить поездку в магазин.</p>':""}`;
+      ${sl.length?'<p class="empty" style="padding:10px 20px 0">Взял покупки, и у тебя в плане появится «Купить: …». Закрыл его, и всё взятое вернётся в «есть». Можно отмечать и по одной.</p>':""}`;
   }
   if(homeSeg==="chores"){
     const rows=h.chores.slice().sort((a,b)=>(choreDue(b,k)-choreDue(a,k))||(addDays(a.last||k,a.every)).localeCompare(addDays(b.last||k,b.every)));
     const dd0=dayOf(k);
     body=`<div class="list">${rows.map(c=>{const isDue=choreDue(c,k),next=c.last?addDays(c.last,c.every):k,dl=daysLeft(next),today=c.last===k&&has(dd0,"ch_"+c.id);
-      return `<div class="hrow"><button type="button" class="chk${today?" on":""}" data-chore="${c.id}" aria-label="Сделал «${esc(c.name)}»">${today?IC.check:""}</button><span class="nm"><b>${esc(c.name)}</b><small class="${isDue?"bad":""}">${today?"сделано сегодня":isDue?(dl<0?"просрочено на "+(-dl)+" дн":"пора"):"через "+dl+" дн"} · раз в ${c.every} дн · ${durTxt(c.dur||20)}</small></span><button type="button" class="x" data-cdel="${c.id}" aria-label="Удалить">${IC.x}</button></div>`}).join("")}</div>
+      const who=c.who!=null&&!today?(isMe(c.who)?" · у тебя в плане":" · взял "+whoName(c.who)):"";
+      const take=isDue&&!today&&c.who==null?`<button type="button" class="chip take" data-take="chore:${c.id}">Взять</button>`:isDue&&isMe(c.who)&&!today?`<button type="button" class="chip" data-untake="chore:${c.id}">Отдать</button>`:"";
+      return `<div class="hrow"><button type="button" class="chk${today?" on":""}" data-chore="${c.id}" aria-label="Сделал «${esc(c.name)}»">${today?IC.check:""}</button><span class="nm"><b>${esc(c.name)}</b><small class="${isDue&&c.who==null?"bad":""}">${today?"сделано сегодня":isDue?(dl<0?"просрочено на "+(-dl)+" дн":"пора"):"через "+dl+" дн"}${who} · раз в ${c.every} дн · ${durTxt(c.dur||20)}</small></span>${take}<button type="button" class="x" data-cdel="${c.id}" aria-label="Удалить">${IC.x}</button></div>`}).join("")}</div>
       <form class="add" data-add="chore"><div class="r"><input name="t" maxlength="50" placeholder="Новое дело, например «Полить цветы»" aria-label="Новое домашнее дело" autocomplete="off"></div>
         <div class="r"><select name="every" aria-label="Как часто">${[[1,"каждый день"],[2,"раз в 2 дня"],[3,"раз в 3 дня"],[7,"раз в неделю"],[14,"раз в 2 недели"],[30,"раз в месяц"]].map(([v,t])=>`<option value="${v}"${v===7?" selected":""}>${t}</option>`).join("")}</select><button type="submit">Добавить</button></div></form>
-      <p class="empty" style="padding:10px 20px 0">Когда дело подходит, оно само встаёт в план дня в свободное окно.</p>`;
+      <p class="empty" style="padding:10px 20px 0">Подошло дело: нажми «Взять», и оно встанет в твой план в свободное окно. Сделал, и оно закроется тут, а отсчёт начнётся заново.</p>`;
   }
   if(homeSeg==="more"){
     const owner=true;
@@ -890,7 +909,11 @@ document.addEventListener("click",e=>{
   if(t.dataset.ndel){const h=houseOf();mutate(()=>{h.notes=h.notes.filter(i=>i.id!==t.dataset.ndel);h.del.push(t.dataset.ndel)});return}
   if(t.dataset.cdel){const h=houseOf();mutate(()=>{h.chores=h.chores.filter(i=>i.id!==t.dataset.cdel);h.del.push(t.dataset.cdel)});toast("Дело убрано");return}
   if(t.dataset.bought){const [kind,id]=t.dataset.bought.split(":"),h=houseOf();
-    mutate(()=>{if(kind==="item"){const x=h.items.find(i=>i.id===id);if(x){x.level="ok";if(x.cat==="fridge")x.until=addDays(key(),shelfDays(x.name));touch(x)}}else{const x=h.shop.find(i=>i.id===id);if(x){x.done=true;touch(x);hAdd(x.name)}}});toast("Куплено");return}
+    mutate(()=>{const x=(kind==="item"?h.items:h.shop).find(i=>i.id===id);if(x)markBought(kind,x)});toast("Куплено");return}
+  if(t.dataset.take||t.dataset.untake){const [kind,id]=(t.dataset.take||t.dataset.untake).split(":"),h=houseOf(),me=ME(),give=!!t.dataset.untake;
+    mutate(()=>{if(kind==="shopall"){for(const {x} of shopListH(h))if(x.who==null){x.who=me;touch(x)}}
+      else{const x=(kind==="chore"?h.chores:kind==="item"?h.items:h.shop).find(i=>i.id===id);if(x){if(give)delete x.who;else x.who=me;touch(x)}}});
+    toast(give?"Вернул в общий список":"Взял. Уже в твоём плане");return}
   if(t.dataset.chore){const id="ch_"+t.dataset.chore,c=houseOf().chores.find(x=>x.id===t.dataset.chore);
     if(c&&c.last===key()&&has(dayOf(key()),id)){toggle(id);return}
     if(c&&!choreDue(c,key())){mutate(()=>{c.last=key();touch(c)});toast("Отмечено");return}

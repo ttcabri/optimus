@@ -55,7 +55,7 @@ async def index(request: web.Request) -> web.FileResponse:
 
 async def get_state(request: web.Request) -> web.Response:
     uid = _auth(request)
-    return web.json_response(await database.get_quest_state(uid))
+    return web.json_response({**await database.get_quest_state(uid), "_me": uid})
 
 
 async def post_state(request: web.Request) -> web.Response:
@@ -70,7 +70,7 @@ async def post_state(request: web.Request) -> web.Response:
         from services import house
         house.get(merged, uid)
     await database.save_quest_state(uid, merged)
-    return web.json_response(merged)
+    return web.json_response({**merged, "_me": uid})
 
 
 async def post_gifts(request: web.Request) -> web.Response:

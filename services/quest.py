@@ -230,22 +230,30 @@ async def get_day(telegram_id: int) -> dict:
     day["_theory_i"] = (state.get("theory") or {}).get("i", 0)
     day["_learn"] = learned(state)
     day["_reminders"] = state.get("reminders") or []
-    day["_chores"] = chores_for_plan(state)
+    day["_chores"] = chores_for_plan(state, telegram_id)
     from services import house as _house
     day["_expiring"] = [x["name"] for x in _house.expiring(state["house"])] if isinstance(state.get("house"), dict) else []
     return day
 
 
-def chores_for_plan(state: dict) -> list[dict]:
-    """Дела по дому, которые подошли (или сделаны сегодня), для плана дня."""
+def chores_for_plan(state: dict, uid=None) -> list[dict]:
+    """Что из Дома человек взял на себя: дела по быту и поход за покупками."""
     from services import house
     h = state.get("house")
     if not isinstance(h, dict):
         return []
+    uid = uid if uid is not None else h.get("owner")
+    solo = len(h.get("members") or []) <= 1
+    mine = (lambda w: house.is_me(w, uid) or (solo and str(w) == "me"))
     today = today_key()
     done = set((state.get("days", {}).get(today) or {}).get("done", []))
-    return [{"id": "ch_" + c["id"], "name": c["name"], "dur": int(c.get("dur") or 20)}
-            for c in h.get("chores", []) if house.chore_due(c, today) or (c.get("last") == today and "ch_" + c["id"] in done)]
+    out = [{"id": "ch_" + c["id"], "name": c["name"], "dur": int(c.get("dur") or 20)}
+           for c in h.get("chores", []) if (house.chore_due(c, today) and mine(c.get("who"))) or (c.get("last") == today and "ch_" + c["id"] in done)]
+    buys = [x for _, x in house.my_buys(h, uid)]
+    if buys or "buy" in done:
+        out.append({"id": "buy", "name": "Купить: " + ", ".join(x["name"] for x in buys) if buys else "Покупки",
+                    "dur": min(60, 20 + 5 * len(buys))})
+    return out
 
 
 async def mark_done(telegram_id: int, ids: list[str]) -> dict:
@@ -333,6 +341,7 @@ def merge_incoming(server: dict, incoming: dict) -> dict:
     incoming.setdefault("lifts", server.get("lifts", []))
     have_l = {(x.get("d"), x.get("ex"), x.get("kg"), x.get("reps")) for x in incoming["lifts"]}
     incoming["lifts"] += [x for x in server.get("lifts", []) if (x.get("d"), x.get("ex"), x.get("kg"), x.get("reps")) not in have_l]
+    incoming.pop("_me", None)
     # дом: слияние по записям (кто позже менял, тот и прав)
     if server.get("house") or incoming.get("house"):
         from services import house as _house
