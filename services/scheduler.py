@@ -57,6 +57,8 @@ def quest_messages(day: dict, now_min: int, today: str, wd: int) -> list[str]:
             once(f"rest:{start}", "⏰ Отдых всё." + (f" Пора: <b>{nxt['name']}</b>, до {quest.hm(nxt['end'])}." if nxt else ""))
             if nxt:
                 _sent.add(f"{today}:start:{nxt['id']}")
+    if day.get("_expiring") and now_min >= quest.to_min(P["wake"]) + 30:
+        once("fridge", "🧊 Скоро испортится: " + ", ".join(day["_expiring"]) + ". Съешь сегодня или пусти в заготовку.")
     rest_total = sum(min(m, max(0, now_min - s)) for s, m in quest.rests_of(day))
     if rest_total >= 150:
         once("rest-total", f"🛑 Отдыха сегодня уже {rest_total // 60} ч {rest_total % 60} мин. Хватит, возвращайся к плану.")

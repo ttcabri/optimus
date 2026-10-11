@@ -97,6 +97,24 @@ button{cursor:pointer}
 .sec h3{margin:0;font-size:15px;font-weight:800}
 .sec span,.sec button{font-size:13px;font-weight:700;color:var(--muted);background:none;border:none;padding:0}
 .list{display:flex;flex-direction:column;gap:6px;padding:0 16px}
+nav.tabs .ico{position:relative;display:grid}
+.badge{position:absolute;top:-6px;right:-10px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--red);color:#fff;font-style:normal;font-size:11px;font-weight:800;line-height:18px;text-align:center}
+.hrow{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:14px;background:var(--panel);min-height:50px}
+.hrow .nm{flex:1;min-width:0;display:flex;flex-direction:column}
+.hrow .nm b{font-size:15px;font-weight:700;overflow-wrap:anywhere}.hrow .nm small{font-size:12px;font-weight:700;color:var(--muted)}
+.hrow .nm small.bad{color:var(--red)}
+.hrow .chk{width:30px;height:30px;flex-shrink:0;border-radius:9px;border:2px solid var(--line2);background:transparent;display:grid;place-items:center}
+.hrow .chk.on{background:var(--ok);border-color:var(--ok)}
+.hrow select,.mini select{background:var(--panel2);color:var(--fg);border:1px solid var(--line2);border-radius:10px;height:34px;padding:0 8px;font:inherit;font-weight:700}
+.add select{flex:1;background:var(--panel2);color:var(--fg);border:1px solid var(--line2);border-radius:12px;height:44px;padding:0 10px;font:inherit}
+.lvl{height:30px;padding:0 10px;border-radius:15px;border:1px solid var(--line2);background:transparent;font-size:12px;font-weight:800;color:var(--okl);flex-shrink:0}
+.lvl.low{color:var(--gold);border-color:#6b5230}.lvl.out{color:var(--red);border-color:#6b3328}
+.cats{display:flex;gap:6px;flex-wrap:wrap}
+.cats .chip[aria-pressed="true"]{background:var(--panel2);border-color:var(--gold);color:var(--fg)}
+.perm{display:flex;flex-wrap:wrap;gap:6px}
+.perm .chip{font-size:12px;min-height:30px;padding:4px 8px}
+.perm .chip[aria-pressed="true"]{border-color:var(--okl);color:var(--okl)}
+.idea{display:flex;flex-direction:column;gap:4px;padding:10px 12px;border-radius:14px;background:var(--panel2)}
 .row{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:14px;background:var(--panel);border:1px solid transparent;text-align:left;width:100%;min-height:54px}
 .row .tm{width:50px;flex-shrink:0;display:flex;flex-direction:column;font-size:13px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.2}
 .row .tm small{font-size:11px;font-weight:600;color:var(--dim)}
@@ -235,8 +253,8 @@ nav.tabs button[aria-selected="true"]{color:var(--gold);font-weight:800}
   <button type="button" role="tab" data-tab="today" aria-selected="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l3 6 6 1-4.5 4.5L18 20l-6-3-6 3 1.5-6.5L3 9l6-1z"/></svg>Сегодня</button>
   <button type="button" role="tab" data-tab="chan" aria-selected="false"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="4"/><path d="M10 9.5v5l4.5-2.5z" fill="currentColor"/></svg>Канал</button>
   <button type="button" class="navplus" id="plus" aria-label="Добавить"><span><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span></button>
-  <button type="button" role="tab" data-tab="gym" aria-selected="false"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 5v14M18 5v14M6 12h12M3 8v8M21 8v8"/></svg>Зал</button>
-  <button type="button" role="tab" data-tab="prog" aria-selected="false"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Прогресс</button>
+  <button type="button" role="tab" data-tab="home" aria-selected="false"><span class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg><i class="badge" id="homebadge" hidden></i></span>Дом</button>
+  <button type="button" role="tab" data-tab="me" aria-selected="false"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>Я</button>
 </div></nav>
 
 <div class="focus" id="focus" hidden></div>
@@ -274,7 +292,7 @@ const QUESTS=[
   {id:"cbr",name:"Теория на права",sub:"TheorieExamen.nl: урок и тест",botSub:"TheorieExamen.nl. Скрин результата в бот",dur:45,xp:40,req:1,proof:1},
   {id:"video",name:"Видео",kind:"video",dur:110,req:1},
   {id:"lunch",name:"Обед",sub:"Разогреть заготовку",dur:30,xp:15,minor:1,until:"16:00"},
-  {id:"gym",name:"Зал",sub:"С дорогой. Веса запиши во вкладке «Зал»",botSub:"С дорогой. Селфи из зала в бот",dur:120,xp:50,req:1,proof:1,days:[1,2,3,4,5,6],train:1},
+  {id:"gym",name:"Зал",sub:"С дорогой. Веса запиши во вкладке «Я»",botSub:"С дорогой. Селфи из зала в бот",dur:120,xp:50,req:1,proof:1,days:[1,2,3,4,5,6],train:1},
   {id:"walk",name:"Прогулка",sub:"День восстановления",dur:45,xp:20,days:[0]},
   {id:"_custom"},
   {id:"vid2",name:"Бонус: второе видео",sub:"Плюс к каналу",botSub:"Плюс к каналу. Ссылку кинь боту",dur:110,xp:100,proof:1,kind:"bonus",opt:1},
@@ -335,7 +353,9 @@ function queue(k){
     else if(q.days&&!q.days.includes(dow(k)))continue;
     if(q.id==="screen"){out.push({...q,fixed:DAY_END_(),sub:"Отбой в "+BED_()});continue}
     if(q.kind==="video"&&prof().videoMin!==q.dur){out.push({...q,dur:prof().videoMin});continue}
-    if(q.id==="_custom"){for(const c of d.custom)out.push({id:c.id,name:c.name,dur:c.dur||30,fixed:c.at||null,xp:15,custom:1});continue}
+    if(q.id==="_custom"){for(const c of d.custom)out.push({id:c.id,name:c.name,dur:c.dur||30,fixed:c.at||null,xp:15,custom:1});
+      if(k===key())for(const c of houseOf().chores)if((choreDue(c,k)||(c.last===k&&has(d,"ch_"+c.id)))&&!d.skip.includes("ch_"+c.id))out.push({id:"ch_"+c.id,name:c.name,sub:"Дом · раз в "+c.every+" дн",dur:c.dur||20,minor:1,chore:1});
+      continue}
     const debt=debtOf(k);
     if(q.id==="fine"&&!debt)continue;
     if(q.id==="vid2"){if(debt){out.push({...q,name:"Долг: второе видео",sub:"За вчера. Без него награды и Доты нет",botSub:"За вчера. Ссылку кинь боту",opt:0,penalty:1});continue}if(!bossDone(d))continue}
@@ -421,6 +441,45 @@ function plan(k,extraGame){
   return {items:out,over};
 }
 
+/* ---------- дом ---------- */
+// Хозяйство с участниками и должностями. Записи с id и u (время правки), удалённые id в del.
+// Бот сливает по u, так что правки из чата и из приложения не теряются.
+const HCATS={fridge:"Холодильник",pantry:"Припасы",home:"Бытовое"},HLVL={ok:"есть",low:"мало",out:"нет"};
+const SHELF=[["фарш",1],["рыба",1],["курин",2],["курица",2],["мясо",3],["говяд",3],["свинин",3],["заготов",3],["молоко",5],["кефир",5],["творог",5],["сметан",7],["йогурт",7],["ветчин",5],["колбас",7],["сыр",14],["яйц",21],["масло слив",21],["зелень",4],["салат",3],["овощ",5],["помидор",5],["огур",5],["фрукт",6],["банан",4]];
+const HOME_WORDS=["мыло","гель","порошок","бумаг","губк","шампун","зубн","средство","пакет","салфет","кондиционер","отбел","дезодор"];
+const guessCat=n=>{n=n.toLowerCase();return HOME_WORDS.some(w=>n.includes(w))?"home":SHELF.some(([w])=>n.includes(w))?"fridge":"pantry"};
+const shelfDays=n=>{n=n.toLowerCase();const f=SHELF.find(([w])=>n.includes(w));return f?f[1]:5};
+const PERMS={see_food:"Видеть продукты",edit_food:"Менять продукты",shop:"Покупки",chores:"Дела по дому",assign:"Назначать дела",projects:"Проекты",notes:"Память дома",members:"Люди и должности"};
+const DEF_CHORES=[{id:"c_wash",name:"Стирка",every:7,dur:20},{id:"c_clean",name:"Уборка комнаты",every:7,dur:40},{id:"c_trash",name:"Вынести мусор",every:3,dur:5},{id:"c_bed",name:"Сменить постельное",every:14,dur:15}];
+const MOVE_STEPS=["Найти студию или квартиру с отдельной кухней","Подписать договор аренды","Договориться с хозяином о сдаче комнаты","Сдать комнату и забрать залог €500","Переписать адрес в BRP (gemeente)","Новый адрес: банк, страховка, UWV, RDW (Audi)"];
+const DEF_ROLES=[{id:"owner",name:"Создатель",perms:Object.keys(PERMS),fixed:true},{id:"adult",name:"Взрослый",perms:["see_food","edit_food","shop","chores","assign","projects","notes"]},{id:"helper",name:"Помощник",perms:["see_food","shop","chores"]},{id:"guest",name:"Гость",perms:["shop"]}];
+function houseOf(){
+  let h=state.house;
+  if(!h||typeof h!=="object"){h=state.house={id:"house_me",members:[{uid:"me",name:"Андрей",role:"owner",u:0}],roles:DEF_ROLES.map(r=>({...r,u:0})),items:[],shop:[],
+    chores:DEF_CHORES.map(c=>({...c,last:key(),u:0})),projects:[{id:"p_move",name:"Переезд до 31.12",due:"2026-12-31",u:0,steps:MOVE_STEPS.map((t,i)=>({id:"s"+(i+1),t,done:false,u:0}))}],del:[],notes:[]}}
+  for(const k of ["items","shop","chores","projects","del","notes","members"])if(!Array.isArray(h[k]))h[k]=[];
+  if(!Array.isArray(h.roles)||!h.roles.length)h.roles=DEF_ROLES.map(r=>({...r,u:0}));
+  return h;
+}
+const hid=p=>p+Date.now().toString(16)+Math.random().toString(16).slice(2,6);
+const touch=x=>{x.u=Date.now();return x};
+const addDays=(k,n)=>shift(k,n);
+function choreDue(c,k){return !c.last||addDays(c.last,c.every||7)<=k}
+const expiringH=h=>h.items.filter(x=>x.cat==="fridge"&&x.level!=="out"&&x.until&&x.until<=addDays(key(),1));
+function shopListH(h){const seen=new Set(),out=[];
+  for(const x of h.items)if(x.level==="low"||x.level==="out")if(!seen.has(x.name.toLowerCase())){seen.add(x.name.toLowerCase());out.push({kind:"item",x})}
+  for(const s of h.shop)if(!s.done&&!seen.has(s.name.toLowerCase())){seen.add(s.name.toLowerCase());out.push({kind:"shop",x:s})}
+  return out}
+function homeBadge(){const h=houseOf(),k=key();return h.chores.filter(c=>choreDue(c,k)).length+expiringH(h).length+h.items.filter(x=>x.level==="out").length}
+function updBadge(){const b=$("homebadge");if(!b)return;const n=homeBadge();b.hidden=!n;b.textContent=n>9?"9+":n}
+function hAdd(name,cat){name=name.trim().slice(0,60);if(!name)return;const h=houseOf();cat=cat||guessCat(name);
+  const ex=h.items.find(x=>x.cat===cat&&x.name.toLowerCase()===name.toLowerCase());
+  const until=cat==="fridge"?addDays(key(),shelfDays(name)):null;
+  if(ex){ex.level="ok";if(until)ex.until=until;touch(ex)}else h.items.push(touch({id:hid("i"),name,cat,level:"ok",...(until?{until}:{})}));
+  const s=h.shop.find(x=>!x.done&&x.name.toLowerCase()===name.toLowerCase());if(s){s.done=true;touch(s)}}
+const ddmm=k=>k?k.slice(8,10)+"."+k.slice(5,7):"";
+function daysLeft(k){return Math.round((new Date(k+"T12:00:00")-new Date(key()+"T12:00:00"))/864e5)}
+
 /* ---------- провал и наказания ---------- */
 // Провал = день без видео. Считаем только дни, когда приложением уже пользовались.
 function failedDay(k){if(k>=key())return false;const d=peek(k);if(bossDone(d))return false;
@@ -499,26 +558,28 @@ function mutate(fn){
   if(fresh.length){const r=findRung(fresh[0]),g=(state.gifts||{})[r.id];setTimeout(()=>toast(`Открыт подарок: ${r.t}!${g?" "+g:""}`),delay+2700);haptic("success")}
   render();save();
 }
-function findQ(id){return QUESTS.find(x=>x.id===id)||VIDEO_STEPS.find(x=>x.id===id)||dayOf(key()).custom.find(c=>c.id===id)}
+function findQ(id){if(String(id).startsWith("ch_"))return queue(key()).find(x=>x.id===id);return QUESTS.find(x=>x.id===id)||VIDEO_STEPS.find(x=>x.id===id)||dayOf(key()).custom.find(c=>c.id===id)}
 function toggle(id){
   const q=findQ(id),d=dayOf(key());
   if(q&&locked(q)&&!has(d,id)){toast("Это закрывается пруфом. Кинь его боту.");haptic("warning");return}
   mutate(()=>{const i=d.done.indexOf(id);
-    if(i>=0){if(q&&locked(q))return;d.done.splice(i,1);delete d.at[id];if(d.span)delete d.span[id];logEv(d,"undo",id)}
-    else{recSpan(d,id);d.done.push(id);d.at[id]=hhmm();logEv(d,"done",id);if(d.cur&&(d.cur.id===id||(d.cur.id==="video"&&bossDone(d))))delete d.cur}});
+    if(i>=0){if(q&&locked(q))return;d.done.splice(i,1);delete d.at[id];if(d.span)delete d.span[id];logEv(d,"undo",id);
+      if(id.startsWith("ch_")){const c=houseOf().chores.find(x=>"ch_"+x.id===id);if(c){c.last=(d.chPrev||{})[id]||null;c.u=Date.now()}}}
+    else{recSpan(d,id);d.done.push(id);d.at[id]=hhmm();logEv(d,"done",id);
+      if(id.startsWith("ch_")){const c=houseOf().chores.find(x=>"ch_"+x.id===id);if(c){d.chPrev=Object.assign({},d.chPrev,{[id]:c.last});c.last=key();c.u=Date.now()}}if(d.cur&&(d.cur.id===id||(d.cur.id==="video"&&bossDone(d))))delete d.cur}});
 }
 function startTask(id){const d=dayOf(key());mutate(()=>{d.cur={id,at:hhmm()};logEv(d,"start",id)});const q=findQ(id);if(q)toast("Начал: "+q.name+". Остальное сдвинулось")}
 const nextStep=d=>VIDEO_STEPS.find(s=>!has(d,s.id));
 
 /* ---------- отрисовка ---------- */
 const FIRE='<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 22c4.4 0 7.5-3 7.5-7.2 0-4.1-2.8-6.3-4.2-10.3-1.9 1.7-3 3.6-3.1 5.8-.9-1-1.6-2.2-1.8-3.9C7.4 8.4 4.5 11.3 4.5 14.8 4.5 19 7.6 22 12 22z"/></svg>';
-const TITLES={today:"Сегодня",chan:"Канал",gym:"Зал",prog:"Прогресс"};
+const TITLES={today:"Сегодня",chan:"Канал",home:"Дом",me:"Я"};
 function renderReward(){
   const k=key(),d=dayOf(k),R=reqs(k),st=rewardState(k),n=R.filter(x=>x.t).length,vs=videoStreak();
   const sub=tab==="today"?new Date().toLocaleDateString("ru-RU",{weekday:"long",day:"numeric",month:"long"}):"";
   const leafTxt=st==="open"||st==="gold"?IC.check:`${n}/${R.length}`;
   $("appbar").innerHTML=`<div class="tt"><h1>${TITLES[tab]}</h1>${sub?`<span class="sub">${esc(sub)}</span>`:""}</div>
-    <div class="pills"><button type="button" class="pill fire${vs?"":" zero"}" data-tab-go="prog" aria-label="Серия ${vs} дней">${FIRE}${vs}</button>
+    <div class="pills"><button type="button" class="pill fire${vs?"":" zero"}" data-tab-go="me" data-meseg="prog" aria-label="Серия ${vs} дней">${FIRE}${vs}</button>
     <button type="button" class="pill leaf${st==="open"||st==="gold"?" open":""}${debtOf(k)&&!debtClosed(d)?" pen":""}" id="rewardpill" aria-label="Награда дня">${IC.leaf}${leafTxt}</button></div>`;
   if(!confirmPlay){$("confirm").innerHTML="";return}
   const a=plan(k),b=plan(k,restMin),nextReal=b.items.find(x=>x.q&&!x.started),newly=b.over.filter(o=>!a.over.some(x=>x.q.id===o.q.id));
@@ -676,6 +737,71 @@ function viewChan(){
     <div class="segfoot"><button type="button" class="line" data-chan="1">Обновить цифры канала</button></div>
     ${log.length>1?`<div class="sec"><h3>История</h3></div><div class="card"><div class="mini">${log.slice(-6).reverse().map(x=>`<div><span>${dd(x.d)}</span><b>${x.subs.toLocaleString("ru-RU")} подп.${x.views?" · "+x.views.toLocaleString("ru-RU"):""}</b></div>`).join("")}</div></div>`:""}`;
 }
+let rolesOpen=false,homeSeg="food",foodCat="fridge",cookIdeas=null,cookBusy=false,meSeg="body";
+function viewHome(){
+  const h=houseOf(),k=key(),exp=expiringH(h),due=h.chores.filter(c=>choreDue(c,k)),sl=shopListH(h);
+  const segs=[["food","Еда"],["shop","Покупки"+(sl.length?" "+sl.length:"")],["chores","Дела"+(due.length?" "+due.length:"")],["more","Ещё"]];
+  let body="";
+  if(homeSeg==="food"){
+    const its=h.items.filter(x=>x.cat===foodCat).sort((a,b)=>(a.until||"9").localeCompare(b.until||"9")||a.name.localeCompare(b.name));
+    body=`<div class="cats" style="margin:0 16px 10px">${Object.entries(HCATS).map(([c,t])=>`<button type="button" class="chip" data-hcat="${c}" aria-pressed="${foodCat===c}">${t} ${h.items.filter(x=>x.cat===c).length}</button>`).join("")}</div>
+      <div class="list">${its.map(x=>{const dl=x.until?daysLeft(x.until):null;
+        const sub=x.cat==="fridge"&&x.until&&x.level!=="out"?(dl<0?`<small class="bad">просрочено ${ddmm(x.until)}</small>`:dl<=1?`<small class="bad">${dl===0?"сегодня последний день":"до завтра"}</small>`:`<small>до ${ddmm(x.until)}</small>`):(x.qty?`<small>${esc(x.qty)}</small>`:"");
+        return `<div class="hrow"><span class="nm"><b>${esc(x.name)}</b>${sub}</span><button type="button" class="lvl ${x.level}" data-hlvl="${x.id}">${HLVL[x.level]||"есть"}</button><button type="button" class="x" data-hdel="${x.id}" aria-label="Убрать">${IC.x}</button></div>`}).join("")||'<p class="empty" style="padding:0 4px">Пусто. Скажи боту «купил курицу, рис, яйца» или кинь фото чека.</p>'}</div>
+      <form class="add" data-add="hitem"><div class="r"><input name="t" maxlength="60" placeholder="Добавить в «${HCATS[foodCat]}»" aria-label="Что добавить" autocomplete="off"><button type="submit">+</button></div></form>
+      <div class="sec"><h3>Что приготовить</h3><button type="button" data-cook="1">${cookBusy?"думаю…":"подобрать"}</button></div>
+      ${cookIdeas?`<div class="list">${cookIdeas.map(c=>`<div class="idea"><b>${esc(c.name)}${c.prep?' <span class="pin">ЗАГОТОВКА</span>':""}</b><small style="color:var(--muted);font-weight:700">${esc(c.uses||"")}${c.time?" · "+esc(String(c.time))+" мин":""}</small>${c.buy?`<small style="color:var(--gold);font-weight:700">Докупить: ${esc(c.buy)}</small>`:""}</div>`).join("")}</div>`:'<p class="empty" style="padding:0 20px">Бот предложит блюда из того, что есть, сначала из того, что скоро испортится.</p>'}`;
+  }
+  if(homeSeg==="shop"){
+    body=`<div class="list">${sl.map(({kind,x})=>`<div class="hrow"><button type="button" class="chk" data-bought="${kind}:${x.id}" aria-label="Купил «${esc(x.name)}»"></button><span class="nm"><b>${esc(x.name)}</b><small>${kind==="item"?(x.level==="out"?"кончилось":"мало")+" · "+HCATS[x.cat].toLowerCase():"добавлено вручную"}</small></span>${kind==="shop"?`<button type="button" class="x" data-sdel="${x.id}" aria-label="Убрать">${IC.x}</button>`:""}</div>`).join("")||'<p class="empty" style="padding:0 4px">Список пуст. Всё, что «мало» или «нет», появится тут само.</p>'}</div>
+      <form class="add" data-add="shop"><div class="r"><input name="t" maxlength="60" placeholder="Добавить в покупки" aria-label="Что купить" autocomplete="off"><button type="submit">+</button></div></form>
+      ${sl.length?'<p class="empty" style="padding:10px 20px 0">Отметил «купил», и позиция вернулась в «есть». Можно попросить бота поставить поездку в магазин.</p>':""}`;
+  }
+  if(homeSeg==="chores"){
+    const rows=h.chores.slice().sort((a,b)=>(choreDue(b,k)-choreDue(a,k))||(addDays(a.last||k,a.every)).localeCompare(addDays(b.last||k,b.every)));
+    const dd0=dayOf(k);
+    body=`<div class="list">${rows.map(c=>{const isDue=choreDue(c,k),next=c.last?addDays(c.last,c.every):k,dl=daysLeft(next),today=c.last===k&&has(dd0,"ch_"+c.id);
+      return `<div class="hrow"><button type="button" class="chk${today?" on":""}" data-chore="${c.id}" aria-label="Сделал «${esc(c.name)}»">${today?IC.check:""}</button><span class="nm"><b>${esc(c.name)}</b><small class="${isDue?"bad":""}">${today?"сделано сегодня":isDue?(dl<0?"просрочено на "+(-dl)+" дн":"пора"):"через "+dl+" дн"} · раз в ${c.every} дн · ${durTxt(c.dur||20)}</small></span><button type="button" class="x" data-cdel="${c.id}" aria-label="Удалить">${IC.x}</button></div>`}).join("")}</div>
+      <form class="add" data-add="chore"><div class="r"><input name="t" maxlength="50" placeholder="Новое дело, например «Полить цветы»" aria-label="Новое домашнее дело" autocomplete="off"></div>
+        <div class="r"><select name="every" aria-label="Как часто">${[[1,"каждый день"],[2,"раз в 2 дня"],[3,"раз в 3 дня"],[7,"раз в неделю"],[14,"раз в 2 недели"],[30,"раз в месяц"]].map(([v,t])=>`<option value="${v}"${v===7?" selected":""}>${t}</option>`).join("")}</select><button type="submit">Добавить</button></div></form>
+      <p class="empty" style="padding:10px 20px 0">Когда дело подходит, оно само встаёт в план дня в свободное окно.</p>`;
+  }
+  if(homeSeg==="more"){
+    const owner=true;
+    body=h.projects.map(p=>{const dn=p.steps.filter(x=>x.done).length;
+      return `<div class="sec"><h3>${esc(p.name)}</h3><span>${dn} из ${p.steps.length}</span></div><div class="list">${p.steps.map(st=>`<div class="hrow"><button type="button" class="chk${st.done?" on":""}" data-step="${p.id}:${st.id}" aria-label="${esc(st.t)}">${st.done?IC.check:""}</button><span class="nm"><b style="${st.done?"text-decoration:line-through;color:var(--dim)":""}">${esc(st.t)}</b></span></div>`).join("")}</div>
+        <form class="add" data-add="step" data-pid="${p.id}"><div class="r"><input name="t" maxlength="100" placeholder="Добавить шаг" aria-label="Новый шаг" autocomplete="off"><button type="submit">+</button></div></form>`}).join("")
+      +`<div class="sec"><h3>Память дома</h3><span>общая для всех</span></div><div class="list">${h.notes.map(n=>`<div class="hrow"><span class="nm"><b style="font-weight:600">${esc(n.t)}</b></span><button type="button" class="x" data-ndel="${n.id}" aria-label="Удалить">${IC.x}</button></div>`).join("")||'<p class="empty" style="padding:0 4px">Правила и факты о жилье: когда вывоз мусора, где стиралка, контакты хозяина.</p>'}</div>
+      <form class="add" data-add="hnote"><div class="r"><input name="t" maxlength="200" placeholder="Например: мусор вывозят по четвергам" aria-label="Запись в память дома" autocomplete="off"><button type="submit">+</button></div></form>
+      <div class="sec"><h3>Люди и должности</h3><span>${h.members.length} чел.</span></div>
+      <div class="list">${h.members.map(m=>`<div class="hrow"><span class="nm"><b>${esc(m.name||"Участник")}</b><small>${esc((h.roles.find(r=>r.id===m.role)||{}).name||m.role)}</small></span></div>`).join("")}</div>
+      ${rolesOpen?`<div class="list" style="margin-top:8px">${h.roles.map(r=>`<div class="card" style="margin:0;gap:8px"><b>${esc(r.name)}</b><div class="perm">${Object.entries(PERMS).map(([pk,pt])=>`<button type="button" class="chip" data-perm="${r.id}:${pk}" aria-pressed="${r.perms.includes(pk)}"${r.fixed||!owner?" disabled":""}>${pt}</button>`).join("")}</div></div>`).join("")}</div>`:""}
+      <div class="segfoot" style="display:flex;flex-direction:column;gap:8px"><button type="button" class="line" data-roles="1">${rolesOpen?"Скрыть должности":"Должности и права"}</button><button type="button" class="line" data-invite="1">Пригласить человека</button></div>`;
+  }
+  const att=exp.length+due.length+h.items.filter(x=>x.level==="out").length;
+  return `<section class="card"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><b>${att?att+" требует внимания":"Всё в порядке"}</b><span style="font-size:13px;font-weight:700;color:var(--muted)">${h.items.length} в учёте</span></div>
+      ${exp.length?`<p class="empty" style="color:var(--red)">Скоро испортится: ${exp.map(x=>esc(x.name)).join(", ")}</p>`:""}
+      ${due.length?`<p class="empty">Пора: ${due.map(c=>esc(c.name)).join(", ")}</p>`:""}</section>
+    <div class="segc" role="tablist" style="grid-template-columns:repeat(4,minmax(0,1fr))">${segs.map(([id,t])=>`<button type="button" role="tab" data-hseg="${id}" aria-selected="${homeSeg===id}">${t}</button>`).join("")}</div>${body}`;
+}
+function viewMe(){
+  const segs=[["body","Тело"],["prog","Прогресс"],["set","Настройки"]];
+  let body="";
+  if(meSeg==="body")body=viewGym();
+  if(meSeg==="prog")body=viewProg();
+  if(meSeg==="set"){const P=prof(),notes=state.notes||[],temp=(state.temp||[]).filter(x=>x.until>=key());
+    const opt=(v,list)=>list.map(t=>`<option value="${t}"${t===v?" selected":""}>${t}</option>`).join("");
+    body=`<div class="card"><b>Режим</b><div class="mini"><div><span>Подъём</span><select data-pf="wake" aria-label="Подъём">${opt(P.wake,["06:00","06:30","07:00","07:30","08:00","08:30","09:00","09:30","10:00"])}</select></div>
+      <div><span>Отбой</span><select data-pf="bed" aria-label="Отбой">${opt(P.bed,["22:00","22:30","23:00","23:30","00:00","00:30","01:00"])}</select></div></div></div>
+      <div class="sec"><h3>Мои вкусы</h3><button type="button" data-prefs="1">изменить</button></div>
+      <div class="card"><p class="empty">${state.prefs?esc([state.prefs.city,"до €"+state.prefs.budget,...(state.prefs.likes||[]),...(state.prefs.foods||[])].filter(Boolean).join(" · ")):"Не заполнено. Нужно, чтобы бот подбирал подарки."}</p></div>
+      <div class="sec"><h3>Что бот помнит</h3><span>${notes.length}</span></div>
+      <div class="list">${notes.map(n=>`<div class="hrow"><span class="nm"><b style="font-weight:600">${esc(n)}</b></span></div>`).join("")||'<p class="empty" style="padding:0 4px">Пока ничего.</p>'}
+      ${temp.map(n=>`<div class="hrow"><span class="nm"><b style="font-weight:600">${esc(n.t)}</b><small>временно, до ${ddmm(n.until)}</small></span></div>`).join("")}</div>
+      <p class="empty" style="padding:10px 20px 0">Поправить или удалить: скажи боту «забудь …» или «запомни …».</p>
+      ${state.home&&state.home.address?`<div class="sec"><h3>Дом на карте</h3></div><div class="card"><p class="empty">${esc(state.home.address)}</p></div>`:""}`}
+  return `<div class="segc" role="tablist">${segs.map(([id,t])=>`<button type="button" role="tab" data-meseg="${id}" aria-selected="${meSeg===id}">${t}</button>`).join("")}</div>${body}`;
+}
 let progSeg="streak";
 function rungState(r){const open=rungOpen(r),claimed=rungClaimed(r);
   return claimed?"got":open?"open":"locked"}
@@ -726,16 +852,24 @@ async function findGifts(id){
 }
 function render(){
   renderReward();renderHead();
-  $("view").innerHTML={today:viewToday,chan:viewChan,gym:viewGym,prog:viewProg}[tab]();
+  $("view").innerHTML={today:viewToday,chan:viewChan,home:viewHome,me:viewMe}[tab]();updBadge();
   document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-selected",String(b.dataset.tab===tab)));
   if(!$("focus").hidden)renderFocus();
 }
 
 /* ---------- события ---------- */
+document.addEventListener("change",e=>{const el=e.target.closest("select[data-pf]");if(!el)return;
+  mutate(()=>{state.profile=Object.assign({},state.profile||{},{[el.dataset.pf]:el.value})});toast("Сохранил")});
+async function cook(){
+  if(!BOT||typeof fetchCook!=="function"){toast("Подбор блюд работает в боте в Телеграме.");return}
+  cookBusy=true;render();
+  try{cookIdeas=await fetchCook();if(!cookIdeas.length)toast("Не получилось, попробуй ещё раз.")}catch(e){toast("Не получилось, попробуй ещё раз.")}
+  cookBusy=false;render();
+}
 document.addEventListener("click",e=>{
   const t=e.target.closest("button");if(!t||t.disabled)return;
   if(t.dataset.tab){tab=t.dataset.tab;dayOpen=false;render();window.scrollTo(0,0);return}
-  if(t.dataset.tabGo){tab=t.dataset.tabGo;render();window.scrollTo(0,0);return}
+  if(t.dataset.tabGo){tab=t.dataset.tabGo;if(t.dataset.meseg)meSeg=t.dataset.meseg;render();window.scrollTo(0,0);return}
   if(t.dataset.t){toggle(t.dataset.t);return}
   if(t.dataset.start){startTask(t.dataset.start);return}
   if(t.dataset.focus){openFocus();return}
@@ -743,6 +877,27 @@ document.addEventListener("click",e=>{
   if(t.dataset.restend){endRest();return}
   if(t.dataset.prefs){openPrefs();return}
   if(t.dataset.seg){progSeg=t.dataset.seg;render();return}
+  if(t.dataset.hseg){homeSeg=t.dataset.hseg;render();return}
+  if(t.dataset.meseg&&!t.dataset.tabGo){meSeg=t.dataset.meseg;render();return}
+  if(t.dataset.hcat){foodCat=t.dataset.hcat;render();return}
+  if(t.dataset.hlvl){const x=houseOf().items.find(i=>i.id===t.dataset.hlvl);if(x)mutate(()=>{x.level={ok:"low",low:"out",out:"ok"}[x.level]||"low";if(x.level==="ok"&&x.cat==="fridge")x.until=addDays(key(),shelfDays(x.name));touch(x)});return}
+  if(t.dataset.hdel){const h=houseOf();mutate(()=>{h.items=h.items.filter(i=>i.id!==t.dataset.hdel);h.del.push(t.dataset.hdel)});return}
+  if(t.dataset.sdel){const h=houseOf();mutate(()=>{h.shop=h.shop.filter(i=>i.id!==t.dataset.sdel);h.del.push(t.dataset.sdel)});return}
+  if(t.dataset.ndel){const h=houseOf();mutate(()=>{h.notes=h.notes.filter(i=>i.id!==t.dataset.ndel);h.del.push(t.dataset.ndel)});return}
+  if(t.dataset.cdel){const h=houseOf();mutate(()=>{h.chores=h.chores.filter(i=>i.id!==t.dataset.cdel);h.del.push(t.dataset.cdel)});toast("Дело убрано");return}
+  if(t.dataset.bought){const [kind,id]=t.dataset.bought.split(":"),h=houseOf();
+    mutate(()=>{if(kind==="item"){const x=h.items.find(i=>i.id===id);if(x){x.level="ok";if(x.cat==="fridge")x.until=addDays(key(),shelfDays(x.name));touch(x)}}else{const x=h.shop.find(i=>i.id===id);if(x){x.done=true;touch(x);hAdd(x.name)}}});toast("Куплено");return}
+  if(t.dataset.chore){const id="ch_"+t.dataset.chore,c=houseOf().chores.find(x=>x.id===t.dataset.chore);
+    if(c&&c.last===key()&&has(dayOf(key()),id)){toggle(id);return}
+    if(c&&!choreDue(c,key())){mutate(()=>{c.last=key();touch(c)});toast("Отмечено");return}
+    toggle(id);return}
+  if(t.dataset.step){const [pid,sid]=t.dataset.step.split(":"),p=houseOf().projects.find(x=>x.id===pid),st=p&&p.steps.find(x=>x.id===sid);
+    if(st)mutate(()=>{st.done=!st.done;touch(st);if(st.done&&/договор/i.test(st.t))state.goals=Object.assign({},goalsSt(),{house:true})});return}
+  if(t.dataset.perm){const [rid,pk]=t.dataset.perm.split(":"),r=houseOf().roles.find(x=>x.id===rid);
+    if(r&&!r.fixed)mutate(()=>{r.perms=r.perms.includes(pk)?r.perms.filter(x=>x!==pk):r.perms.concat([pk]);touch(r)});return}
+  if(t.dataset.roles){rolesOpen=!rolesOpen;render();return}
+  if(t.dataset.invite){toast("Приглашения по ссылке сделаем следующим шагом.");return}
+  if(t.dataset.cook){cook();return}
   if(t.dataset.dayopen){dayOpen=t.dataset.dayopen==="1";render();if(!dayOpen)window.scrollTo(0,0);return}
   if(t.id==="rewardpill"){W={step:"reward"};renderSheet();return}
   if(t.dataset.gift){openGift(t.dataset.gift);return}
@@ -761,6 +916,11 @@ document.addEventListener("click",e=>{
 });
 document.addEventListener("submit",e=>{
   const f=e.target.closest("form[data-add]");if(!f)return;e.preventDefault();const kind=f.dataset.add;
+  if(kind==="hitem"){const v=f.t.value.trim();if(!v)return;mutate(()=>hAdd(v,foodCat));toast("Добавил");return}
+  if(kind==="shop"){const v=f.t.value.trim().slice(0,60);if(!v)return;const h=houseOf();mutate(()=>h.shop.push(touch({id:hid("s"),name:v,done:false})));return}
+  if(kind==="chore"){const v=f.t.value.trim().slice(0,50);if(!v)return;const h=houseOf();mutate(()=>h.chores.push(touch({id:hid("c"),name:v,every:+f.every.value||7,dur:20,last:null})));toast("Дело добавлено");return}
+  if(kind==="hnote"){const v=f.t.value.trim().slice(0,200);if(!v)return;const h=houseOf();mutate(()=>h.notes.push(touch({id:hid("n"),t:v})));return}
+  if(kind==="step"){const v=f.t.value.trim().slice(0,100);if(!v)return;const p=houseOf().projects.find(x=>x.id===f.dataset.pid);if(p)mutate(()=>p.steps.push(touch({id:hid("s"),t:v,done:false})));return}
   if(kind==="today"||kind==="tomorrow"){const v=f.t.value.trim();if(!v)return;const dd=dayOf(kind==="today"?key():shift(key(),1));
     const c={id:"c"+Date.now().toString(36),name:v.slice(0,80),dur:parseInt(f.dur.value,10)||30};if(f.at.value)c.at=f.at.value;
     mutate(()=>dd.custom.push(c));toast(kind==="today"?(c.at?"Поставил на "+c.at+", остальное сдвинется":"Добавил, план пересчитан"):"Добавил на завтра")}
@@ -939,6 +1099,7 @@ let st;
 save=()=>{clearTimeout(st);st=setTimeout(async()=>{
   try{const r=await fetch("api/state",{method:"POST",headers:hdr(),body:JSON.stringify(state)});
     if(r.ok){state=norm(await r.json());render()}}catch(e){}},500)};
+async function fetchCook(){const r=await fetch("api/cook",{method:"POST",headers:hdr(),body:"{}"});const v=await r.json().catch(()=>({}));if(!r.ok)throw new Error(v.error||r.status);return v.ideas||[]}
 async function fetchGifts(q){const r=await fetch("api/gifts",{method:"POST",headers:hdr(),body:JSON.stringify(q)});const v=await r.json().catch(()=>({}));if(!r.ok)throw new Error(v.error||r.status);return v.ideas||[]}
 render();pull();
 document.addEventListener("visibilitychange",()=>{if(!document.hidden)pull()});

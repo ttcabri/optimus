@@ -291,12 +291,16 @@ PROOF_PROMPT = """Ты проверяешь пруф выполнения зад
 - "fine" — скрин Trading 212: пополнение счёта или покупка в пироге (pie) safemoney, видно сумму и сегодняшнюю дату или «только что».
 - "video" — скрин загрузки/публикации видео в YouTube Studio или опубликованное видео на канале.
 - "question" — скрин ОДНОГО вопроса по теории на права (картинка ситуации, знак, варианты ответа), а не итог теста. Тогда в comment объясни по-русски простыми словами правильный ответ и правило (3-5 предложений), с английским термином в скобках. ok = true.
-- "none" — всё остальное, или пруф явно старый/фейковый/не относится к задаче (например письмо, чек об оплате, реклама).
+- "receipt" — чек из магазина (Albert Heijn, Lidl, Jumbo, Kruidvat и т.п.). Перечисли купленное в items.
+- "fridge" — фото холодильника, полок или шкафа с продуктами. Перечисли то, что ясно видно, в items.
+- "none" — всё остальное, или пруф явно старый/фейковый/не относится к задаче (например письмо, реклама).
+
+Для receipt и fridge: items = [{{"name": "по-русски, коротко: курица, рис, молоко", "cat": "fridge|pantry|home", "qty": "2 кг или 1 шт, если видно"}}]. fridge = свежее со сроком (мясо, молочка, овощи, яйца), pantry = крупы, макароны, консервы, специи, масло, соусы, home = бытовое (мыло, порошок, бумага, губки). Не включай пакеты, депозит за бутылки, скидки. ok = true.
 
 Если "cbr" и виден итог теста: score = сколько правильных, total = сколько всего вопросов, weak = коротко, по каким темам ошибки (если видно), иначе пусто.
 
 Ответь ТОЛЬКО JSON без markdown:
-{{"quest": "cbr|eng|fine|training|video|question|none", "ok": true/false, "score": null, "total": null, "weak": "", "comment": "1-2 коротких предложения по-русски, по делу. Для question: объяснение."}}"""
+{{"quest": "cbr|eng|fine|training|video|question|receipt|fridge|none", "ok": true/false, "score": null, "total": null, "weak": "", "items": [], "comment": "1-2 коротких предложения по-русски, по делу. Для question: объяснение."}}"""
 
 
 async def check_proof(image_bytes: bytes, caption: str, training: str) -> dict:
@@ -309,7 +313,7 @@ async def check_proof(image_bytes: bytes, caption: str, training: str) -> dict:
     try:
         response = await client.messages.create(
             model="claude-haiku-4-5",
-            max_tokens=700,
+            max_tokens=1500,
             messages=[{
                 "role": "user",
                 "content": [
@@ -340,6 +344,7 @@ async def check_proof(image_bytes: bytes, caption: str, training: str) -> dict:
             "score": num(data.get("score")),
             "total": num(data.get("total")),
             "weak": str(data.get("weak") or ""),
+            "items": [x for x in (data.get("items") or []) if isinstance(x, dict) and x.get("name")][:40],
         }
     except Exception:
         return {"quest": "none", "ok": False, "comment": "Не смог проверить фото. Скинь ещё раз."}

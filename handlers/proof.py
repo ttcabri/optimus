@@ -179,6 +179,16 @@ async def proof_photo(message: Message, bot: Bot) -> None:
 
     kind = result.get("quest")
     comment = result.get("comment", "").strip()
+    if kind in ("receipt", "fridge") and result.get("items"):
+        from services import house
+        state = await database.get_quest_state(message.from_user.id)
+        h = house.get(state, message.from_user.id)
+        got = house.add_items(h, result["items"])
+        await database.save_quest_state(message.from_user.id, state)
+        head = "🧾 Чек разобрал, записал домой:" if kind == "receipt" else "🧊 Посмотрел холодильник, записал:"
+        await message.answer(head + "\n" + "\n".join(f"• {html.escape(g)}" for g in got)
+                             + "\n\nЕсли что-то не так, скажи: «яиц нет», «убери колу».", reply_markup=quest_keyboard())
+        return
     if kind == "question":
         await message.answer("📚 " + html.escape(comment or "Не разобрал вопрос. Скинь скрин почётче."))
         return

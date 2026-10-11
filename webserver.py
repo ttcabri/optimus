@@ -66,6 +66,9 @@ async def post_state(request: web.Request) -> web.Response:
         raise web.HTTPBadRequest(text="bad json")
     server = await database.get_quest_state(uid)
     merged = quest.merge_incoming(server, incoming)
+    if isinstance(merged.get("house"), dict):
+        from services import house
+        house.get(merged, uid)
     await database.save_quest_state(uid, merged)
     return web.json_response(merged)
 
@@ -90,6 +93,30 @@ async def post_gifts(request: web.Request) -> web.Response:
     return web.json_response({"ideas": ideas})
 
 
+async def post_cook(request: web.Request) -> web.Response:
+    """Что приготовить из того, что есть дома."""
+    uid = _auth(request)
+    state = await database.get_quest_state(uid)
+    from services import claude, house
+    h = house.get(state, uid)
+    try:
+        r = await claude.client.messages.create(
+            model="claude-haiku-4-5", max_tokens=700,
+            messages=[{"role": "user", "content": (
+                "Вот что есть дома у Андрея (он делает мил-преп на 2–3 дня, ходит в зал, любит сытное):\n"
+                + house.summary(h) + "\n\nПредложи 3 блюда, которые можно сделать в основном из этого. "
+                "Сначала из того, что скоро испортится. Ответь ТОЛЬКО JSON: [{\"name\": \"блюдо\", \"uses\": \"что берём из дома\", "
+                "\"buy\": \"чего не хватает или пусто\", \"time\": \"минут\", \"prep\": true если годится на заготовку}]")}])
+        text = "".join(b.text for b in r.content if b.type == "text")
+        import json, re
+        m = re.search(r"\[.*\]", text, re.S)
+        ideas = json.loads(m.group(0)) if m else []
+    except Exception as e:
+        logger.error(f"cook error: {e}")
+        return web.json_response({"ideas": [], "error": "fail"}, status=502)
+    return web.json_response({"ideas": ideas[:3]})
+
+
 async def health(request: web.Request) -> web.Response:
     return web.Response(text="ok")
 
@@ -101,6 +128,7 @@ async def start_web() -> web.AppRunner:
     app.router.add_get("/api/state", get_state)
     app.router.add_post("/api/state", post_state)
     app.router.add_post("/api/gifts", post_gifts)
+    app.router.add_post("/api/cook", post_cook)
     runner = web.AppRunner(app)
     await runner.setup()
     await web.TCPSite(runner, "0.0.0.0", PORT).start()

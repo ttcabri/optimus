@@ -66,6 +66,27 @@ TOOLS = [
     {"name": "set_home",
      "description": "Запомнить домашний адрес для расчёта дороги. Вызывай, когда он называет, где живёт, или переезжает. Если он говорит «я дома» и есть свежая геолокация, передай address=here.",
      "input_schema": {"type": "object", "properties": {"address": {"type": "string"}}, "required": ["address"]}},
+    {"name": "house_add",
+     "description": "Купил или положил продукты/вещи домой. items: [{name, cat: fridge|pantry|home, days: сколько дней хранится (только холодильник, если знаешь точнее), qty: «2 кг» и т.п.}]. fridge = свежее со сроком, pantry = крупы, макароны, консервы, специи, масло, home = бытовое (мыло, порошок, бумага).",
+     "input_schema": {"type": "object", "properties": {"items": {"type": "array", "items": {"type": "object", "properties": {
+         "name": {"type": "string"}, "cat": {"type": "string", "enum": ["fridge", "pantry", "home"]}, "days": {"type": "integer"}, "qty": {"type": "string"}}, "required": ["name"]}}},
+         "required": ["items"]}},
+    {"name": "house_level",
+     "description": "Изменить уровень запаса: ok = есть, low = мало, out = кончилось. «Молоко кончилось» = out, «риса мало» = low.",
+     "input_schema": {"type": "object", "properties": {"name": {"type": "string"}, "level": {"type": "string", "enum": ["ok", "low", "out"]}}, "required": ["name", "level"]}},
+    {"name": "house_remove", "description": "Убрать позицию из дома совсем (съел, выбросил, не нужна).",
+     "input_schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}},
+    {"name": "shop_add", "description": "Добавить в список покупок то, чего нет в учёте дома.",
+     "input_schema": {"type": "object", "properties": {"names": {"type": "array", "items": {"type": "string"}}}, "required": ["names"]}},
+    {"name": "chore_set",
+     "description": "Добавить или изменить домашнее дело с повтором: name, every (раз в сколько дней), dur (минут). Или remove=true, чтобы удалить.",
+     "input_schema": {"type": "object", "properties": {"name": {"type": "string"}, "every": {"type": "integer"}, "dur": {"type": "integer"}, "remove": {"type": "boolean"}}, "required": ["name"]}},
+    {"name": "project_step",
+     "description": "Отметить шаг домашнего проекта (например переезда) сделанным или снова открытым, или добавить новый шаг (add=true).",
+     "input_schema": {"type": "object", "properties": {"text": {"type": "string"}, "done": {"type": "boolean"}, "add": {"type": "boolean"}, "project": {"type": "string"}}, "required": ["text"]}},
+    {"name": "house_note",
+     "description": "Память ДОМА, общая для всех, кто там живёт: правила и факты о жилье (мусор вывозят по четвергам, стиралка в подвале, код домофона нет, хозяин такой-то). Личное об Андрее сюда не пиши, это remember. remove=true удаляет запись по тексту.",
+     "input_schema": {"type": "object", "properties": {"text": {"type": "string"}, "remove": {"type": "boolean"}}, "required": ["text"]}},
     {"name": "take_reward", "description": "Отметить, что Андрей взял награду дня. Только если он прямо сказал, что взял.",
      "input_schema": {"type": "object", "properties": {}}},
 ]
@@ -108,6 +129,9 @@ def _find_custom(state: dict, qid: str, day: str | None):
 
 
 def _name(state: dict, qid: str) -> str:
+    if qid.startswith("ch_"):
+        c = next((x for x in (state.get("house") or {}).get("chores", []) if x.get("id") == qid[3:]), None)
+        return c["name"] if c else qid
     _, _, c = _find_custom(state, qid, None)
     return c["name"] if c else BASE_NAMES.get(qid, qid)
 
@@ -181,7 +205,12 @@ def run(state: dict, name: str, a: dict) -> str | None:
             qid = next((b for b in quest.BOSS_IDS if b not in td["done"]), "b5")
         if qid in PROOF_ONLY:
             return f"{_name(state, qid)} закрывается только пруфом: фото или ссылкой в этот чат"
-        if qid not in BASE_NAMES and not _find_custom(state, qid, "today")[2]:
+        if qid.startswith("ch_"):
+            from services import house
+            c = house.chore_done(house.get(state), qid[3:])
+            if not c:
+                return "не нашёл такое домашнее дело"
+        elif qid not in BASE_NAMES and not _find_custom(state, qid, "today")[2]:
             return "не нашёл такое дело на сегодня"
         if qid in td["done"]:
             return "уже отмечено"
@@ -295,6 +324,60 @@ def run(state: dict, name: str, a: dict) -> str | None:
         state["reminders"] = [x for x in state.get("reminders") or [] if x.get("id") != a.get("id")]
         return "удалено" if len(state["reminders"]) < before else "нет такого"
 
+    if name in ("house_add", "house_level", "house_remove", "shop_add", "chore_set", "project_step", "house_note"):
+        from services import house
+        h = house.get(state)
+        if name == "house_note":
+            t = str(a.get("text", "")).strip()[:200]
+            if a.get("remove"):
+                n = house._find([dict(x, name=x["t"]) for x in h["notes"]], t)
+                if not n:
+                    return "нет такой записи"
+                h["notes"] = [x for x in h["notes"] if x["id"] != n["id"]]
+                h["del"].append(n["id"])
+                return "удалено из памяти дома"
+            h["notes"].append({"id": house.new_id("n"), "t": t, "u": house.now_ms()})
+            return "записал в память дома"
+        if name == "house_add":
+            got = house.add_items(h, a.get("items") or [])
+            return "записал: " + ", ".join(got) if got else "нечего добавлять"
+        if name == "house_level":
+            return house.set_level(h, str(a.get("name", "")), a.get("level", "ok"))
+        if name == "house_remove":
+            return house.remove_item(h, str(a.get("name", "")))
+        if name == "shop_add":
+            return house.shop_add(h, a.get("names") or [])
+        if name == "chore_set":
+            nm = str(a.get("name", "")).strip()[:60]
+            c = house._find(h["chores"], nm)
+            if a.get("remove"):
+                if not c:
+                    return "нет такого дела"
+                h["chores"] = [x for x in h["chores"] if x is not c]
+                h["del"].append(c["id"])
+                return f"удалено: {c['name']}"
+            if not c:
+                c = {"id": house.new_id("c"), "name": nm, "every": 7, "dur": 20, "last": None}
+                h["chores"].append(c)
+            if a.get("every"):
+                c["every"] = max(1, min(int(a["every"]), 90))
+            if a.get("dur"):
+                c["dur"] = max(5, min(int(a["dur"]), 240))
+            c["u"] = house.now_ms()
+            return f"{c['name']}: раз в {c['every']} дн, {c['dur']} мин"
+        if name == "project_step":
+            if a.get("add"):
+                p = house._find(h["projects"], a.get("project") or "") or (h["projects"][0] if h["projects"] else None)
+                if not p:
+                    p = {"id": house.new_id("p"), "name": a.get("project") or "Проект", "steps": [], "u": house.now_ms()}
+                    h["projects"].append(p)
+                p["steps"].append({"id": house.new_id("s"), "t": str(a["text"])[:100], "done": False, "u": house.now_ms()})
+                return f"шаг добавлен в «{p['name']}»"
+            res = house.step_done(h, str(a.get("text", "")), a.get("done", True) is not False)
+            if "договор" in res.lower() and a.get("done", True) is not False:
+                state["goals"] = dict(state.get("goals") or {}, house=True)  # цель «подписал договор» в Прогрессе
+            return res
+
     if name == "take_reward":
         if not td.get("smokes"):
             td["firstSmoke"] = quest.hhmm()
@@ -313,6 +396,7 @@ def plan_context(state: dict) -> str:
     day["_debt"] = quest.has_debt(state)
     day["_profile"] = state.get("profile")
     day["_learn"] = quest.learned(state)
+    day["_chores"] = quest.chores_for_plan(state)
     p = quest.build_plan(day)
     lines = ["ПЛАН НА СЕГОДНЯ (id: дело, время):"]
     for it in p["items"]:
@@ -348,6 +432,9 @@ def plan_context(state: dict) -> str:
     L = day["_learn"]
     if L:
         lines.append("ТВОЁ РЕАЛЬНОЕ ВРЕМЯ (медиана): " + ", ".join(f"{BASE_NAMES.get(k, k) if k != 'video' else 'видео целиком'} {v['min']} мин" for k, v in L.items()))
+    from services import house as _h
+    if isinstance(state.get("house"), dict):
+        lines.append("ДОМ:\n" + _h.summary(state["house"]))
     ev = day.get("ev") or []
     if ev:
         lines.append("ЖУРНАЛ СЕГОДНЯ: " + "; ".join(f"{t} {e} {_name(state, i) if i and not i.isdigit() else i}".strip() for t, e, i in ev[-15:]))

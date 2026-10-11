@@ -230,7 +230,22 @@ async def get_day(telegram_id: int) -> dict:
     day["_theory_i"] = (state.get("theory") or {}).get("i", 0)
     day["_learn"] = learned(state)
     day["_reminders"] = state.get("reminders") or []
+    day["_chores"] = chores_for_plan(state)
+    from services import house as _house
+    day["_expiring"] = [x["name"] for x in _house.expiring(state["house"])] if isinstance(state.get("house"), dict) else []
     return day
+
+
+def chores_for_plan(state: dict) -> list[dict]:
+    """Дела по дому, которые подошли (или сделаны сегодня), для плана дня."""
+    from services import house
+    h = state.get("house")
+    if not isinstance(h, dict):
+        return []
+    today = today_key()
+    done = set((state.get("days", {}).get(today) or {}).get("done", []))
+    return [{"id": "ch_" + c["id"], "name": c["name"], "dur": int(c.get("dur") or 20)}
+            for c in h.get("chores", []) if house.chore_due(c, today) or (c.get("last") == today and "ch_" + c["id"] in done)]
 
 
 async def mark_done(telegram_id: int, ids: list[str]) -> dict:
@@ -318,6 +333,10 @@ def merge_incoming(server: dict, incoming: dict) -> dict:
     incoming.setdefault("lifts", server.get("lifts", []))
     have_l = {(x.get("d"), x.get("ex"), x.get("kg"), x.get("reps")) for x in incoming["lifts"]}
     incoming["lifts"] += [x for x in server.get("lifts", []) if (x.get("d"), x.get("ex"), x.get("kg"), x.get("reps")) not in have_l]
+    # дом: слияние по записям (кто позже менял, тот и прав)
+    if server.get("house") or incoming.get("house"):
+        from services import house as _house
+        incoming["house"] = _house.merge(server.get("house"), incoming.get("house"))
     # то, что ведёт только бот: приложение это не меняет, берём с сервера
     for k in ("notes", "temp", "theory", "settings", "home", "loc"):
         if server.get(k) is not None:
@@ -509,6 +528,9 @@ def build_plan(day: dict, now_min: int | None = None, wd: int | None = None) -> 
         if qid == "_custom":
             for c in day.get("custom", []):
                 queue.append({"id": c["id"], "name": c["name"], "dur": c.get("dur", 30), "fixed": c.get("at"), "minor": False})
+            for c in day.get("_chores") or []:
+                if c["id"] not in skip:
+                    queue.append({"id": c["id"], "name": c["name"], "dur": c["dur"], "fixed": None, "minor": True})
             continue
         if qid == "fine" and not day.get("_debt"):
             continue
