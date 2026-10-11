@@ -1,170 +1,119 @@
-from datetime import date, datetime, timedelta
+import os
+import re
 
-import pytz
 from anthropic import AsyncAnthropic
 
 import database
-from config import ANTHROPIC_API_KEY, TIMEZONE
+from config import ANTHROPIC_API_KEY
 from prompts.system import SYSTEM_PROMPT
 
 client = AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
 
 
-async def build_context_block(telegram_id: int) -> str:
-    """Строит динамический контекст о пользователе для системного промпта."""
-    tz = pytz.timezone(TIMEZONE)
-    now = datetime.now(tz)
-    now_str = now.strftime("%H:%M, %A %d %B %Y")
+CHAT_MODEL = os.getenv("CHAT_MODEL", "claude-haiku-4-5")
+# старые сообщения «ментора по Upwork» в историю не берём
+CHAT_SINCE = "2026-10-11 08:58:00"
 
-    yesterday = (date.today() - timedelta(days=1)).isoformat()
-    yesterday_log = await database.get_log_by_date(telegram_id, yesterday)
-    today_log = await database.get_today_log(telegram_id)
-    streak = await database.get_streak(telegram_id)
-    user = await database.get_user(telegram_id)
+TOOLS = [
+    {"name": "remember",
+     "description": "Сохранить важный долгий факт об Андрее (решение, цель, изменение в жизни, договорённость). Не для мелочей.",
+     "input_schema": {"type": "object", "properties": {"fact": {"type": "string"}}, "required": ["fact"]}},
+    {"name": "forget",
+     "description": "Удалить сохранённый факт, если он устарел или Андрей просит забыть. Передай номер факта из списка.",
+     "input_schema": {"type": "object", "properties": {"n": {"type": "integer"}}, "required": ["n"]}},
+    {"name": "set_theory_topic",
+     "description": "Перейти на тему теории CBR по номеру из плана (1–8 темы, 9 = полные пробные экзамены).",
+     "input_schema": {"type": "object", "properties": {"n": {"type": "integer"}}, "required": ["n"]}},
+]
 
-    main_goal = user["main_goal"] if user else "не задана"
 
-    # Вчерашние данные
-    if yesterday_log:
-        y_done = yesterday_log["what_done"] or "ничего не записано"
-        y_blocked = yesterday_log["what_blocked"] or "—"
-        y_tomorrow = yesterday_log["tomorrow_action"] or "ничего не обещал"
+async def build_context_block(telegram_id: int, state: dict, day: dict) -> str:
+    from services import quest, theory
+    n = quest.now()
+    notes = state.get("notes") or []
+    goals = state.get("goals") or {}
+    body = state.get("body") or []
+    return (
+        "=== КОНТЕКСТ ===\n"
+        f"Сейчас: {n.strftime('%H:%M, %A %d.%m.%Y')} (Нидерланды)\n\n"
+        f"СЕГОДНЯ В КВЕСТЕ:\n{re.sub(r'<[^>]+>', '', quest.day_summary(day))}\n\n"
+        f"КАНАЛ: подписчиков {goals.get('subs', 0)}, лучшее видео {goals.get('maxViews', 0)} просмотров\n"
+        + (f"ВЕС: {body[-1]['kg']} кг ({body[-1]['d']})" + (f", цель {goals['goalKg']} кг" if goals.get("goalKg") else "") + "\n" if body else "")
+        + f"\nТЕОРИЯ CBR:\n{theory.context(state)}\n\n"
+        + "ЧТО ТЫ ЗАПОМНИЛ РАНЬШЕ:\n" + ("\n".join(f"{i + 1}. {x}" for i, x in enumerate(notes)) or "пока ничего") + "\n"
+        "================\n"
+    )
+
+
+def _run_tool(state: dict, name: str, args: dict) -> str:
+    from services import theory
+    if name == "remember":
+        fact = str(args.get("fact", "")).strip()[:200]
+        if fact:
+            state["notes"] = ((state.get("notes") or []) + [fact])[-40:]
+        return "сохранено"
+    if name == "forget":
+        notes = state.get("notes") or []
+        k = int(args.get("n", 0)) - 1
+        if 0 <= k < len(notes):
+            notes.pop(k)
+            state["notes"] = notes
+            return "удалено"
+        return "нет такого номера"
+    if name == "set_theory_topic":
+        return "теперь: " + theory.set_topic(state, int(args.get("n", 1)) - 1)
+    return "неизвестный инструмент"
+
+
+async def get_ai_response(telegram_id: int, user_message: str, voice: bool = False) -> str:
+    """Свободный диалог: Claude с контекстом дня, памятью и инструментами."""
+    from services import quest
+    day = await quest.get_day(telegram_id)
+    state = await database.get_quest_state(telegram_id)
+    system = await build_context_block(telegram_id, state, day) + "\n" + SYSTEM_PROMPT
+
+    history = await database.get_recent_messages(telegram_id, limit=24, since=CHAT_SINCE)
+    messages = []
+    for row in history:
+        if messages and messages[-1]["role"] == row["role"]:
+            messages[-1]["content"] += "\n" + row["content"]
+        else:
+            messages.append({"role": row["role"], "content": row["content"]})
+    while messages and messages[0]["role"] != "user":
+        messages.pop(0)
+    text_in = ("[голосовое] " if voice else "") + user_message
+    if messages and messages[-1]["role"] == "user":
+        messages[-1]["content"] += "\n" + text_in
     else:
-        y_done = "данных нет"
-        y_blocked = "—"
-        y_tomorrow = "ничего не обещал"
+        messages.append({"role": "user", "content": text_in})
 
-    # Сегодняшние данные
-    if today_log:
-        t_done = today_log["what_done"] or "ещё не записано"
-        t_checkin = "да" if today_log["checkin_done"] else "нет"
-        t_trained = "да" if today_log["trained"] else "нет"
-        t_action = today_log["tomorrow_action"] or "не задано"
-    else:
-        t_done = "ещё не записано"
-        t_checkin = "нет"
-        t_trained = "нет"
-        t_action = "не задано"
+    changed = False
+    reply = ""
+    for _ in range(4):
+        response = await client.messages.create(
+            model=CHAT_MODEL, max_tokens=1200, system=system, messages=messages, tools=TOOLS,
+        )
+        reply = "".join(b.text for b in response.content if b.type == "text").strip()
+        uses = [b for b in response.content if b.type == "tool_use"]
+        if response.stop_reason != "tool_use" or not uses:
+            break
+        messages.append({"role": "assistant", "content": [b.model_dump() for b in response.content]})
+        results = []
+        for b in uses:
+            results.append({"type": "tool_result", "tool_use_id": b.id, "content": _run_tool(state, b.name, b.input or {})})
+            changed = True
+        messages.append({"role": "user", "content": results})
 
-    return f"""
-=== КОНТЕКСТ СЕССИИ ===
-Сейчас: {now_str}
-Часовой пояс: {TIMEZONE}
-
-ГЛАВНАЯ ЦЕЛЬ АНДРЕЯ: {main_goal}
-Streak (дней подряд с действием): {streak}
-
-ВЧЕРА ({yesterday}):
-  - Что сделал: {y_done}
-  - Что мешало: {y_blocked}
-  - Обещал на сегодня: {y_tomorrow}
-
-СЕГОДНЯ:
-  - Check-in сделан: {t_checkin}
-  - Что сделал: {t_done}
-  - Тренировка: {t_trained}
-  - Задача на завтра: {t_action}
-
-ВАЖНО: Если вчера было обещание — спроси про него ПЕРВЫМ делом.
-Если check-in сегодня ещё не сделан — веди разговор к нему.
-======================
-"""
-
-
-async def get_ai_response(telegram_id: int, user_message: str) -> str:
-    """Получает ответ от Claude с полным контекстом и памятью."""
-
-    # Строим динамический контекст
-    context_block = await build_context_block(telegram_id)
-    full_system = context_block + "\n\n" + SYSTEM_PROMPT
-
-    # Загружаем историю разговора
-    history = await database.get_recent_messages(telegram_id, limit=20)
-    messages = [{"role": row["role"], "content": row["content"]} for row in history]
-
-    # Добавляем новое сообщение пользователя
-    messages.append({"role": "user", "content": user_message})
-
-    # Запрос к Claude
-    response = await client.messages.create(
-        model="claude-haiku-4-5",
-        max_tokens=1000,
-        system=full_system,
-        messages=messages,
-    )
-
-    assistant_text = response.content[0].text
-
-    # Сохраняем в память
-    await database.add_message(telegram_id, "user", user_message)
-    await database.add_message(telegram_id, "assistant", assistant_text)
-
-    return assistant_text
-
-
-async def get_checkin_opener(telegram_id: int) -> str:
-    """Генерирует открывающее сообщение для ежедневного check-in в 16:30."""
-    context_block = await build_context_block(telegram_id)
-    full_system = context_block + "\n\n" + SYSTEM_PROMPT
-
-    yesterday = (date.today() - timedelta(days=1)).isoformat()
-    yesterday_log = await database.get_log_by_date(telegram_id, yesterday)
-    y_tomorrow = (
-        yesterday_log["tomorrow_action"]
-        if yesterday_log and yesterday_log["tomorrow_action"]
-        else None
-    )
-
-    if y_tomorrow:
-        prompt = f'Время дневного check-in. Вчера пользователь обещал: "{y_tomorrow}". Напиши короткое открывающее сообщение — спроси напрямую выполнил ли он это обещание. Без лишних слов.'
-    else:
-        prompt = "Время дневного check-in. Напиши короткое открывающее сообщение — спроси что конкретно сделал сегодня для главной цели. Без лишних слов."
-
-    response = await client.messages.create(
-        model="claude-haiku-4-5",
-        max_tokens=200,
-        system=full_system,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return response.content[0].text
-
-
-async def get_morning_push(telegram_id: int) -> str:
-    """Генерирует утреннее сообщение с задачей дня."""
-    context_block = await build_context_block(telegram_id)
-    full_system = context_block + "\n\n" + SYSTEM_PROMPT
-
-    response = await client.messages.create(
-        model="claude-haiku-4-5",
-        max_tokens=200,
-        system=full_system,
-        messages=[
-            {
-                "role": "user",
-                "content": "Напиши короткое утреннее сообщение. Напомни главную цель и одно конкретное действие на сегодня (основанное на том что было вчера). Максимум 3 строки.",
-            }
-        ],
-    )
-    return response.content[0].text
-
-
-async def get_evening_reminder(telegram_id: int) -> str:
-    """Генерирует вечернее напоминание если check-in не был сделан."""
-    context_block = await build_context_block(telegram_id)
-    full_system = context_block + "\n\n" + SYSTEM_PROMPT
-
-    response = await client.messages.create(
-        model="claude-haiku-4-5",
-        max_tokens=150,
-        system=full_system,
-        messages=[
-            {
-                "role": "user",
-                "content": "Пользователь не сделал check-in сегодня. Напиши жёсткое короткое напоминание — не нотацию, а прямой вопрос что происходит. Максимум 2 строки.",
-            }
-        ],
-    )
-    return response.content[0].text
+    if changed:
+        fresh = await database.get_quest_state(telegram_id)
+        for k in ("notes", "theory"):
+            if k in state:
+                fresh[k] = state[k]
+        await database.save_quest_state(telegram_id, fresh)
+    reply = reply or "Записал."
+    await database.add_message(telegram_id, "user", text_in)
+    await database.add_message(telegram_id, "assistant", reply)
+    return reply
 
 
 PROOF_PROMPT = """Ты проверяешь пруф выполнения задачи для Андрея. Он прислал фото.
@@ -177,10 +126,13 @@ PROOF_PROMPT = """Ты проверяешь пруф выполнения зад
 - "training" — Андрей в зале или на тренировке (селфи в спортзале, тренажёры, ринг, мешок, перчатки) или скрин трекера тренировки.
 - "fine" — скрин Trading 212: пополнение счёта или покупка в пироге (pie) safemoney, видно сумму и сегодняшнюю дату или «только что».
 - "video" — скрин загрузки/публикации видео в YouTube Studio или опубликованное видео на канале.
-- "none" — всё остальное, или пруф явно старый/фейковый/не относится к задаче.
+- "question" — скрин ОДНОГО вопроса по теории на права (картинка ситуации, знак, варианты ответа), а не итог теста. Тогда в comment объясни по-русски простыми словами правильный ответ и правило (3-5 предложений), с английским термином в скобках. ok = true.
+- "none" — всё остальное, или пруф явно старый/фейковый/не относится к задаче (например письмо, чек об оплате, реклама).
+
+Если "cbr" и виден итог теста: score = сколько правильных, total = сколько всего вопросов, weak = коротко, по каким темам ошибки (если видно), иначе пусто.
 
 Ответь ТОЛЬКО JSON без markdown:
-{{"quest": "cbr|eng|fine|training|video|none", "ok": true/false, "comment": "1-2 коротких предложения по-русски, жёстко и по делу, как ментор."}}"""
+{{"quest": "cbr|eng|fine|training|video|question|none", "ok": true/false, "score": null, "total": null, "weak": "", "comment": "1-2 коротких предложения по-русски, по делу. Для question: объяснение."}}"""
 
 
 async def check_proof(image_bytes: bytes, caption: str, training: str) -> dict:
@@ -193,7 +145,7 @@ async def check_proof(image_bytes: bytes, caption: str, training: str) -> dict:
     try:
         response = await client.messages.create(
             model="claude-haiku-4-5",
-            max_tokens=300,
+            max_tokens=700,
             messages=[{
                 "role": "user",
                 "content": [
@@ -212,10 +164,18 @@ async def check_proof(image_bytes: bytes, caption: str, training: str) -> dict:
         text = response.content[0].text
         match = re.search(r"\{.*\}", text, re.S)
         data = json.loads(match.group(0)) if match else {}
+        def num(v):
+            try:
+                return int(v)
+            except (TypeError, ValueError):
+                return None
         return {
             "quest": str(data.get("quest", "none")),
             "ok": bool(data.get("ok")),
             "comment": str(data.get("comment", "")),
+            "score": num(data.get("score")),
+            "total": num(data.get("total")),
+            "weak": str(data.get("weak") or ""),
         }
     except Exception:
         return {"quest": "none", "ok": False, "comment": "Не смог проверить фото. Скинь ещё раз."}

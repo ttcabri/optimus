@@ -1,4 +1,5 @@
 """Квест дня: /quest, пруфы (фото, ссылка на YouTube), трава, вес, свои дела, план на завтра."""
+import html
 import io
 import re
 
@@ -8,7 +9,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, W
 
 import database
 from config import WEBAPP_URL
-from services import claude, quest
+from services import claude, quest, theory
 
 router = Router()
 
@@ -114,6 +115,17 @@ async def log_subs(message: Message) -> None:
     await message.answer(f"📈 Записал: {n} подписчиков." + (f" До следующей цели {left}." if left else " Обе цели по подписчикам взяты."))
 
 
+THEORY_PATTERN = r"(?i)^\s*(теория|что учить|/theory)\s*[?.!]?\s*$"
+
+
+@router.message(F.text.regexp(THEORY_PATTERN))
+async def theory_today(message: Message) -> None:
+    state = await database.get_quest_state(message.from_user.id)
+    text = theory.today_task(state)
+    await database.save_quest_state(message.from_user.id, state)
+    await message.answer(text + "\n\nВопрос по правилу или скрин вопроса кидай сюда, объясню.")
+
+
 @router.message(F.text.regexp(ADD_PATTERN))
 async def add_today(message: Message) -> None:
     m = re.match(ADD_PATTERN, message.text, re.S)
@@ -142,8 +154,12 @@ async def proof_photo(message: Message, bot: Bot) -> None:
 
     kind = result.get("quest")
     comment = result.get("comment", "").strip()
+    if kind == "question":
+        await message.answer("📚 " + html.escape(comment or "Не разобрал вопрос. Скинь скрин почётче."))
+        return
     if not result.get("ok") or kind not in ("cbr", "eng", "fine", "training", "video"):
-        await message.answer("❌ Не засчитано.\n" + (comment or "Не понял, что это за пруф. Подпиши фото."))
+        await message.answer("Это не пруф, ничего не отметил.\n" + html.escape(comment or "")
+                             + "\n\nЕсли хотел что-то спросить, напиши текстом или голосом.")
         return
 
     day = await quest.get_day(message.from_user.id)
@@ -165,9 +181,15 @@ async def proof_photo(message: Message, bot: Bot) -> None:
 
     day = await quest.mark_done(message.from_user.id, ids)
     extra = ""
+    if kind == "cbr":
+        st = await database.get_quest_state(message.from_user.id)
+        line = theory.record(st, result.get("score"), result.get("total"), result.get("weak", ""), quest.today_key())
+        if line:
+            await database.save_quest_state(message.from_user.id, st)
+            extra += "\n\n" + line
     if quest.reward_state(day) == "open":
         extra = "\n\n🌿 Все 4 дела закрыты. Награда открыта."
     await message.answer(
-        f"✅ {title} засчитано.\n{comment}{extra}\n\n{_reward(day)}",
+        f"✅ {title} засчитано.\n{html.escape(comment)}{extra}\n\n{_reward(day)}",
         reply_markup=quest_keyboard(),
     )

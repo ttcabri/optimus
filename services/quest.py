@@ -159,6 +159,7 @@ async def get_day(telegram_id: int) -> dict:
     day = _day(state, today_key())
     day["_debt"] = has_debt(state)
     day["_profile"] = state.get("profile")
+    day["_theory_i"] = (state.get("theory") or {}).get("i", 0)
     return day
 
 

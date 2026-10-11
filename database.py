@@ -224,15 +224,15 @@ async def add_message(telegram_id: int, role: str, content: str) -> None:
             (telegram_id,),
         )
         total = (await cursor.fetchone())[0]
-        if total > 50:
+        if total > 80:
             await db.execute(
                 """
                 DELETE FROM conversation_memory
                 WHERE telegram_id = ? AND id NOT IN (
                     SELECT id FROM conversation_memory
                     WHERE telegram_id = ?
-                    ORDER BY created_at DESC
-                    LIMIT 20
+                    ORDER BY id DESC
+                    LIMIT 40
                 )
                 """,
                 (telegram_id, telegram_id),
@@ -240,12 +240,12 @@ async def add_message(telegram_id: int, role: str, content: str) -> None:
             await db.commit()
 
 
-async def get_recent_messages(telegram_id: int, limit: int = 20) -> list[aiosqlite.Row]:
+async def get_recent_messages(telegram_id: int, limit: int = 20, since: str = "") -> list[aiosqlite.Row]:
     async with aiosqlite.connect(DATABASE_PATH) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(
-            "SELECT * FROM conversation_memory WHERE telegram_id = ? ORDER BY created_at DESC LIMIT ?",
-            (telegram_id, limit),
+            "SELECT * FROM conversation_memory WHERE telegram_id = ? AND created_at >= ? ORDER BY id DESC LIMIT ?",
+            (telegram_id, since, limit),
         )
         rows = await cursor.fetchall()
         return list(reversed(rows))

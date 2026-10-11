@@ -58,6 +58,9 @@ def quest_messages(day: dict, now_min: int, today: str, wd: int) -> list[str]:
         once(f"late:{first['id']}", f"⏱ «{first['name']}» идёт на {first['late']} мин дольше плана. Закрывай или режь лишнее, иначе вечер уедет.")
     elif first and not first.get("started") and not first.get("minor") and first["start"] <= now_min + 2:
         hint = HINTS.get(first["id"], "")
+        if first["id"] == "cbr":
+            from services import theory
+            hint = f"Сегодня: {theory.stage_name(day.get('_theory_i', 0))}. Напиши «теория», расскажу что учить."
         once(f"start:{first['id']}", f"▶️ Пора: <b>{first['name']}</b>, до {quest.hm(first['end'])}. {hint}".strip())
     if p["over"]:
         names = ", ".join(o["name"] for o in p["over"])
