@@ -39,6 +39,10 @@ class AccessMiddleware(BaseMiddleware):
             return None
         if await allowed(user.id):
             return await handler(event, data)
+        # пришёл по ссылке-приглашению: пускаем сразу, без запроса владельцу
+        text = getattr(event, "text", None) or ""
+        if text.startswith("/start inv_") and await use_invite(data["bot"], user, text.split("inv_", 1)[1].strip()):
+            return await handler(event, data)
         # чужой: в первый раз просим доступ у владельца, дальше молчим (раз в сутки напоминаем ему, что ждёт)
         st = await database.access_status(user.id)
         if st == "no":
@@ -52,6 +56,27 @@ class AccessMiddleware(BaseMiddleware):
             if data.get("event_chat") is not None:
                 await bot.send_message(user.id, "🔐 Бот закрытый. Запрос на доступ отправлен владельцу, напишу, когда пустит.")
         return None
+
+
+async def use_invite(bot, user, code: str) -> bool:
+    got = await database.invite_use(code, user.id)
+    if not got:
+        return False
+    owner, house_id = got
+    await database.set_access(user.id, "ok", _who(user))
+    if house_id:
+        await database.join_house(user.id, house_id)
+        st = await database.get_quest_state(user.id)
+        h = st.get("house")
+        if isinstance(h, dict) and not any(str(m.get("uid")) == str(user.id) for m in h.get("members", [])):
+            h.setdefault("members", []).append({"uid": user.id, "name": user.first_name or "Жилец", "role": "adult", "u": int(time.time() * 1000)})
+            await database.save_quest_state(user.id, st)
+    for to in {owner, TELEGRAM_USER_ID}:
+        try:
+            await bot.send_message(to, f"🔑 По приглашению зашёл: <b>{html.escape(_who(user))}</b>" + (" (живёт с тобой в доме)" if house_id and to == owner else ""))
+        except Exception:
+            pass
+    return True
 
 
 @router.callback_query(F.data.startswith("acc:"))

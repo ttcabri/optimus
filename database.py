@@ -92,6 +92,16 @@ CREATE TABLE IF NOT EXISTS quest_days_archive (
     PRIMARY KEY (telegram_id, day)
 );
 
+-- приглашения: ссылка t.me/бот?start=inv_КОД открывает доступ (и, если надо, общий дом)
+CREATE TABLE IF NOT EXISTS invites (
+    code TEXT PRIMARY KEY,
+    owner INTEGER NOT NULL,
+    house_id TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    used_by INTEGER,
+    used_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS weekly_commitments (
     id INTEGER PRIMARY KEY,
     telegram_id INTEGER,
@@ -542,3 +552,26 @@ async def save_quest_state(telegram_id: int, state: dict) -> None:
             merged = house_svc.merge(stored, dict(incoming_house, id=hid))
             await put_house(db, hid, merged)
         await db.commit()
+
+
+# --- приглашения ---
+
+async def invite_create(owner: int, house_id: str | None) -> str:
+    import secrets
+    code = secrets.token_urlsafe(6).replace("-", "x").replace("_", "y")
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute("INSERT INTO invites (code, owner, house_id) VALUES (?, ?, ?)", (code, owner, house_id))
+        await db.commit()
+    return code
+
+
+async def invite_use(code: str, uid: int) -> tuple | None:
+    """Свободное приглашение: (owner, house_id), помечается использованным. Чужое или занятое: None."""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        cur = await db.execute("SELECT owner, house_id, used_by FROM invites WHERE code = ?", (code,))
+        row = await cur.fetchone()
+        if not row or (row[2] is not None and row[2] != uid):
+            return None
+        await db.execute("UPDATE invites SET used_by = ?, used_at = CURRENT_TIMESTAMP WHERE code = ?", (uid, code))
+        await db.commit()
+        return row[0], row[1]

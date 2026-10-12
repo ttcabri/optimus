@@ -75,7 +75,7 @@ button{cursor:pointer}
 .rhint{margin:0;font-size:12.5px;color:var(--dim);font-weight:600}
 .rgoal{margin:-4px 0 4px;font-size:13px;font-weight:800;color:var(--gold)}
 .rdays{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}.rdays .chip{padding:8px 0;text-align:center;justify-content:center;color:var(--dim)}
-.rdays .chip[aria-pressed="true"]{background:var(--panel2);border-color:var(--gold);color:var(--gold)}
+.rdays .chip[aria-pressed="true"]{background:#1f2a20;border-color:var(--okl);color:var(--okl)}
 .opts.rtwo{grid-template-columns:1fr 1fr}.rtpick{position:relative;display:grid;place-items:center;cursor:pointer}.rtpick input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:none}
 .rsteps{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);font-weight:600}
 .opt{min-height:52px;border-radius:14px;border:1px solid var(--line2);background:var(--panel);font-weight:700;font-size:15px;padding:8px;text-align:center}
@@ -261,6 +261,7 @@ button.hrow{width:100%;border:none;color:inherit;font:inherit;text-align:left}
 .bimg{width:100%;max-height:340px;object-fit:contain;border-radius:14px;background:var(--panel2)}
 .mhero{margin:0 16px;padding:14px;border-radius:20px;background:linear-gradient(135deg,#2c2412,var(--panel));border:1px solid var(--line2);display:flex;flex-direction:column;gap:4px}
 .mhero small{color:var(--muted);font-weight:700;font-size:12px}.mhero>b{font-family:var(--display);font-weight:400;font-size:32px;line-height:1.1}
+.invlink{padding:12px;border-radius:12px;background:var(--panel2);font-size:13px;font-weight:700;word-break:break-all;color:var(--gold);margin-bottom:10px;user-select:all}
 .mgo{position:relative;cursor:pointer}.mgo>small:first-of-type{padding-right:70px}.mmore{position:absolute;top:14px;right:14px;font-size:12px;font-weight:800;color:var(--gold)}
 .mleg span{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:13px;font-weight:700;padding:5px 0}.mleg span.dim{opacity:.5}
 .atile{min-height:120px}.atile .adot{position:absolute;top:14px;right:14px;width:10px;height:10px;border-radius:3px}.atile .av{font-family:var(--display);font-size:19px;color:var(--fg);font-weight:400}
@@ -1113,6 +1114,7 @@ function viewHome(){
   if(seg==="cook")return head("Что приготовить","food")+(bItems("recipes").length?`<div class="glabel">Твои рецепты</div><div class="list">${bItems("recipes").map(bRow).join("")}</div><div class="glabel">Из того, что дома</div>`:"")+`<div class="segfoot" style="padding-top:0"><button type="button" class="line" data-cook="1">${cookBusy?"Думаю…":cookIdeas?"Подобрать ещё":"Подобрать блюда"}</button></div>
       ${cookIdeas?`<div class="list">${cookIdeas.map(c=>`<div class="idea"><b>${esc(c.name)}${c.prep?' <span class="pin">ЗАГОТОВКА</span>':""}</b><small style="color:var(--muted);font-weight:700">${esc(c.uses||"")}${c.time?" · "+esc(String(c.time))+" мин":""}</small>${c.buy?`<small style="color:var(--gold);font-weight:700">Докупить: ${esc(c.buy)}</small>`:""}</div>`).join("")}</div>`:'<p class="empty" style="padding:0 20px">Из того, что есть дома, сначала то, что скоро испортится.</p>'}`;
   if(seg==="people")return head("Настройки дома","")+`<div class="glabel">Люди</div><div class="list">${h.members.map(m=>`<div class="hrow"><span class="nm"><b>${esc(m.name||prof().name||"Я")}</b><small>${esc((h.roles.find(r=>r.id===m.role)||{}).name||m.role)}</small></span></div>`).join("")}</div>
+      <div class="segfoot" style="padding-top:8px"><button type="button" class="line" data-hinv="1">＋ Пригласить человека</button></div>
       <div class="glabel">Правила дома</div><div class="list">${h.notes.map(n=>`<div class="hrow"><span class="nm"><b style="font-weight:600">${esc(n.t)}</b></span><button type="button" class="x" data-ndel="${n.id}" aria-label="Удалить">${IC.x}</button></div>`).join("")}</div>
       <form class="add" data-add="hnote"><div class="r"><input name="t" maxlength="200" placeholder="Например: мусор вывозят по четвергам" aria-label="Новое правило дома" autocomplete="off"><button type="submit" aria-label="Добавить">+</button></div></form>`;
   // главный экран: «Сейчас» с действием в строке, 4 плитки, проекты строкой
@@ -1443,6 +1445,7 @@ document.addEventListener("click",e=>{
   if(t.dataset.gopen){tab="goals";goalSeg=t.dataset.gopen;render();window.scrollTo(0,0);return}
   if(t.dataset.gback){goalSeg="";render();window.scrollTo(0,0);return}
   if(t.dataset.hsetup){W={step:"gtext",text:"",health:1};renderSheet();return}
+  if(t.dataset.hinv){W={step:"hinv"};renderSheet();return}
   if(t.dataset.mmask){const m=MON();mutate(()=>{m.mask=!m.mask;m.hu=Date.now()});return}
   if(t.dataset.mset){W={step:"mset"};renderSheet();return}
   if(t.dataset.mtr){const m=MON(),from=t.dataset.mtr,to=(mVis(m).find(x=>x.id!==from&&mSpend(x)!==mSpend(m.accts.find(y=>y.id===from)||{}))||mVis(m).find(x=>x.id!==from)||{}).id;W={step:"mop",isNew:true,o:{id:hid("m"),k:"tr",amt:0,acc:from,to,n:"",d:key()}};renderSheet();return}
@@ -1611,6 +1614,11 @@ function renderSheet(){
       <form data-wf="mdebt" style="display:flex;flex-direction:column;gap:8px"><input name="who" maxlength="40" value="${esc(d.who||"")}" placeholder="Кто, например Серёга" aria-label="Кто" autocomplete="off"><input name="amt" inputmode="decimal" value="${d.amt||""}" placeholder="Сумма, €" aria-label="Сумма" autocomplete="off"><input name="n" maxlength="60" value="${esc(d.n||"")}" placeholder="За что, можно пусто" aria-label="За что" autocomplete="off"></form>
       <div class="srow2">Вернуть до<input type="date" id="mdue" value="${d.due||""}" aria-label="Вернуть до"></div><p class="rhint">В этот день бот напомнит.</p>
       <button type="button" class="goldbtn" data-w="mdsave">Сохранить</button>${W.isNew?"":`<button type="button" class="line" data-w="mddone">✅ Вернули</button>`}`}
+  if(W.step==="hinv"){body=`<h2>Пригласить</h2><p class="q">Ссылка на одного человека. Перейдёт по ней, и бот откроется для него сразу, без твоего подтверждения. У него будет свой профиль: свой день, память, деньги, документы.</p>
+      ${W.link?`<div class="invlink">${esc(W.link)}</div><div class="btns" style="display:flex;gap:8px"><button type="button" class="line" style="flex:1" data-w="invcopy">Скопировать</button><button type="button" class="goldbtn" style="flex:1;height:50px;font-size:16px" data-w="invshare">Отправить</button></div>
+        <p class="rhint">${W.house?"Будет жить с тобой в этом доме: общие продукты, покупки, быт.":"Будет пользоваться ботом сам, со своим домом."}</p>`
+      :W.busy?`<div class="gload"><i></i><i></i><i></i></div>`:`<button type="button" class="opt" style="width:100%;height:auto;padding:14px;text-align:left;margin-bottom:8px" data-w="inv:1"><b style="display:block">🏠 Живёт со мной</b><small style="color:var(--muted);font-weight:600">общий дом: продукты, покупки, быт</small></button>
+        <button type="button" class="opt" style="width:100%;height:auto;padding:14px;text-align:left" data-w="inv:0"><b style="display:block">👤 Просто пользоваться ботом</b><small style="color:var(--muted);font-weight:600">свой дом, свои данные</small></button>`}`}
   if(W.step==="mlim"){const m=MON(),c=W.cat,v=(m.lim||{})[c]||"";
     body=`<h2>Лимит на месяц</h2><div class="perm">${Object.keys(MC).filter(x=>x!=="fine").map(x=>`<button type="button" class="chip" data-w="ml:${x}" aria-pressed="${c===x}">${MC[x][0]} ${MC[x][1]}</button>`).join("")}</div>
       <form data-wf="mlim"><input name="v" inputmode="decimal" value="${v}" placeholder="€ в месяц, пусто = без лимита" aria-label="Лимит" autocomplete="off"></form>
@@ -1845,6 +1853,10 @@ $("sheet").addEventListener("click",e=>{
   if(a.startsWith("mdd:")){dKeep();W.d.dir=a.slice(4);return renderSheet()}
   if(a==="mdsave"){dKeep();const d=W.d;if(!d.who||!(d.amt>0)){toast("Кто и сколько");return}const m=MON();closeSheet();mutate(()=>{m.debts=m.debts||[];const ex=m.debts.find(x=>x.id===d.id);if(ex)Object.assign(ex,d,{u:Date.now()});else m.debts.push(Object.assign(d,{u:Date.now()}))});toast("Записал");return}
   if(a==="mddone"){const m=MON(),d=(m.debts||[]).find(x=>x.id===W.d.id);closeSheet();if(d)mutate(()=>{d.done=key();d.u=Date.now()});toast("Долг закрыт");return}
+  if(a.startsWith("inv:")){if(!BOT||typeof fetchInvite!=="function"){toast("Приглашения работают в боте в Телеграме");return}const w=W;w.house=a==="inv:1";w.busy=true;renderSheet();
+    fetchInvite(w.house).then(link=>{w.busy=false;w.link=link;if(W===w)renderSheet()}).catch(()=>{w.busy=false;if(W===w)renderSheet();toast("Не получилось, попробуй ещё раз")});return}
+  if(a==="invcopy"){const l=W.link;try{navigator.clipboard.writeText(l).then(()=>toast("Скопировал")).catch(()=>toast(l))}catch(e){toast(l)}return}
+  if(a==="invshare"){const tgw=window.Telegram&&Telegram.WebApp,u="https://t.me/share/url?url="+encodeURIComponent(W.link)+"&text="+encodeURIComponent("Заходи в мой бот «Квест дня»: план дня, дом, деньги");if(tgw&&tgw.openTelegramLink)tgw.openTelegramLink(u);else window.open(u,"_blank");return}
   if(a.startsWith("ml:")){W.cat=a.slice(3);return renderSheet()}
   if(a==="mlsave"){const m=MON(),v=parseFloat(String($("sheet").querySelector("input[name=v]").value).replace(",","."));const c=W.cat;closeSheet();mutate(()=>{m.lim=Object.assign({},m.lim,{[c]:v>0?v:0});m.lu=Date.now()});toast(v>0?"Лимит "+MC[c][1]+": "+eur(v)+" в месяц":"Лимит убран");return}
   if(a.startsWith("mra:")){mrKeep();W.acc=a.slice(4);return renderSheet()}
@@ -2010,6 +2022,7 @@ save=()=>{clearTimeout(st);st=setTimeout(async()=>{
 async function fetchGoal(q){const r=await fetch("api/goal",{method:"POST",headers:hdr(),body:JSON.stringify(q)});const v=await r.json().catch(()=>({}));if(!r.ok)throw new Error(v.error||r.status);return v}
 async function fetchCook(){const r=await fetch("api/cook",{method:"POST",headers:hdr(),body:"{}"});const v=await r.json().catch(()=>({}));if(!r.ok)throw new Error(v.error||r.status);return v.ideas||[]}
 async function fetchBrain(text,file){let r;if(file){const fd=new FormData();fd.append("text",text||"");fd.append("file",file,file.name||"file");r=await fetch("api/brain",{method:"POST",headers:{"X-Init-Data":tg?tg.initData:""},body:fd})}else r=await fetch("api/brain",{method:"POST",headers:hdr(),body:JSON.stringify({text})});const v=await r.json().catch(()=>({}));if(!r.ok)throw new Error(v.error||r.status);return v}
+async function fetchInvite(house){const r=await fetch("api/invite",{method:"POST",headers:hdr(),body:JSON.stringify({house:!!house})});const v=await r.json().catch(()=>({}));if(!r.ok||!v.link)throw new Error(v.error||r.status);return v.link}
 async function fetchGifts(q){const r=await fetch("api/gifts",{method:"POST",headers:hdr(),body:JSON.stringify(q)});const v=await r.json().catch(()=>({}));if(!r.ok)throw new Error(v.error||r.status);return v.ideas||[]}
 render();pull();
 document.addEventListener("visibilitychange",()=>{if(!document.hidden)pull()});

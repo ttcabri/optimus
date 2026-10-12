@@ -241,6 +241,30 @@ async def get_brain_file(request: web.Request) -> web.Response:
     return web.Response(body=buf.getvalue(), content_type=ct.split(";")[0], headers={"Cache-Control": "private, max-age=3600"})
 
 
+_BOT_NAME = None
+
+
+async def post_invite(request: web.Request) -> web.Response:
+    """Ссылка-приглашение: {house: true} = жить в одном доме, иначе просто пользоваться ботом (свой профиль)."""
+    uid = await _auth(request)
+    global _BOT_NAME
+    try:
+        body = await request.json()
+    except ValueError:
+        body = {}
+    hid = None
+    if body.get("house"):
+        import aiosqlite
+        from config import DATABASE_PATH
+        async with aiosqlite.connect(DATABASE_PATH) as db:
+            hid = await database.house_id_of(db, uid)
+        hid = hid or f"house_{uid}"
+    code = await database.invite_create(uid, hid)
+    if not _BOT_NAME and BOT:
+        _BOT_NAME = (await BOT.get_me()).username
+    return web.json_response({"link": f"https://t.me/{_BOT_NAME or 'BotButter_bot'}?start=inv_{code}"})
+
+
 async def health(request: web.Request) -> web.Response:
     return web.Response(text="ok")
 
@@ -255,6 +279,7 @@ async def start_web() -> web.AppRunner:
     app.router.add_post("/api/cook", post_cook)
     app.router.add_post("/api/goal", post_goal)
     app.router.add_post("/api/brain", post_brain)
+    app.router.add_post("/api/invite", post_invite)
     app.router.add_get("/api/brainfile", get_brain_file)
     runner = web.AppRunner(app)
     await runner.setup()
