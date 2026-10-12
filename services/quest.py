@@ -24,12 +24,28 @@ def now() -> datetime:
     return datetime.now(pytz.timezone(TIMEZONE))
 
 
+# День не кончается в полночь: до 05:00 ещё вчера. Ночные дела и отметки остаются во вчерашнем дне,
+# а время после полуночи считается как 24:xx (to_min("01:00") = 1500).
+CUT = 300
+
+
+def lnow() -> datetime:
+    """Часы, сдвинутые на 5 часов назад: по ним берём дату и день недели."""
+    return now() - timedelta(minutes=CUT)
+
+
+def now_min() -> int:
+    n = now()
+    m = n.hour * 60 + n.minute
+    return m + 1440 if m < CUT else m
+
+
 def today_key() -> str:
-    return now().strftime("%Y-%m-%d")
+    return lnow().strftime("%Y-%m-%d")
 
 
 def tomorrow_key() -> str:
-    return (now() + timedelta(days=1)).strftime("%Y-%m-%d")
+    return (lnow() + timedelta(days=1)).strftime("%Y-%m-%d")
 
 
 def hhmm() -> str:
@@ -143,8 +159,7 @@ def names(P: dict) -> dict:
 
 
 def bed_min(p: dict) -> int:
-    m = to_min(p["bed"])
-    return m + 1440 if m < 300 else m
+    return to_min(p["bed"])
 
 
 def day_end(p: dict) -> str:
@@ -181,7 +196,7 @@ def has_debt(state: dict, key: str | None = None) -> bool:
 
 def reqs(day: dict, weekday: int | None = None) -> list[dict]:
     """Главные дела дня (отмечены в распорядке): закрыл все, награда открыта. weekday как в Python: пн=0."""
-    w = now().weekday() if weekday is None else weekday
+    w = lnow().weekday() if weekday is None else weekday
     P = prof(day)
     skip = set(day.get("skip", []))
     pi = pen_item(P)
@@ -226,6 +241,22 @@ def reward_line(day: dict, weekday: int | None = None) -> str:
 
 # --- Замеры времени (та же логика, что в webapp/index.html) ---
 
+def _ev_min(t) -> int:
+    try:
+        return to_min(t)
+    except (ValueError, AttributeError):
+        return 0
+
+
+def woke_at(day: dict | None) -> str | None:
+    """Когда встал: нажал «Я встал», или первая отметка дня, если кнопку пропустил."""
+    day = day or {}
+    if day.get("woke"):
+        return day["woke"]
+    ts = [t for t in (day.get("at") or {}).values() if t] + [e[0] for e in day.get("ev") or [] if len(e) == 3 and e[1] in ("done", "start")]
+    return min(ts, key=_ev_min) if ts else None
+
+
 def log_ev(day: dict, e: str, qid: str = "") -> None:
     day["ev"] = (day.get("ev") or []) + [[hhmm(), e, qid]]
     day["ev"] = day["ev"][-200:]
@@ -237,8 +268,7 @@ def _rest_overlap(day: dict, a: int, b: int) -> int:
 
 def record_span(day: dict, qid: str, P: dict | None = None) -> None:
     """Сколько заняло дело: от «начал» (или прошлого закрытого дела) до сейчас, минус отдых."""
-    n = now()
-    now_m = n.hour * 60 + n.minute
+    now_m = now_min()
     s, g = None, 1
     cur = day.get("cur") or {}
     par = parent_of(P or prof(day), qid)
@@ -471,9 +501,24 @@ def merge_incoming(server: dict, incoming: dict) -> dict:
         # журнал и замеры, записанные ботом
         if sday.get("ev"):
             seen = {tuple(e) for e in iday.get("ev") or []}
-            iday["ev"] = sorted((iday.get("ev") or []) + [e for e in sday["ev"] if tuple(e) not in seen], key=lambda e: e[0])[-200:]
+            for e in sday["ev"]:  # перенос или «убрать» из бота, которых приложение ещё не видело
+                if tuple(e) in seen or len(e) != 3:
+                    continue
+                if e[1] in ("move", "skip"):
+                    iday["skip"] = sorted(set(iday.get("skip") or []) | {e[2]})
+                    if e[1] == "move" and e[2] in (sday.get("moved") or {}):
+                        iday["moved"] = dict(iday.get("moved") or {}, **{e[2]: sday["moved"][e[2]]})
+                elif e[1] == "back":
+                    iday["skip"] = [x for x in iday.get("skip") or [] if x != e[2]]
+                    iday["moved"] = {k: v for k, v in (iday.get("moved") or {}).items() if k != e[2]}
+            iday["ev"] = sorted((iday.get("ev") or []) + [e for e in sday["ev"] if tuple(e) not in seen], key=lambda e: _ev_min(e[0]))[-200:]
         if sday.get("span"):
             iday["span"] = {**sday["span"], **(iday.get("span") or {})}
+        if sday.get("woke") and (not iday.get("woke") or _ev_min(sday["woke"]) < _ev_min(iday["woke"])):
+            iday["woke"] = sday["woke"]  # «Я встал» из бота
+        for k2 in ("ok", "drift"):
+            if sday.get(k2) and not iday.get(k2):
+                iday[k2] = sday[k2]
         if sday.get("mSent"):  # утренняя сводка уже ушла: не слать повторно из-за старой копии в приложении
             iday["mSent"] = True
         # трава, отмеченная в боте
@@ -518,7 +563,7 @@ def merge_incoming(server: dict, incoming: dict) -> dict:
 
 def day_summary(day: dict) -> str:
     P = prof(day)
-    w = now().weekday()
+    w = lnow().weekday()
     lines = [("✅ " if x["t"] and x["t"] != "skip" else "➖ " if x["t"] else "❌ ") + x["name"] for x in reqs(day, w)]
     pi = pen_item(P)
     if pi and "vid2" in day.get("done", []) and not day.get("_debt"):
@@ -540,7 +585,8 @@ GAME_MIN = 45
 
 def to_min(t: str) -> int:
     h, m = str(t).split(":")
-    return int(h) * 60 + int(m)
+    v = int(h) * 60 + int(m)
+    return v + 1440 if v < CUT else v
 
 
 def hm(m: int) -> str:
@@ -549,7 +595,7 @@ def hm(m: int) -> str:
 
 
 def js_weekday() -> int:
-    return (now().weekday() + 1) % 7
+    return (lnow().weekday() + 1) % 7
 
 
 def rests_of(day: dict) -> list[tuple[int, int]]:
@@ -564,7 +610,7 @@ def rests_of(day: dict) -> list[tuple[int, int]]:
 
 
 def build_plan(day: dict, now_min: int | None = None, wd: int | None = None) -> dict:
-    now_m = now_min if now_min is not None else now().hour * 60 + now().minute
+    now_m = now_min if now_min is not None else globals()["now_min"]()
     wd = js_weekday() if wd is None else wd
     done = set(day.get("done", []))
     skip = set(day.get("skip", []))
@@ -622,7 +668,7 @@ def build_plan(day: dict, now_min: int | None = None, wd: int | None = None) -> 
         customs()
 
     out, over = [], []
-    wake = day.get("at", {}).get("wake")
+    wake = day.get("at", {}).get("wake") or day.get("woke")
     cur = max(now_m, to_min(P["wake"])) if not wake else now_m
     for g, mins in sorted(rests_of(day)):
         if g + mins > now_m:
@@ -674,7 +720,7 @@ def day_view(state: dict, key: str) -> dict:
 
 def closed_streak(state: dict) -> int:
     """Сколько дней подряд закрыто всё главное (сегодня считается, если уже закрыт)."""
-    d0 = now().date()
+    d0 = lnow().date()
     n, i = 0, 0 if day_closed(day_view(state, d0.strftime("%Y-%m-%d")), d0.weekday()) else 1
     while i < 400:
         k = d0 - timedelta(days=i)
@@ -743,7 +789,7 @@ def habit_streak(state: dict, qid: str) -> int:
     it = item(P, qid)
     if not it:
         return 0
-    d0, n = now().date(), 0
+    d0, n = lnow().date(), 0
     for i in range(400):
         k = d0 - timedelta(days=i)
         if not on_day(it, (k.weekday() + 1) % 7):

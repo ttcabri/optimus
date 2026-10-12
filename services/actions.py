@@ -131,7 +131,7 @@ def _new_id() -> str:
 
 def _key(day: str | None) -> str:
     d = (day or "today").strip().lower()
-    n = quest.now()
+    n = quest.lnow()
     if d in ("today", "сегодня", ""):
         return n.strftime("%Y-%m-%d")
     if d in ("tomorrow", "завтра"):
@@ -345,8 +345,7 @@ def run(state: dict, name: str, a: dict) -> str | None:
         return f"отдых {m} мин с {quest.hhmm()}, всего отдыха сегодня {total} мин"
 
     if name == "end_rest":
-        n = quest.now()
-        now_m = n.hour * 60 + n.minute
+        now_m = quest.now_min()
         gl = td.get("gl", [])
         for i, (s, m) in enumerate(quest.rests_of(td)):
             if s <= now_m < s + m:
@@ -532,8 +531,7 @@ def plan_context(state: dict) -> str:
             lines.append(f"- {it['id']}: {it['name']} {quest.hm(it['start'])}–{quest.hm(it['end'])}" + (" (идёт сейчас)" if it.get("started") else ""))
     for o in p["over"]:
         lines.append(f"- {o['id']}: {o['name']} (не влезает до отбоя)")
-    n = quest.now()
-    now_m = n.hour * 60 + n.minute
+    now_m = quest.now_min()
     spans = sorted((it["start"], it["end"]) for it in p["items"] if not it.get("gap"))
     free, cur = [], max(now_m, quest.to_min(P["wake"]))
     for s0, e0 in spans:

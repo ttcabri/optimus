@@ -3,6 +3,7 @@
 Отдаёт webapp/index.html и API /api/state. Каждый запрос проверяется по initData от Telegram,
 поэтому доступ есть только у владельца бота (TELEGRAM_USER_ID).
 """
+import asyncio
 import hashlib
 import hmac
 import json
@@ -18,6 +19,7 @@ from config import PORT, TELEGRAM_BOT_TOKEN, TELEGRAM_USER_ID
 from services import gifts, quest
 
 logger = logging.getLogger(__name__)
+BOT = None  # ставит bot.py: чтобы после «Я встал» в приложении прислать утро в чат
 WEBAPP_DIR = Path(__file__).parent / "webapp"
 
 
@@ -73,12 +75,27 @@ async def post_state(request: web.Request) -> web.Response:
     except ValueError:
         raise web.HTTPBadRequest(text="bad json")
     server = await database.get_quest_state(uid)
+    tk = quest.today_key()
+    woke_before = bool(((server.get("days") or {}).get(tk) or {}).get("woke"))
     merged = quest.merge_incoming(server, incoming)
     if isinstance(merged.get("house"), dict):
         from services import house
         house.get(merged, uid)
+    mday = (merged.get("days") or {}).get(tk) or {}
+    if mday.get("woke") and not woke_before and not mday.get("mSent") and BOT:
+        mday["mSent"] = True  # «Я встал» в приложении: утреннее сообщение в бот
+        asyncio.create_task(_morning(uid))
     await database.save_quest_state(uid, merged)
     return web.json_response({**merged, "_me": uid})
+
+
+async def _morning(uid: int) -> None:
+    try:
+        from services import dayflow
+        await asyncio.sleep(1)  # дождаться, пока состояние с подъёмом сохранится
+        await dayflow.send_morning(BOT, uid)
+    except Exception as e:
+        logger.error(f"morning after wake error: {e}")
 
 
 async def post_gifts(request: web.Request) -> web.Response:

@@ -399,11 +399,15 @@ let tab="today",confirmPlay=false;
 /* ---------- время ---------- */
 const pad=n=>String(n).padStart(2,"0");
 const fmt=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
-const key=()=>fmt(new Date());
+// день не кончается в полночь: до 05:00 ещё вчера, время после полуночи считается как 24:xx
+const CUT=300;
+const lnow=()=>new Date(Date.now()-CUT*60000);
+const key=()=>fmt(lnow());
 const shift=(k,n)=>{const d=new Date(k+"T12:00:00");d.setDate(d.getDate()+n);return fmt(d)};
 const dow=k=>new Date(k+"T12:00:00").getDay();
-const nowMin=()=>{const n=new Date();return n.getHours()*60+n.getMinutes()};
-const toMin=t=>{const[h,m]=String(t).split(":").map(Number);return h*60+m};
+const nowMin=()=>{const n=new Date(),m=n.getHours()*60+n.getMinutes();return m<CUT?m+1440:m};
+const toMin=t=>{const[h,m]=String(t).split(":").map(Number),v=h*60+m;return v<CUT?v+1440:v};
+const tSort=t=>/^\d\d:\d\d$/.test(String(t))?toMin(t):99999;
 const hm=m=>{m=Math.round(m);return pad(Math.floor(m/60)%24)+":"+pad(((m%60)+60)%60)};
 const hhmm=()=>hm(nowMin());
 const durTxt=m=>m>=60?(Math.floor(m/60)+" ч"+(m%60?" "+(m%60)+" мин":"")):m+" мин";
@@ -492,7 +496,8 @@ function learned(){
 // Раскладывает несделанное от «сейчас»: якоря стоят на месте, остальное обтекает их.
 function plan(k,extraGame){
   const d=dayOf(k),now=nowMin(),out=[],over=[];
-  const start=d.at.wake?Math.min(now,toMin(d.at.wake)):Math.max(now,toMin(DAY_START_()));
+  const w0=d.at.wake||d.woke;
+  const start=w0?Math.min(now,toMin(w0)):Math.max(now,toMin(DAY_START_()));
   let cur=Math.max(now,start);
   // идущий отдых
   const rests=restsOf(d).map(r=>({s:toMin(r.at),m:r.min})).filter(r=>r.s+r.m>now).sort((a,b)=>a.s-b.s);
@@ -696,7 +701,7 @@ const FIRE='<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><pat
 const TITLES={today:"Сегодня",home:"Дом",me:"Я"};
 function renderReward(){
   const k=key(),d=dayOf(k),R=reqs(k),st=rewardState(k),n=R.filter(x=>x.t).length,gh=goalHabit(),vs=gh?habitStreak(gh.id).n:0;
-  const sub=tab==="today"?new Date().toLocaleDateString("ru-RU",{weekday:"long",day:"numeric",month:"long"}):"";
+  const sub=tab==="today"?new Date(key()+"T12:00:00").toLocaleDateString("ru-RU",{weekday:"long",day:"numeric",month:"long"}):"";
   const leafTxt=st!=="pending"?IC.check:`${n}/${R.length}`;
   $("appbar").innerHTML=`<div class="tt"><h1>${TITLES[tab]}</h1>${sub?`<span class="sub">${esc(sub)}</span>`:""}</div>
     <div class="pills">${tab==="home"||tab==="me"?`<button type="button" class="pill gear${(tab==="home"?homeSeg==="people":meSeg==="set")?" on":""}" data-gear="1" aria-label="${tab==="home"?"Жильцы и правила":"Настройки"}">${GEAR}</button>`:""}<button type="button" class="pill fire${vs?"":" zero"}" data-tab-go="me" data-meseg="goal" aria-label="Серия цели: ${vs}">${FIRE}${vs}</button>
@@ -736,7 +741,7 @@ function nowCard(k,d,p){
   if(it.gap)return `<section class="now free"><span class="k"><span>Свободно</span><span>до ${hm(it.end)}</span></span><h2>${durTxt(it.end-now)} свободно</h2><p>Следом: «${esc((p.items[1]&&p.items[1].q||{}).name||"")}». Можно отдохнуть или посмотреть ролик на английском.</p>${it.end-now>=30?`<button type="button" class="ghost" data-game="1">Отдохнуть</button>`:""}</section>`;
   if(it.game){const left=it.end-now;return `<section class="now free"><span class="k"><span>Отдых</span><span>до ${hm(it.end)}</span></span><div class="clock"><b>${left}</b><span>мин осталось</span></div><p>Потом: «${esc((p.items[1]&&p.items[1].q||{}).name||"дел нет")}»${p.items[1]?" в "+hm(p.items[1].start):""}. Сегодня отдыха: ${durTxt(restToday(d))}.</p><button type="button" class="ghost" data-restend="1">Закончил раньше</button></section>`}
   const q=it.q,late=it.late>0,left=it.end-now;
-  const kline=`<span class="k"><span>${it.started?"Сейчас":"Начать сейчас"}</span><span>${late?"план был до "+hm(it.pe):"до "+hm(it.end)}</span></span>`;
+  const kline=`<span class="k"><span>${it.started?"Сейчас":"Начать сейчас"}</span><span>${late?"план был до "+(it.pe!=null?hm(it.pe):hm(it.start-it.late)):"до "+hm(it.end)}</span></span>`;
   const clock=it.started?`<div class="clock"><b>${late?"+"+it.late:left}</b><span>${late?"мин сверх плана":"мин осталось"}</span></div>`:`<div class="clock"><b>${hm(it.start)}–${hm(it.end)}</b></div>`;
   if(q.steps){
     const st=nextStep(d,q),i=q.steps.indexOf(st);
@@ -780,8 +785,20 @@ function overCard(p){
 }
 
 let dayOpen=false;
+function wokeAt(d){if(d.woke)return d.woke;
+  const ts=Object.values(d.at||{}).filter(Boolean).concat((d.ev||[]).filter(e=>e[1]==="done"||e[1]==="start").map(e=>e[0]));
+  return ts.length?ts.sort((a,b)=>tSort(a)-tSort(b))[0]:null}
+function wakeCard(k){const yk=shift(k,-1),R=peek(yk)?reqs(yk):[],got=R.filter(r=>r.t).length,P=prof(),pi=penItem();
+  const y=R.length?`<div class="glabel">Вчера</div><div class="list">
+    <div class="hrow"><span class="nm"><b>Главное</b></span><span class="val">${got} из ${R.length}</span></div>
+    ${R.filter(r=>!r.t).map(r=>`<div class="hrow"><span class="nm"><b style="font-weight:600">${esc(r.name)}</b></span><span class="val" style="color:var(--red)">не сделано</span></div>`).join("")}
+    ${pi&&P.penalty&&P.penalty.fine?`<div class="hrow"><span class="nm"><b>Штраф</b></span><span class="val"${debtOf(k)?' style="color:var(--red)"':""}>${debtOf(k)?"сегодня штрафной день":"нет"}</span></div>`:""}</div>`:"";
+  return `<section class="now"><span class="k"><span>Подъём по плану ${esc(P.wake)}</span></span><h2>Доброе утро</h2><p>Нажми, когда встал. От этого времени соберу день, план пришлёт бот.</p>
+    <button type="button" class="bigbtn" data-wake="1">☀️ Я встал</button></section>${y}`}
 function viewToday(){
-  const k=key(),d=dayOf(k),p=plan(k);
+  const k=key(),d=dayOf(k);
+  if(!wokeAt(d))return wakeCard(k);
+  const p=plan(k);
   const rest=p.items.slice(1),shown=dayOpen?rest:rest.slice(0,4);
   const done=queue(k).filter(q=>isDone(d,q)).sort((a,b)=>(itemT(d,a)||d.at[a.id]||"").localeCompare(itemT(d,b)||d.at[b.id]||""));
   const up=[];for(let i=1;i<=14;i++){const kk=shift(k,i),dd=peek(kk);if(dd&&dd.custom)for(const c of dd.custom)up.push({kk,c})}
@@ -888,7 +905,13 @@ function dayLog(k){const d=peek(k);if(!d)return [];const out=[];
   const mv=d.moved||{},evT=(e,id)=>((d.ev||[]).find(x=>x[1]===e&&x[2]===id)||["—"])[0];
   for(const [id,m] of Object.entries(mv))out.push({t:evT("move",id),c:"mv",i:"↷",n:m.n||nameOf(id,d),r:"на "+ddmm(m.to||m)});
   for(const id of d.skip||[])if(!mv[id])out.push({t:evT("skip",id),c:"skip",i:"—",n:nameOf(id,d),r:"убрано"});
-  return out.sort((a,b)=>String(a.t).localeCompare(String(b.t)))}
+  const late=t=>{const x=toMin(t)-toMin(prof().wake);return Math.abs(x)<15?"вовремя":(x>0?"+":"−")+durTxt(Math.abs(x))};
+  for(const e of d.ev||[]){if(e.length!==3)continue;const [t,k2,q]=e,mins=parseInt(q,10)||0;
+    if(k2==="woke")out.push({t,c:"rew",i:"☀",n:"Встал",r:late(t)});
+    else if(k2==="plan")out.push({t,c:"mv",i:"✓",n:"План принят",r:""});
+    else if(k2==="off")out.push({t,c:"no",i:"🎮",n:"Залип",r:durTxt(mins)});
+    else if(k2==="busy")out.push({t,c:"rest",i:"📌",n:"Другое дело",r:durTxt(mins)})}
+  return out.sort((a,b)=>tSort(a.t)-tSort(b.t))}
 let histOpen=null;
 function viewHist(){const k=key(),ks=Object.keys(state.days).filter(x=>x<=k&&dayLog(x).length).sort().reverse().slice(0,60);
   if(!ks.length)return '<p class="empty" style="padding:0 20px">Пока пусто.</p>';
@@ -896,7 +919,7 @@ function viewHist(){const k=key(),ks=Object.keys(state.days).filter(x=>x<=k&&day
     const lbl=x===k?"Сегодня":new Date(x+"T12:00:00").toLocaleDateString("ru-RU",{weekday:"short",day:"numeric",month:"long"});
     return `<div class="hday"><button type="button" data-hday="${x}" aria-expanded="${o}"><span class="nm"><b>${esc(lbl)}</b><br><small>${R.length?(cl?"всё главное закрыто":R.filter(r=>r.t).length+" из "+R.length+" главных"):""}${debtOf(x)?" · штрафной":""}</small></span><span class="rs${cl?" ok":""}">${cl?IC.check:""}</span></button>
       ${o?L.map(e=>`<div class="hev ${e.c}"><i>${e.i}</i><time>${esc(e.t)}</time><span>${esc(e.n)}</span><em>${esc(e.r)}</em></div>`).join("")+(x<k?R.filter(r=>!r.t).map(r=>`<div class="hev no"><i>✕</i><time></time><span>${esc(r.name)}</span><em>не сделано</em></div>`).join(""):""):""}</div>`}).join("")}
-const NOTIFY=[["morning","Утренняя сводка","план дня, дом, теория, после подъёма"],["voice","Сводка голосом","голосовое вместе с текстом"],["pora","«Пора» по делам","когда начинается дело из плана"],["rest","Отдых","отдых закончился, отдыха много"],["evening","Итог дня","в 22:30"],["week","Итог недели","воскресенье 21:00"],["review","Разбор недели","вс 20:30: что бот понял о тебе"]];
+const NOTIFY=[["voice","Утро голосом","голосовое после «Я встал»"],["pora","«Пора» по делам","когда начинается дело из плана"],["rest","Отдых","отдых закончился, отдыха много"],["evening","Итог дня","в 22:30"],["week","Итог недели","воскресенье 21:00"],["review","Разбор недели","вс 20:30: что бот понял о тебе"]];
 const notifyOn=k=>((state.notify||{})[k])!==false;
 let choreEdit=false,setSub="",homeSeg="",foodCat="fridge",cookIdeas=null,cookBusy=false,meSeg="goal";
 const WD=["Вс","Пн","Вт","Ср","Чт","Пт","Сб"],WD_ORDER=[1,2,3,4,5,6,0];
@@ -1054,6 +1077,7 @@ document.addEventListener("click",e=>{
   if(t.dataset.tabGo){tab=t.dataset.tabGo;if(t.dataset.meseg)meSeg=t.dataset.meseg;render();window.scrollTo(0,0);return}
   if(t.dataset.t){const id=t.dataset.t,it=ritem(id),was=has(dayOf(key()),id);toggle(id);
     if(it&&(it.meal==="prep"||id==="prep")&&!was&&has(dayOf(key()),id)){W={step:"prepnew",name:"",n:4};renderSheet()}return}
+  if(t.dataset.wake){const d=dayOf(key());if(!d.woke){mutate(()=>{d.woke=hhmm();logEv(d,"woke")});haptic("success");toast("Встал в "+d.woke+". План пришлёт бот")}return}
   if(t.dataset.unskip){const id=t.dataset.unskip,d=dayOf(key()),m=(d.moved||{})[id];
     mutate(()=>{d.skip=d.skip.filter(x=>x!==id);if(m){const td=dayOf(m.to||m);td.custom=td.custom.filter(c=>c.from!==id);const mv=Object.assign({},d.moved);delete mv[id];d.moved=mv}logEv(d,"back",id)});toast("Вернул в план");return}
   if(t.dataset.hitem){W={step:"hitem",id:t.dataset.hitem};renderSheet();return}

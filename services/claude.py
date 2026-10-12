@@ -72,7 +72,8 @@ async def build_context_block(telegram_id: int, state: dict, day: dict) -> str:
     body = state.get("body") or []
     return (
         "=== КОНТЕКСТ ===\n"
-        f"Сейчас: {n.strftime('%H:%M, %A %d.%m.%Y')} (Нидерланды)\n\n"
+        f"Сейчас: {n.strftime('%H:%M, %A %d.%m.%Y')} (Нидерланды)"
+        f"{'. Встал в ' + quest.woke_at(day) if quest.woke_at(day) else '. Подъём сегодня не отмечен'}\n\n"
         f"СЕГОДНЯ В КВЕСТЕ:\n{re.sub(r'<[^>]+>', '', quest.day_summary(day))}\n\n"
         f"{actions.plan_context(state)}\n\n"
         f"КАНАЛ: подписчиков {goals.get('subs', 0)}, лучшее видео {goals.get('maxViews', 0)} просмотров\n"
@@ -299,7 +300,8 @@ async def learn_facts(telegram_id: int, user: str, reply: str) -> None:
 
 
 EV_RU = {"done": "сделал", "undo": "снял отметку", "start": "начал", "skip": "убрал на сегодня", "rest": "отдых",
-         "reward": "взял награду", "add": "добавил", "move": "перенёс", "back": "вернул в план"}
+         "reward": "взял награду", "add": "добавил", "move": "перенёс", "back": "вернул в план",
+         "woke": "встал", "plan": "принял план", "off": "залип", "busy": "другое дело"}
 
 PROOF_PROMPT = """Ты проверяешь пруф выполнения дела. Человек прислал фото.
 Подпись к фото: "{caption}"

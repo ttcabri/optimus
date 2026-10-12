@@ -424,8 +424,11 @@ async def _log_events(db, telegram_id: int, state: dict) -> None:
             if len(e) != 3:
                 continue
             t, kind, q = e
-            name = "Отдых" if kind == "rest" else "Награда" if kind == "reward" else custom.get(q) or chores.get(q) or nm.get(q) or q
-            m = int(q) if kind == "rest" and str(q).isdigit() else (span.get(q) or {}).get("m") if kind == "done" else None
+            fixed = {"rest": "Отдых", "reward": "Награда", "woke": "", "plan": "", "off": "", "busy": ""}
+            mv = (d.get("moved") or {}).get(q) if kind == "move" else None
+            mvn = mv.get("n") if isinstance(mv, dict) else None
+            name = fixed[kind] if kind in fixed else mvn or custom.get(q) or chores.get(q) or nm.get(q) or q or "дело"
+            m = int(q) if kind in ("rest", "off", "busy") and str(q).isdigit() else (span.get(q) or {}).get("m") if kind == "done" else None
             rows.append((telegram_id, k, t, kind, q or "", name, m))
     if rows:
         await db.executemany("INSERT OR IGNORE INTO quest_log (telegram_id, day, t, ev, task, name, min) VALUES (?, ?, ?, ?, ?, ?, ?)", rows)
@@ -457,7 +460,7 @@ async def access_list() -> list[tuple]:
 
 async def get_log(telegram_id: int, since: str) -> list[tuple]:
     async with aiosqlite.connect(DATABASE_PATH) as db:
-        cur = await db.execute("SELECT day, t, ev, name, min FROM quest_log WHERE telegram_id = ? AND day >= ? ORDER BY day, t", (telegram_id, since))
+        cur = await db.execute("SELECT day, t, ev, name, min FROM quest_log WHERE telegram_id = ? AND day >= ? ORDER BY day, CASE WHEN t < '05:00' THEN '2' || t ELSE '1' || t END", (telegram_id, since))
         return await cur.fetchall()
 
 

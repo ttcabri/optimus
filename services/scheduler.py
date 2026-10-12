@@ -40,7 +40,7 @@ def quest_messages(day: dict, now_min: int, today: str, wd: int) -> list[str]:
 
     n = day.get("_notify") or {}
     pora, rest = n.get("pora", True), n.get("rest", True)
-    # подъём, холодильник и взвешивание теперь в утренней сводке (services/morning.py)
+    # подъём, холодильник и взвешивание: в утреннем сообщении после «Я встал» (services/dayflow.py)
     # отдых закончился: сразу говорим, что дальше
     for start, mins in (quest.rests_of(day) if rest else []):
         end = start + mins
@@ -77,12 +77,13 @@ def quest_messages(day: dict, now_min: int, today: str, wd: int) -> list[str]:
 async def send_quest_tick(bot: Bot) -> None:
     """Каждые 5 минут: сверка с живым планом."""
     try:
-        from services import morning
-        await morning.maybe_send(bot, TELEGRAM_USER_ID)
+        from services import dayflow, morning
         day = await quest.get_day(TELEGRAM_USER_ID)
+        if not quest.woke_at(day):
+            return  # пока не нажал «Я встал», бот молчит
+        await dayflow.check_drift(bot, TELEGRAM_USER_ID)
         day["_notify"] = morning.notify(await database.get_quest_state(TELEGRAM_USER_ID))
-        n = quest.now()
-        msgs = quest_messages(day, n.hour * 60 + n.minute, quest.today_key(), quest.js_weekday())
+        msgs = quest_messages(day, quest.now_min(), quest.today_key(), quest.js_weekday())
         if msgs:
             from handlers.proof import quest_keyboard
             for m in msgs:
@@ -96,8 +97,8 @@ async def send_reminders(bot: Bot) -> None:
     try:
         state = await database.get_quest_state(TELEGRAM_USER_ID)
         rem = state.get("reminders") or []
-        today, now_t = quest.today_key(), quest.hhmm()
-        due = [r for r in rem if not r.get("sent") and (r.get("d", "") < today or (r.get("d") == today and r.get("at", "99") <= now_t))]
+        today, now_m = quest.today_key(), quest.now_min()
+        due = [r for r in rem if not r.get("sent") and (r.get("d", "") < today or (r.get("d") == today and quest._ev_min(r.get("at") or "04:59") <= now_m))]
         if not due:
             return
         for r in due:
@@ -142,7 +143,7 @@ async def send_quest_week(bot: Bot) -> None:
             return
         state = await database.get_quest_state(TELEGRAM_USER_ID)
         P = quest.full_profile(state)
-        today = quest.now().date()
+        today = quest.lnow().date()
         ks = [today - timedelta(days=i) for i in range(7)]
         views = [quest.day_view(state, k.strftime("%Y-%m-%d")) for k in ks]
         closed = sum(1 for v, k in zip(views, ks) if quest.day_closed(v, k.weekday()))

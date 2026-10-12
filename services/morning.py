@@ -1,8 +1,6 @@
-"""Утренняя сводка: одно сообщение (текст + голос) вместо россыпи утренних уведомлений."""
+"""Утренняя сводка: факты дня и живой текст для голосового. Шлётся после «Я встал» (services/dayflow.py)."""
 import logging
 
-from aiogram import Bot
-from aiogram.types import BufferedInputFile
 
 import database
 from services import house, quest, theory
@@ -20,9 +18,11 @@ def notify(state: dict) -> dict:
 
 def facts(state: dict, day: dict, uid) -> str:
     """Голые факты на сегодня. Из них модель пишет живой текст, а если модель упала, шлём их как есть."""
-    now = quest.now()
-    p = quest.build_plan(day, max(now.hour * 60 + now.minute, quest.to_min(quest.prof(day)["wake"])))
+    now = quest.lnow()
+    p = quest.build_plan(day, quest.now_min())
     lines = [f"{DAYS[now.weekday()].capitalize()}, {now.strftime('%d.%m')}."]
+    if day.get("woke"):
+        lines.append(f"Встал в {day['woke']}, по плану {quest.prof(day)['wake']}.")
     P = quest.prof(day)
     pi, pen = quest.pen_item(P), P.get("penalty") or {}
     if day.get("_debt") and pi:
@@ -69,27 +69,3 @@ async def write(text_facts: str) -> str:
     except Exception as e:
         logger.error(f"morning write error: {e}")
         return "☀️ Доброе утро!\n" + text_facts
-
-
-async def maybe_send(bot: Bot, uid: int) -> None:
-    """Раз в день, после времени подъёма. Отметку храним в состоянии, чтобы после перезапуска не прислать дважды."""
-    state = await database.get_quest_state(uid)
-    n = notify(state)
-    today = quest.today_key()
-    day = state.get("days", {}).get(today) or {}
-    now = quest.now()
-    wake = quest.to_min(quest.prof(state)["wake"])
-    if not n["morning"] or day.get("mSent") or not (wake <= now.hour * 60 + now.minute < wake + 180):
-        return
-    state.setdefault("days", {}).setdefault(today, {})["mSent"] = True
-    await database.save_quest_state(uid, state)
-    full = await quest.get_day(uid)
-    text = await write(facts(state, full, uid))
-    from handlers.proof import quest_keyboard
-    if n["voice"]:
-        from services import tts
-        audio = await tts.speak(text)
-        if audio:
-            await bot.send_voice(uid, BufferedInputFile(audio, "morning.ogg"))
-    import html
-    await bot.send_message(uid, html.escape(text), reply_markup=quest_keyboard())
