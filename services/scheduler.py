@@ -198,22 +198,22 @@ async def send_brain(bot: Bot) -> None:
 
 
 async def send_money(bot: Bot) -> None:
-    """Регулярные платежи: напомнить накануне и в день, с кнопкой «Оплачено»."""
+    """Регулярные платежи: накануне напомнить, в день списать самим. Долги: напомнить в срок."""
     try:
-        from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
         from services import money
         state = await database.get_quest_state(TELEGRAM_USER_ID)
         m = money.get(state)
         t = quest.lnow()
-        tomorrow = (t + timedelta(days=1)).day
-        for r in money.reg_left(m):
-            d = int(r.get("day") or 1)
-            if d not in (t.day, tomorrow) or r.get("rem") == f"{money.ym()}:{d == t.day}":
+        for r, o, warn in money.auto_pay(state):  # в свой день платёж списывается сам
+            acc = money.acct(m, o["acc"])
+            await bot.send_message(TELEGRAM_USER_ID, f"💳 Списал регулярный платёж: {html.escape(r['n'])} €{r['amt']:g} ({acc['n'].lower()}). "
+                                   f"На жизнь осталось €{money.free(state):g}." + (f"\n{warn}" if warn else ""))
+        tm = (t + timedelta(days=1)).strftime("%Y-%m-%d")
+        for r in m["reg"]:  # накануне: напомнить, чтобы на счёте хватило
+            if r.get("paid") == tm[:7] or money.reg_due(r, tm[:7]) != int(tm[8:10]) or r.get("rem") == tm:
                 continue
-            r["rem"] = f"{money.ym()}:{d == t.day}"
-            when = "Сегодня" if d == t.day else "Завтра"
-            await bot.send_message(TELEGRAM_USER_ID, f"💳 {when} платёж: {html.escape(r['n'])} €{r['amt']:g}.",
-                                   reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="✅ Оплачено", callback_data=f"mn:paid:{r['id']}")]]))
+            r["rem"] = tm
+            await bot.send_message(TELEGRAM_USER_ID, f"💳 Завтра спишется {html.escape(r['n'])} €{r['amt']:g} ({money.acct(m, r.get('acc'))['n'].lower()}).")
         for dbt in money.debts_open(m):  # долги: напомнить в день «вернуть до»
             if dbt.get("due") == quest.today_key() and dbt.get("rem") != dbt["due"]:
                 dbt["rem"] = dbt["due"]
@@ -301,7 +301,7 @@ def setup_scheduler(bot: Bot) -> AsyncIOScheduler:
     scheduler.add_job(send_review, "cron", day_of_week="sun", hour=20, minute=30, kwargs={"bot": bot})
     scheduler.add_job(send_brain, "cron", hour=12, minute=40, kwargs={"bot": bot})
     scheduler.add_job(send_backup, "cron", hour=4, minute=30, kwargs={"bot": bot})
-    scheduler.add_job(send_money, "cron", hour=10, minute=5, kwargs={"bot": bot})
+    scheduler.add_job(send_money, "cron", hour=9, minute=5, kwargs={"bot": bot})
     scheduler.add_job(money_snapshot, "cron", hour=23, minute=55, kwargs={"bot": bot})
     scheduler.add_job(money_month, "cron", day=1, hour=10, minute=20, kwargs={"bot": bot})
     scheduler.add_job(money_savings_ask, "cron", day_of_week="sun", hour=19, minute=0, kwargs={"bot": bot})

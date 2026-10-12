@@ -153,11 +153,35 @@ def reserved(state: dict) -> float:
     return round(sum(v for _, v, _ in piggies(state)), 2)
 
 
+def reg_due(r: dict, month: str) -> int:
+    """День списания в этом месяце: 31-е в коротком месяце = последний день."""
+    y, mo = int(month[:4]), int(month[5:7])
+    return min(int(r.get("day") or 1), calendar.monthrange(y, mo)[1])
+
+
+def auto_pay(state: dict, today: str | None = None) -> list:
+    """Регулярные платежи списываются сами в свой день (и догоняют, если бот пропустил день)."""
+    t = today or quest.today_key()
+    m = get(state)
+    mo, d = ym(t), int(t[8:10])
+    out = []
+    for r in m["reg"]:
+        due = reg_due(r, mo)
+        if r.get("paid") == mo or d < due or float(r.get("amt") or 0) <= 0:
+            continue
+        if r.get("start") and r["start"] > f"{mo}-{due:02d}":  # заведён после дня списания: с этого месяца не трогаем
+            continue
+        o, warn = add(state, "exp", r["amt"], r.get("cat") or "other", r.get("acc"), r["n"], f"{mo}-{due:02d}", "reg:" + r["id"])
+        r["paid"], r["u"] = mo, _ms()
+        out.append((r, o, warn))
+    return out
+
+
 def reg_left(m: dict, today: str | None = None) -> list:
     """Платежи, которые ещё впереди в этом месяце (день не прошёл и не отмечен оплаченным)."""
     t = today or quest.today_key()
     mo, d = ym(t), int(t[8:10])
-    return [r for r in m["reg"] if r.get("paid") != mo and int(r.get("day") or 1) >= d]
+    return [r for r in m["reg"] if r.get("paid") != mo and reg_due(r, mo) >= d]
 
 
 def spendable(a: dict) -> bool:

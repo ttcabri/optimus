@@ -437,10 +437,12 @@ def run(state: dict, name: str, a: dict) -> str | None:
             if not nm or not isinstance(amt, (int, float)):
                 return "нужно название и сумма"
             r = next((x for x in m["reg"] if x["n"].lower() == nm.lower()), None) or {"id": money._id("r"), "n": nm[:40]}
-            r.update({"amt": float(amt), "day": int(a.get("day") or 1) if str(a.get("day") or "1").isdigit() else 1, "cat": a.get("cat") if a.get("cat") in money.CATS else "other", "u": int(time.time() * 1000)})
+            r.update({"amt": float(amt), "day": int(a.get("day") or 1) if str(a.get("day") or "1").isdigit() else 1, "cat": a.get("cat") if a.get("cat") in money.CATS else "other",
+                      "acc": money.acct(m, a.get("acc"))["id"], "u": int(time.time() * 1000)})
+            r.setdefault("start", quest.today_key())
             if r not in m["reg"]:
                 m["reg"].append(r)
-            return f"регулярный платёж: {r['n']} €{r['amt']:g} каждое {r['day']}-е"
+            return f"регулярный платёж: {r['n']} €{r['amt']:g} каждое {r['day']}-е, спишется сам с {money.acct(m, r['acc'])['n'].lower()}"
         if op == "paid":
             nm = str(a.get("name") or "").lower()
             r = next((x for x in m["reg"] if nm and nm in x["n"].lower()), None)
