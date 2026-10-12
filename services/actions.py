@@ -33,10 +33,11 @@ TOOLS = [
     {"name": "money",
      "description": "ДЕНЬГИ. op: add (трата kind=exp или доход kind=inc: amt, cat, note коротко что, acc счёт если назван, day если не сегодня), "
                     "balance (сколько сейчас: acc = cash наличные | card карта | bank банк | stocks акции | crypto крипта, amt), limit (лимит на месяц: cat, amt; 0 = убрать), "
-                    "transfer (перевод между своими счетами: acc откуда, name куда, amt; «перевёл 200 с карты на акции»), regular (регулярный платёж: name, amt, day число месяца, cat), paid (регулярный оплачен: name), delete (удалить операцию: id). "
+                    "transfer (перевод между своими счетами: acc откуда, name куда, amt; «перевёл 200 с карты на акции»), regular (регулярный платёж: name, amt, day число месяца, cat), paid (регулярный оплачен: name), delete (удалить операцию: id), debt (долг: name кто, amt, dir owe_me = мне должны / i_owe = я должен, note, day = вернуть до), debt_close (долг вернули: name). "
                     "Категории трат: food еда/продукты/кафе, home быт/хозтовары, rent жильё/аренда/коммуналка, car машина/бензин/ремонт, health здоровье/аптека/спорт, "
                     "subs связь/подписки, fun развлечения/игры, cloth одежда, gift подарок себе, fine штраф, other. Доходы: ww, work, sale, other.",
-     "input_schema": {"type": "object", "properties": {"op": {"type": "string", "enum": ["add", "balance", "transfer", "limit", "regular", "paid", "delete"]},
+     "input_schema": {"type": "object", "properties": {"op": {"type": "string", "enum": ["add", "balance", "transfer", "limit", "regular", "paid", "delete", "debt", "debt_close"]},
+         "dir": {"type": "string", "enum": ["owe_me", "i_owe"]},
          "kind": {"type": "string", "enum": ["exp", "inc"]}, "amt": {"type": "number"}, "cat": {"type": "string"}, "note": {"type": "string"},
          "acc": {"type": "string"}, "name": {"type": "string"}, "day": {"type": "string"}, "id": {"type": "string"}}, "required": ["op"]}},
     {"name": "set_penalty",
@@ -450,6 +451,23 @@ def run(state: dict, name: str, a: dict) -> str | None:
             money.add(state, "exp", r["amt"], r.get("cat", "other"), r.get("acc"), r["n"], None, "reg:" + r["id"])
             r["paid"], r["u"] = money.ym(), int(time.time() * 1000)
             return f"{r['n']} оплачен, €{r['amt']:g} в тратах"
+        if op == "debt":
+            nm = str(a.get("name") or "").strip()
+            if not nm or not isinstance(amt, (int, float)):
+                return "кто и сколько"
+            d = {"id": money._id("d"), "who": nm[:40], "amt": float(amt), "dir": a.get("dir") if a.get("dir") in ("owe_me", "i_owe") else "owe_me",
+                 "n": str(a.get("note") or "")[:60], "d": quest.today_key(), "u": int(time.time() * 1000)}
+            if a.get("day"):
+                d["due"] = _key(a.get("day"))
+            m["debts"].append(d)
+            return f"долг записан: {d['who']} {'должен тебе' if d['dir'] == 'owe_me' else '— ты должен'} €{d['amt']:g}" + (f", вернуть до {d['due']}, напомню" if d.get("due") else "")
+        if op == "debt_close":
+            nm = str(a.get("name") or "").lower()
+            d = next((x for x in money.debts_open(m) if nm and nm in x["who"].lower()), None)
+            if not d:
+                return "нет такого открытого долга"
+            d["done"], d["u"] = quest.today_key(), int(time.time() * 1000)
+            return f"долг {d['who']} €{d['amt']:g} закрыт"
         if op == "delete":
             return "удалено" if money.remove(state, str(a.get("id") or "")) else "нет такой операции"
         return "неизвестная операция"

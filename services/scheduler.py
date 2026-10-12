@@ -214,9 +214,62 @@ async def send_money(bot: Bot) -> None:
             when = "Сегодня" if d == t.day else "Завтра"
             await bot.send_message(TELEGRAM_USER_ID, f"💳 {when} платёж: {html.escape(r['n'])} €{r['amt']:g}.",
                                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="✅ Оплачено", callback_data=f"mn:paid:{r['id']}")]]))
+        for dbt in money.debts_open(m):  # долги: напомнить в день «вернуть до»
+            if dbt.get("due") == quest.today_key() and dbt.get("rem") != dbt["due"]:
+                dbt["rem"] = dbt["due"]
+                await bot.send_message(TELEGRAM_USER_ID, f"🤝 Сегодня срок долга: {html.escape(dbt['who'])} " + ("должен тебе" if dbt.get("dir") == "owe_me" else "— ты должен") + f" €{dbt['amt']:g}. Вернули — напиши «{html.escape(dbt['who'])} вернул».")
         await database.save_quest_state(TELEGRAM_USER_ID, state)
     except Exception as e:
         logger.error(f"Money reminder error: {e}")
+
+
+async def money_snapshot(bot: Bot) -> None:
+    """Каждый вечер: остатки счетов в историю (график на странице счёта)."""
+    try:
+        from services import money
+        state = await database.get_quest_state(TELEGRAM_USER_ID)
+        if state.get("money"):
+            money.snapshot(state)
+            await database.save_quest_state(TELEGRAM_USER_ID, state)
+    except Exception as e:
+        logger.error(f"Money snapshot error: {e}")
+
+
+async def money_month(bot: Bot) -> None:
+    """1-го числа: итог прошлого месяца с одним советом."""
+    try:
+        from services import claude, money
+        state = await database.get_quest_state(TELEGRAM_USER_ID)
+        m = money.get(state)
+        prev = (quest.lnow().replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
+        if not money.month_ops(m, prev):
+            return
+        facts = money.month_report(state, prev)
+        try:
+            r = await claude.client.messages.create(model="claude-haiku-4-5", max_tokens=400, messages=[{"role": "user", "content": (
+                "Напиши человеку итог месяца по деньгам по фактам ниже. По-русски, по-дружески, 4–6 коротких строк: главное число, "
+                "на что ушло больше всего, что лучше или хуже прошлого месяца, и ОДИН конкретный совет на новый месяц. Без длинных тире, без markdown, 1 эмодзи.\n\n" + facts)}])
+            text = "".join(b.text for b in r.content if b.type == "text").strip() or facts
+        except Exception:
+            text = facts
+        await bot.send_message(TELEGRAM_USER_ID, "💰 <b>Итог месяца</b>\n" + html.escape(text))
+    except Exception as e:
+        logger.error(f"Money month error: {e}")
+
+
+async def money_savings_ask(bot: Bot) -> None:
+    """Воскресенье: сверить сбережения (акции и крипта меняются сами), чтобы был график роста."""
+    try:
+        from services import money
+        state = await database.get_quest_state(TELEGRAM_USER_ID)
+        m = money.get(state)
+        accs = [a for a in money.visible(m) if a.get("t") in ("stocks", "crypto") and money.balance(m, a["id"])]
+        if not accs:
+            return
+        now = ", ".join(f"{money.TYPES[a['t']][1].lower()} €{money.balance(m, a['id']):g}" for a in accs)
+        await bot.send_message(TELEGRAM_USER_ID, f"📈 Сверка сбережений. Сейчас записано: {now}.\nСколько там на самом деле? Напиши, например: «акции 900, крипта 23500».")
+    except Exception as e:
+        logger.error(f"Savings ask error: {e}")
 
 
 async def send_backup(bot: Bot) -> None:
@@ -249,5 +302,8 @@ def setup_scheduler(bot: Bot) -> AsyncIOScheduler:
     scheduler.add_job(send_brain, "cron", hour=12, minute=40, kwargs={"bot": bot})
     scheduler.add_job(send_backup, "cron", hour=4, minute=30, kwargs={"bot": bot})
     scheduler.add_job(send_money, "cron", hour=10, minute=5, kwargs={"bot": bot})
+    scheduler.add_job(money_snapshot, "cron", hour=23, minute=55, kwargs={"bot": bot})
+    scheduler.add_job(money_month, "cron", day=1, hour=10, minute=20, kwargs={"bot": bot})
+    scheduler.add_job(money_savings_ask, "cron", day_of_week="sun", hour=19, minute=0, kwargs={"bot": bot})
 
     return scheduler

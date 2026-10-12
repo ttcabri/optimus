@@ -53,7 +53,7 @@ def get(state: dict) -> dict:
     for t, (_, name, _s) in TYPES.items():
         if not any(a.get("t") == t for a in m["accts"]):
             m["accts"].append({"id": t if t not in ids else t + "_", "t": t, "n": name, "base": 0, "u": 0})
-    for k in ("ops", "reg", "del"):
+    for k in ("ops", "reg", "del", "debts"):
         m.setdefault(k, [])
     m.setdefault("lim", {})
     return m
@@ -67,11 +67,14 @@ def merge(server: dict | None, incoming: dict | None) -> dict | None:
     from services.house import _merge_list
     dead = set(server.get("del") or []) | set(incoming.get("del") or [])
     out = dict(incoming)
-    for k in ("accts", "ops", "reg"):
+    for k in ("accts", "ops", "reg", "debts"):
         out[k] = _merge_list(server.get(k) or [], incoming.get(k) or [], dead)
     if server.get("lu", 0) > incoming.get("lu", 0):
         out["lim"], out["lu"] = server.get("lim") or {}, server.get("lu", 0)
     out["warn"] = {**(incoming.get("warn") or {}), **(server.get("warn") or {})}
+    if server.get("hu", 0) > incoming.get("hu", 0):  # скрытые счета и «прятать суммы»
+        out["hide"], out["mask"], out["hu"] = server.get("hide") or [], server.get("mask"), server.get("hu", 0)
+    out["hist"] = {**(incoming.get("hist") or {}), **(server.get("hist") or {})}
     out["del"] = sorted(dead)[-500:]
     return out
 
@@ -103,8 +106,12 @@ def balance(m: dict, aid: str) -> float:
     return round(v, 2)
 
 
+def visible(m: dict) -> list:
+    return [a for a in m["accts"] if a.get("id") not in (m.get("hide") or [])]
+
+
 def total(m: dict) -> float:
-    return round(sum(balance(m, a["id"]) for a in m["accts"]), 2)
+    return round(sum(balance(m, a["id"]) for a in visible(m)), 2)
 
 
 def ym(day: str | None = None) -> str:
@@ -160,11 +167,11 @@ def spendable(a: dict) -> bool:
 
 def free(state: dict) -> float:
     m = get(state)
-    return round(sum(balance(m, a["id"]) for a in m["accts"] if spendable(a)) - sum(r["amt"] for r in reg_left(m)), 2)
+    return round(sum(balance(m, a["id"]) for a in visible(m) if spendable(a)) - sum(r["amt"] for r in reg_left(m)), 2)
 
 
 def saved(m: dict) -> float:
-    return round(sum(balance(m, a["id"]) for a in m["accts"] if not spendable(a)), 2)
+    return round(sum(balance(m, a["id"]) for a in visible(m) if not spendable(a)), 2)
 
 
 def days_left(today: str | None = None) -> int:
@@ -265,9 +272,43 @@ def summary(state: dict) -> str:
     last = "; ".join(f"{o['d'][5:]} {'+' if o['k'] == 'inc' else '' if o['k'] == 'tr' else '−'}€{o['amt']:g} {lab(o)}" for o in m["ops"][-6:])
     return ("ДЕНЬГИ (инструмент money; советуй по делу, когда видишь риск: лимит, крупная трата, мало свободных):\n"
             f"На жизнь (наличные+карта, минус платежи впереди): €{free(state):g}. Сбережения €{saved(m):g} (на цели из них €{reserved(state):g}). Всего €{total(m):g}.\n"
-            f"Счета: {', '.join(a['n'] + ' €' + format(balance(m, a['id']), 'g') for a in m['accts'])}.\n"
+            f"Счета: {', '.join(a['n'] + ' €' + format(balance(m, a['id']), 'g') for a in visible(m))}.\n"
             f"Этот месяц: потрачено {cats}. Пришло €{income(m):g}. Лимиты: {', '.join(CATS.get(k, ('', k))[1] + ' €' + format(v, 'g') for k, v in lim.items() if v) or 'нет'}.\n"
             + (f"Платежи впереди: {', '.join(r['n'] + ' €' + format(r['amt'], 'g') + ' ' + str(r.get('day', '')) + '-го' for r in rl)}.\n" if rl else "")
             + (f"Можно тратить ~€{pdv[0]:g} в день до конца месяца ({pdv[1]}).\n" if pdv else "")
             + "".join(f"Лимит {CATS[k][1]}: €{sp_:g} из €{v:g}, ~€{d:g}/день.\n" for k, v, sp_, d in lim_left(m))
+            + ("Долги: " + "; ".join(f"{x['who']} {'должен мне' if x.get('dir') == 'owe_me' else '— я должен'} €{x['amt']:g}" + (f" до {x['due']}" if x.get('due') else "") for x in debts_open(m)) + ".\n" if debts_open(m) else "")
             + (f"Последние: {last}" if last else ""))
+
+
+def debts_open(m: dict) -> list:
+    return [d for d in m.get("debts") or [] if not d.get("done")]
+
+
+def snapshot(state: dict) -> None:
+    """Остатки на конец дня в историю месяца: из этого график счёта."""
+    m = get(state)
+    m.setdefault("hist", {})[ym()] = {a["id"]: balance(m, a["id"]) for a in m["accts"]}
+
+
+def month_report(state: dict, month: str) -> str:
+    """Голые цифры месяца для итога."""
+    m = get(state)
+    sp = spent_by_cat(m, month)
+    y, mo = int(month[:4]), int(month[5:7])
+    prev = f"{y - (mo == 1)}-{12 if mo == 1 else mo - 1:02d}"
+    psp = spent_by_cat(m, prev)
+    h = m.get("hist") or {}
+    sv = lambda k: sum(v for aid, v in (h.get(k) or {}).items() if any(a["id"] == aid and not spendable(a) for a in m["accts"]))
+    lines = [f"Месяц {month}: потрачено €{sum(sp.values()):g} (прошлый €{sum(psp.values()):g}), пришло €{income(m, month):g}.",
+             "По категориям: " + (", ".join(f"{CATS.get(k, ('', k))[1]} €{v:g}" + (f" (было €{psp[k]:g})" if psp.get(k) else "") for k, v in sorted(sp.items(), key=lambda x: -x[1])) or "трат нет") + "."]
+    lim = m.get("lim") or {}
+    over = [CATS[k][1] for k, v in lim.items() if v and sp.get(k, 0) > v]
+    if over:
+        lines.append("Вылетел за лимит: " + ", ".join(over) + ".")
+    if h.get(month) and h.get(prev):
+        lines.append(f"Сбережения: €{sv(prev):g} → €{sv(month):g}.")
+    d = debts_open(m)
+    if d:
+        lines.append("Открытые долги: " + "; ".join(f"{x['who']} {'должен мне' if x.get('dir') == 'owe_me' else '(я должен)'} €{x['amt']:g}" for x in d) + ".")
+    return "\n".join(lines)
