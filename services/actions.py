@@ -32,7 +32,7 @@ TOOLS = [
          "title": {"type": "string"}, "sum": {"type": "string"}, "folder": {"type": "string"}, "ctx": {"type": "string"}, "day": {"type": "string"}}, "required": ["op"]}},
     {"name": "money",
      "description": "ДЕНЬГИ. op: add (трата kind=exp или доход kind=inc: amt, cat, note коротко что, acc счёт если назван, day если не сегодня), "
-                    "balance (на счёте сейчас amt: acc или name нового счёта), limit (лимит на месяц: cat, amt; 0 = убрать), "
+                    "balance (сколько сейчас: acc = cash наличные | card карта | bank банк | stocks акции | crypto крипта, amt), limit (лимит на месяц: cat, amt; 0 = убрать), "
                     "regular (регулярный платёж: name, amt, day число месяца, cat), paid (регулярный оплачен: name), delete (удалить операцию: id). "
                     "Категории трат: food еда/продукты/кафе, home быт/хозтовары, rent жильё/аренда/коммуналка, car машина/бензин/ремонт, health здоровье/аптека/спорт, "
                     "subs связь/подписки, fun развлечения/игры, cloth одежда, gift подарок себе, fine штраф, other. Доходы: ww, work, sale, other.",
@@ -411,8 +411,8 @@ def run(state: dict, name: str, a: dict) -> str | None:
             day = _key(a.get("day")) if a.get("day") else None
             o, warn = money.add(state, a.get("kind") or "exp", amt, str(a.get("cat") or "other"), a.get("acc"), str(a.get("note") or ""), day, "chat")
             pdv = money.per_day(state)
-            return (f"записано: {'доход' if o['k'] == 'inc' else 'трата'} €{o['amt']:g} (id {o['id']}). На счетах €{money.total(m):g}, свободно €{money.free(state):g}."
-                    + (f" Свободных ~€{pdv[0]:g}/день до конца месяца." if pdv else "")
+            return (f"записано: {'доход' if o['k'] == 'inc' else 'трата'} €{o['amt']:g} (id {o['id']}). На жизнь €{money.free(state):g}, всего €{money.total(m):g}."
+                    + (f" По лимитам ~€{pdv[0]:g}/день до конца месяца." if pdv else "")
                     + "".join(f" Лимит {money.CATS[k][1]}: осталось ~€{d:g}/день." for k, v, sp_, d in money.lim_left(m) if k == o["cat"]) + (" " + warn if warn else ""))
         if op == "balance":
             if not isinstance(amt, (int, float)):

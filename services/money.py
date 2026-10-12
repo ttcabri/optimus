@@ -3,6 +3,7 @@
 Отложенное на цели не уходит со счёта: это часть денег, помеченная под цель. Свободно = на счетах − отложено − платежи впереди.
 """
 import calendar
+import re
 import time
 
 from services import quest
@@ -21,13 +22,37 @@ def _id(p: str = "m") -> str:
     return p + format(_ms(), "x") + format(time.perf_counter_ns() % 4096, "x")
 
 
+TYPES = {"cash": ("💵", "Наличные", True), "card": ("💳", "Карта", True), "bank": ("🏦", "Банк", False),
+         "stocks": ("📈", "Акции", False), "crypto": ("🪙", "Крипта", False)}
+
+
+def a_type(a: dict) -> str:
+    if a.get("t") in TYPES:
+        return a["t"]
+    n = (a.get("n") or "").lower()
+    if re.search(r"налич|cash", n):
+        return "cash"
+    if re.search(r"карт|card", n):
+        return "card"
+    if re.search(r"крипт|crypto|btc|bybit", n):
+        return "crypto"
+    if re.search(r"акци|invest|инвест|trading|stock|etf", n):
+        return "stocks"
+    return "bank"
+
+
 def get(state: dict) -> dict:
+    """Пять счетов у всех: на жизнь (наличные, карта) и сбережения (банк, акции, крипта)."""
     m = state.get("money")
     if not isinstance(m, dict):
         m = state["money"] = {}
-    m.setdefault("accts", [{"id": "bank", "n": "Банк", "base": 0, "u": 0}])
-    if not m["accts"]:
-        m["accts"] = [{"id": "bank", "n": "Банк", "base": 0, "u": 0}]
+    m.setdefault("accts", [])
+    for a in m["accts"]:
+        a.setdefault("t", a_type(a))
+    ids = {a.get("id") for a in m["accts"]}
+    for t, (_, name, _s) in TYPES.items():
+        if not any(a.get("t") == t for a in m["accts"]):
+            m["accts"].append({"id": t if t not in ids else t + "_", "t": t, "n": name, "base": 0, "u": 0})
     for k in ("ops", "reg", "del"):
         m.setdefault(k, [])
     m.setdefault("lim", {})
@@ -52,11 +77,16 @@ def merge(server: dict | None, incoming: dict | None) -> dict | None:
 
 
 def acct(m: dict, name_or_id: str | None) -> dict:
+    """Счёт по названию или типу («наличными», «на карту», «крипта»). По умолчанию карта."""
     q = (name_or_id or "").strip().lower()
-    for a in m["accts"]:
-        if q and (a["id"] == q or a["n"].lower() == q or q in a["n"].lower()):
-            return a
-    return m["accts"][0]
+    if q:
+        for a in m["accts"]:
+            if a["id"] == q or a["n"].lower() == q or a.get("t") == q:
+                return a
+        t = a_type({"n": q})
+        if t != "bank" or re.search(r"банк|bank|счёт|счет", q):
+            return next(a for a in m["accts"] if a.get("t") == t)
+    return next((a for a in m["accts"] if a.get("t") == "card"), m["accts"][0])
 
 
 def balance(m: dict, aid: str) -> float:
@@ -121,9 +151,18 @@ def reg_left(m: dict, today: str | None = None) -> list:
     return [r for r in m["reg"] if r.get("paid") != mo and int(r.get("day") or 1) >= d]
 
 
+def spendable(a: dict) -> bool:
+    """На жизнь: наличные и карта. Банк, акции, крипта = сбережения."""
+    return TYPES[a_type(a)][2]
+
+
 def free(state: dict) -> float:
     m = get(state)
-    return round(total(m) - reserved(state) - sum(r["amt"] for r in reg_left(m)), 2)
+    return round(sum(balance(m, a["id"]) for a in m["accts"] if spendable(a)) - sum(r["amt"] for r in reg_left(m)), 2)
+
+
+def saved(m: dict) -> float:
+    return round(sum(balance(m, a["id"]) for a in m["accts"] if not spendable(a)), 2)
 
 
 def days_left(today: str | None = None) -> int:
@@ -133,11 +172,13 @@ def days_left(today: str | None = None) -> int:
 
 
 def per_day(state: dict) -> tuple[float, str] | None:
-    """Сколько можно тратить в день до конца месяца: свободные деньги (минус отложенное и платежи впереди) / дни."""
+    """Сколько можно тратить в день до конца месяца: по лимитам (свободные деньги без лимитов ни о чём не говорят)."""
     m = get(state)
-    if not (any(a.get("base") for a in m["accts"]) or m["ops"]):
+    lim = {k: v for k, v in (m.get("lim") or {}).items() if v}
+    if not lim:
         return None
-    return round(max(0, free(state)) / days_left(), 2), "из свободных"
+    sp = spent_by_cat(m)
+    return round(sum(max(0, v - sp.get(k, 0)) for k, v in lim.items()) / days_left(), 2), "по лимитам"
 
 
 def lim_left(m: dict) -> list:
@@ -187,15 +228,9 @@ def remove(state: dict, oid: str) -> bool:
 
 
 def set_balance(state: dict, acc: str | None, value: float, name: str | None = None) -> dict:
-    """Сверка: на счёте сейчас value. Новый счёт, если такого нет и задано имя."""
+    """Сверка: на счёте сейчас value."""
     m = get(state)
-    a = None
-    if name:
-        a = next((x for x in m["accts"] if x["n"].lower() == name.strip().lower()), None)
-        if not a:
-            a = {"id": _id("a"), "n": name.strip()[:30], "base": 0, "u": _ms()}
-            m["accts"].append(a)
-    a = a or acct(m, acc)
+    a = acct(m, name or acc)
     a["base"] = round(float(a.get("base") or 0) + float(value) - balance(m, a["id"]), 2)
     a["u"] = _ms()
     return a
@@ -214,7 +249,8 @@ def summary(state: dict) -> str:
         return o.get("n") or (CATS.get(o.get("cat"), ("", "трата"))[1] if o["k"] == "exp" else INC.get(o.get("cat"), "доход"))
     last = "; ".join(f"{o['d'][5:]} {'+' if o['k'] == 'inc' else '−'}€{o['amt']:g} {lab(o)}" for o in m["ops"][-6:])
     return ("ДЕНЬГИ (инструмент money; советуй по делу, когда видишь риск: лимит, крупная трата, мало свободных):\n"
-            f"Счета: {', '.join(a['n'] + ' €' + format(balance(m, a['id']), 'g') for a in m['accts'])}. Всего €{total(m):g}, отложено на цели €{reserved(state):g}, свободно €{free(state):g}.\n"
+            f"На жизнь (наличные+карта, минус платежи впереди): €{free(state):g}. Сбережения €{saved(m):g} (на цели из них €{reserved(state):g}). Всего €{total(m):g}.\n"
+            f"Счета: {', '.join(a['n'] + ' €' + format(balance(m, a['id']), 'g') for a in m['accts'])}.\n"
             f"Этот месяц: потрачено {cats}. Пришло €{income(m):g}. Лимиты: {', '.join(CATS.get(k, ('', k))[1] + ' €' + format(v, 'g') for k, v in lim.items() if v) or 'нет'}.\n"
             + (f"Платежи впереди: {', '.join(r['n'] + ' €' + format(r['amt'], 'g') + ' ' + str(r.get('day', '')) + '-го' for r in rl)}.\n" if rl else "")
             + (f"Можно тратить ~€{pdv[0]:g} в день до конца месяца ({pdv[1]}).\n" if pdv else "")

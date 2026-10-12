@@ -259,8 +259,11 @@ button.hrow{width:100%;border:none;color:inherit;font:inherit;text-align:left}
 .bimg{width:100%;max-height:340px;object-fit:contain;border-radius:14px;background:var(--panel2)}
 .mhero{margin:0 16px;padding:14px;border-radius:20px;background:linear-gradient(135deg,#2c2412,var(--panel));border:1px solid var(--line2);display:flex;flex-direction:column;gap:4px}
 .mhero small{color:var(--muted);font-weight:700;font-size:12px}.mhero>b{font-family:var(--display);font-weight:400;font-size:32px;line-height:1.1}
+.msave{margin-top:8px;background:var(--panel);border-color:var(--line)}.msave>b{font-size:24px}.macc .chip.dim{opacity:.55}
 .macc{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.macc .chip b{margin-left:4px}.mfree{margin:6px 0 0;font-size:13px;font-weight:700;color:var(--okl)}
 .mrow2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 16px 0}.mc{border-radius:16px;background:var(--panel);padding:10px 12px}.mc small{color:var(--muted);font-weight:700;font-size:12px;display:block}.mc b{font-size:19px}
+.mlims{display:flex;flex-direction:column;gap:6px}.mlims label{display:flex;align-items:center;justify-content:space-between;gap:10px;font-weight:700;font-size:14px}
+.mlims label small{display:block;color:var(--dim);font-size:11px;font-weight:700}.mlims input{width:96px;text-align:right}
 .mi{width:34px;height:34px;border-radius:10px;background:var(--panel2);display:grid;place-items:center;font-size:17px;flex-shrink:0}
 .mehello{margin:2px 18px 12px;color:var(--muted);font-weight:700;font-size:14px}.mehello b{color:var(--fg)}
 .hsetup{margin:0 16px 12px;padding:16px;border-radius:20px;background:var(--paper);color:var(--ink);display:flex;flex-direction:column;gap:8px}
@@ -1163,7 +1166,7 @@ function viewMe(){
   const P=prof(),H=healthGoal(),it=H&&gTask(H),cs=closedStreak(),kg=curKg();
   const hsub=H?[it?weekDone(it).join("/")+" трен. за неделю":"",kg!=null?kg+" кг":""].filter(Boolean).join(" · ")||esc(H.name):"настроить";
   return `<div class="mehello">Привет, <b>${esc(P.name||"друг")}</b>${cs?` · 🔥 закрыто ${cs} ${dayW(cs)} подряд`:""}</div>
-    <div class="btiles">${bTile('data-meseg="health"',"💪","#3a1d14","Здоровье",hsub)}${bTile('data-meseg="brain"',"🧠","#242030","Мозг",brSub(),bPins().length+bItems("inbox").length)}${bTile('data-meseg="money"',"💰","#2c2412","Деньги",mHas()?eur(mTotal(MON()))+(Math.round(mFree(MON()))!==Math.round(mTotal(MON()))?" · свободно "+eur(mFree(MON())):""):"сколько на счёте?")}${bTile('data-meseg="routine"',"📅","#1f2a20","Распорядок",ritems().length+" дел")}</div>
+    <div class="btiles">${bTile('data-meseg="health"',"💪","#3a1d14","Здоровье",hsub)}${bTile('data-meseg="brain"',"🧠","#242030","Мозг",brSub(),bPins().length+bItems("inbox").length)}${bTile('data-meseg="money"',"💰","#2c2412","Деньги",mHas()?eur(mFree(MON()))+" на месяц · всего "+eur(mTotal(MON())):"сколько на карте?")}${bTile('data-meseg="routine"',"📅","#1f2a20","Распорядок",ritems().length+" дел")}</div>
     <button type="button" class="prow" data-meseg="hist"><span style="font-size:22px">📜</span><span style="flex:1"><b style="font-size:14px">История</b><small style="display:block;font-size:12px;font-weight:700;color:var(--muted)">${cs?cs+" "+dayW(cs)+" подряд всё закрыто":"по дням"}</small></span><span class="go"></span></button>`}
 /* ---------- мозг: всё, что сохранил; бот раскладывает и достаёт к месту ---------- */
 const BF={inbox:["📥","Разобрать"],ideas:["💡","Идеи"],apply:["🎯","Применить"],recipes:["🍳","Рецепты"],want:["🌍","Хочу"],docs:["📄","Документы"]};
@@ -1196,7 +1199,14 @@ function viewBrain(){const seg=meSeg.startsWith("b:")?meSeg.slice(2):"";
     +(n?"":`<p class="empty" style="padding:10px 20px 0">Сюда складывается всё полезное: лайфхаки, идеи, рецепты, места, куда хочешь, справки. Бот сам раскладывает по папкам и достаёт, когда это реально к месту.</p>`)}
 const MC={food:["🛒","Еда"],home:["🧴","Быт"],rent:["🏠","Жильё"],car:["🚗","Машина"],health:["💊","Здоровье"],subs:["📱","Связь и подписки"],fun:["🎮","Развлечения"],cloth:["👕","Одежда"],gift:["🎁","Подарок себе"],fine:["💸","Штрафы"],other:["📦","Прочее"]};
 const MI={ww:["🏛","WW"],work:["💼","Работа"],sale:["🏷","Продажа"],other:["💶","Другое"]};
-const MON=()=>{if(!state.money||typeof state.money!=="object")state.money={};const m=state.money;if(!Array.isArray(m.accts)||!m.accts.length)m.accts=[{id:"bank",n:"Банк",base:0,u:0}];for(const k of ["ops","reg","del"])if(!Array.isArray(m[k]))m[k]=[];if(!m.lim||typeof m.lim!=="object")m.lim={};return m};
+const AT={cash:["💵","Наличные",1],card:["💳","Карта",1],bank:["🏦","Банк",0],stocks:["📈","Акции",0],crypto:["🪙","Крипта",0]};
+const aType=a=>AT[a.t]?a.t:/налич|cash/i.test(a.n||"")?"cash":/карт|card/i.test(a.n||"")?"card":/крипт|crypto|btc|bybit/i.test(a.n||"")?"crypto":/акци|invest|инвест|trading|stock|etf/i.test(a.n||"")?"stocks":"bank";
+const MON=()=>{if(!state.money||typeof state.money!=="object")state.money={};const m=state.money;if(!Array.isArray(m.accts))m.accts=[];
+  for(const a of m.accts)if(!a.t)a.t=aType(a);
+  for(const t of Object.keys(AT))if(!m.accts.some(a=>a.t===t))m.accts.push({id:m.accts.some(a=>a.id===t)?t+"_":t,t,n:AT[t][1],base:0,u:0});
+  m.accts.sort((a,b)=>Object.keys(AT).indexOf(a.t)-Object.keys(AT).indexOf(b.t));
+  for(const k of ["ops","reg","del"])if(!Array.isArray(m[k]))m[k]=[];if(!m.lim||typeof m.lim!=="object")m.lim={};return m};
+const mDefAcc=m=>(m.accts.find(a=>a.t==="card")||m.accts[0]).id;
 const eur=v=>"€"+(Math.round(v*100)/100).toLocaleString("ru-RU",{maximumFractionDigits:2});
 const ym=()=>key().slice(0,7);
 const mBal=(m,id)=>{const a=m.accts.find(x=>x.id===id);if(!a)return 0;let v=+a.base||0;for(const o of m.ops)if(o.acc===id)v+=o.k==="inc"?o.amt:-o.amt;return Math.round(v*100)/100};
@@ -1206,25 +1216,44 @@ const mSpent=m=>{const r={};for(const o of mMonth(m))if(o.k==="exp")r[o.cat]=(r[
 const mPigs=()=>GOALS().filter(g=>g.kind!=="health"&&g.metric&&g.metric.unit==="€").map(g=>[g,+gVal(g)||0,gTarget(g)]);
 const mRegLeft=m=>{const d=+key().slice(8,10);return m.reg.filter(r=>r.paid!==ym()&&(+r.day||1)>=d)};
 const daysLeftM=()=>{const k=key(),y=+k.slice(0,4),mo=+k.slice(5,7);return new Date(y,mo,0).getDate()-(+k.slice(8,10))+1};
-const mFree=m=>mTotal(m)-mPigs().reduce((s,p)=>s+p[1],0)-mRegLeft(m).reduce((s,r)=>s+r.amt,0);
+const mSpend=a=>!!AT[aType(a)][2];
+const mLive=m=>m.accts.filter(mSpend).reduce((s,a)=>s+mBal(m,a.id),0);
+const mSaved=m=>m.accts.filter(a=>!mSpend(a)).reduce((s,a)=>s+mBal(m,a.id),0);
+const mFree=m=>mLive(m)-mRegLeft(m).reduce((s,r)=>s+r.amt,0);
 const mEmpty=m=>!m.ops.length&&!m.accts.some(a=>a.base)&&!m.reg.length;
 const mHas=()=>!!(state.money&&((state.money.ops||[]).length||(state.money.accts||[]).some(a=>a.base)));
-function mAdd(k,amt,cat,acc,note,d,src){const m=MON(),o={id:hid("m"),k,amt:Math.round(Math.abs(amt)*100)/100,cat,acc:acc||m.accts[0].id,n:(note||"").slice(0,60),d:d||key(),u:Date.now()};if(src)o.src=src;m.ops.push(o);return o}
+function mAdd(k,amt,cat,acc,note,d,src){const m=MON(),o={id:hid("m"),k,amt:Math.round(Math.abs(amt)*100)/100,cat,acc:acc||mDefAcc(m),n:(note||"").slice(0,60),d:d||key(),u:Date.now()};if(src)o.src=src;m.ops.push(o);return o}
 function mWarn(m,cat){const lim=(m.lim||{})[cat];if(!lim)return "";const sp=mSpent(m)[cat]||0;return sp>=lim?`Лимит «${MC[cat][1]}» кончился: ${eur(sp)} из ${eur(lim)}`:sp>=.8*lim?`«${MC[cat][1]}»: осталось ${eur(lim-sp)} на ${daysLeftM()} дн.`:""}
 const opRow=o=>{const c=o.k==="inc"?(MI[o.cat]||MI.other):(MC[o.cat]||MC.other);return `<button type="button" class="hrow go" data-mop="${esc(o.id)}"><span class="mi">${c[0]}</span><span class="nm"><b>${esc(o.n||c[1])}</b><small>${ddmm(o.d)} · ${c[1]}${o.src&&o.src.startsWith("rcpt:")?" · 🧾 чек":""}</small></span><span class="val" style="color:${o.k==="inc"?"var(--okl)":"var(--fg)"}">${o.k==="inc"?"+":"−"}${eur(o.amt)}</span></button>`};
+function limDay(m){const L=Object.entries(m.lim||{}).filter(([,v])=>v);if(!L.length)return null;const sp=mSpent(m);return L.reduce((s,[k,v])=>s+Math.max(0,v-(sp[k]||0)),0)/daysLeftM()}
+const opRowFull=o=>{const b=o.src&&o.src.startsWith("rcpt:")?bById(o.src.slice(5)):null;return opRow(o).replace("</small></span>",`</small>${b&&b.s?`<small style="display:block;color:var(--dim)">${esc(b.s)}</small>`:""}</span>`)};
 function viewMoney(){const m=MON();
+  if(meSeg.startsWith("money:c:")){const c=meSeg.slice(8);if(!MC[c]){meSeg="money";return viewMoney()}
+    const lim=(m.lim||{})[c],mo=mMonth(m).filter(o=>o.k==="exp"&&o.cat===c).sort((a,b)=>(b.d||"").localeCompare(a.d||"")||(b.u||0)-(a.u||0)),v=mo.reduce((s,o)=>s+o.amt,0);
+    const old=m.ops.filter(o=>o.k==="exp"&&o.cat===c&&!String(o.d||"").startsWith(ym())).sort((a,b)=>(b.d||"").localeCompare(a.d||"")).slice(0,30);
+    const avg=(()=>{const by={};for(const o of old)by[o.d.slice(0,7)]=(by[o.d.slice(0,7)]||0)+o.amt;const vs=Object.values(by);return vs.length?vs.reduce((a,b)=>a+b,0)/vs.length:null})();
+    return `<div class="subh"><button type="button" class="bk" data-meseg="money" aria-label="Назад">${IC.back}</button><h2>${MC[c][0]} ${MC[c][1]}</h2><button type="button" class="addb" data-mnew="${c}" aria-label="Добавить трату">+</button></div>
+      <section class="mhero"><small>Этот месяц</small><b>${eur(v)}</b>${lim?`<span class="pbar" style="display:block;height:8px"><i style="width:${Math.min(100,Math.round(v/lim*100))}%;${v>=lim?"background:var(--red)":v>=.8*lim?"background:var(--fire)":""}"></i></span><small>${v>=lim?"лимит "+eur(lim)+" кончился":"лимит "+eur(lim)+" · осталось "+eur(lim-v)+" · ~"+eur((lim-v)/daysLeftM())+" в день"}</small>`:"<small>без лимита</small>"}
+        ${avg!=null?`<small>в среднем за прошлые месяцы ${eur(avg)}</small>`:""}<div style="margin-top:6px"><button type="button" class="chip" data-mlim="${c}">${lim?"Изменить лимит":"+ Лимит"}</button></div></section>
+      <div class="glabel">Покупки за месяц</div>${mo.length?`<div class="list">${mo.map(opRowFull).join("")}</div>`:`<p class="empty" style="padding:0 20px">Пока пусто. «+» сверху, боту «${c==="food"?"Lidl 23":c==="car"?"заправка 60":"потратил 20"}» или фото чека.</p>`}
+      ${old.length?`<div class="glabel">Раньше</div><div class="list">${old.map(opRowFull).join("")}</div>`:""}`}
   if(meSeg==="money:ops"){const ops=m.ops.slice().sort((a,b)=>(b.d||"").localeCompare(a.d||"")||(b.u||0)-(a.u||0));
     return meHead("Все операции","money")+(ops.length?`<div class="list">${ops.slice(0,200).map(opRow).join("")}</div>`:'<p class="empty" style="padding:4px 20px">Пусто.</p>')}
   const head=`<div class="subh"><button type="button" class="bk" data-meseg="" aria-label="Назад">${IC.back}</button><h2>Деньги</h2><button type="button" class="addb" data-mnew="1" aria-label="Добавить трату или доход">+</button></div>`;
-  if(mEmpty(m))return head+`<section class="hsetup"><b>💰 Деньги</b><p>Начни с того, сколько сейчас на счёте. Дальше пиши боту «заправка 60» или «пришло 1200 WW», чеки шли фото, всё посчитается само.</p><button type="button" class="goldbtn" data-macc="${esc(m.accts[0].id)}">Сколько на счёте</button></section>`;
+  if(mEmpty(m))return head+`<section class="hsetup"><b>💰 Деньги</b><p>Начни с того, сколько сейчас на карте и наличными. Сбережения (банк, акции, крипта) отдельно, в «на месяц» они не входят. Дальше пиши боту «заправка 60» или «пришло 1200 WW», чеки шли фото, всё посчитается само.</p><button type="button" class="goldbtn" data-macc="${esc(mDefAcc(m))}">Сколько на карте</button></section>`;
   const tot=mTotal(m),sp=mSpent(m),spT=Object.values(sp).reduce((a,b)=>a+b,0),inc=mMonth(m).filter(o=>o.k==="inc").reduce((s,o)=>s+o.amt,0),free=mFree(m),dl=daysLeftM(),pigs=mPigs(),rl=mRegLeft(m);
   const cats=Object.keys(MC).filter(c=>sp[c]||(m.lim||{})[c]).sort((a,b)=>(sp[b]||0)-(sp[a]||0));
   const ops=m.ops.slice().sort((a,b)=>(b.d||"").localeCompare(a.d||"")||(b.u||0)-(a.u||0)).slice(0,8);
-  return head+`<section class="mhero"><small>Всего сейчас</small><b>${eur(tot)}</b>
-      <div class="macc">${m.accts.map(a=>`<button type="button" class="chip" data-macc="${esc(a.id)}">${esc(a.n)} <b>${eur(mBal(m,a.id))}</b></button>`).join("")}<button type="button" class="chip" data-macc="+">+ счёт</button></div>
-      <p class="mfree">Свободно ${eur(free)}${free>0?` · ~${eur(free/dl)} в день до конца месяца`:""}</p></section>
+  const acc=a=>`<button type="button" class="chip${mBal(m,a.id)?"":" dim"}" data-macc="${esc(a.id)}">${AT[aType(a)][0]} ${AT[aType(a)][1]} <b>${eur(mBal(m,a.id))}</b></button>`,sv=mSaved(m),res=pigs.reduce((s,p)=>s+p[1],0);
+  return head+`<section class="mhero"><small>На месяц: наличные и карта${rl.length?", минус платежи впереди":""}</small><b>${eur(free)}</b>
+      <div class="macc">${m.accts.filter(mSpend).map(acc).join("")}</div>
+      ${limDay(m)!=null?`<p class="mfree" style="color:var(--gold)">По лимитам можно ~${eur(limDay(m))} в день до конца месяца</p>`:""}</section>
+    <section class="mhero msave"><small>Сбережения${res?` · из них на цели ${eur(res)}`:""}</small><b>${eur(sv)}</b>
+      <div class="macc">${m.accts.filter(a=>!mSpend(a)).map(acc).join("")}</div>
+      <p class="mfree" style="color:var(--muted)">Всего денег ${eur(tot)}</p></section>
     <div class="mrow2"><div class="mc"><small>${new Date(key()+"T12:00:00").toLocaleDateString("ru-RU",{month:"long"})}: потратил</small><b>${eur(spT)}</b></div><div class="mc"><small>Пришло</small><b style="color:var(--okl)">${eur(inc)}</b></div></div>
-    ${cats.length?`<div class="glabel">По категориям <span style="font-weight:700;color:var(--dim);font-size:12px">нажми, чтобы задать лимит</span></div><div class="list">${cats.map(c=>{const lim=(m.lim||{})[c],v=sp[c]||0;return `<button type="button" class="hrow" data-mlim="${c}"><span class="mi">${MC[c][0]}</span><span class="nm"><b>${MC[c][1]}</b>${lim?`<span class="pbar" style="display:block"><i style="width:${Math.min(100,Math.round(v/lim*100))}%;${v>=lim?"background:var(--red)":v>=.8*lim?"background:var(--fire)":""}"></i></span><small>${v>=lim?"лимит кончился":"осталось "+eur(lim-v)+" · ~"+eur((lim-v)/dl)+"/день"}</small>`:"<small>без лимита</small>"}</span><span class="val">${eur(v)}${lim?`<small style="display:block;color:var(--dim);font-size:11px;text-align:right">из ${eur(lim)}</small>`:""}</span></button>`}).join("")}</div>`:`<div class="segfoot" style="padding-top:8px"><button type="button" class="line" data-mlim="food">Задать лимит на месяц</button></div>`}
+    <div class="glabel" style="display:flex;justify-content:space-between;align-items:center">По категориям<button type="button" class="chip" data-mlims="1">${Object.values(m.lim||{}).some(v=>v)?"Лимиты":"+ Лимиты"}</button></div>
+    ${cats.length?`<div class="list">${cats.map(c=>{const lim=(m.lim||{})[c],v=sp[c]||0;return `<button type="button" class="hrow go" data-meseg="money:c:${c}"><span class="mi">${MC[c][0]}</span><span class="nm"><b>${MC[c][1]}</b>${lim?`<span class="pbar" style="display:block"><i style="width:${Math.min(100,Math.round(v/lim*100))}%;${v>=lim?"background:var(--red)":v>=.8*lim?"background:var(--fire)":""}"></i></span><small>${v>=lim?"лимит кончился":"осталось "+eur(lim-v)+" · ~"+eur((lim-v)/dl)+"/день"}</small>`:"<small>без лимита</small>"}</span><span class="val">${eur(v)}${lim?`<small style="display:block;color:var(--dim);font-size:11px;text-align:right">из ${eur(lim)}</small>`:""}</span></button>`}).join("")}</div>`:`<p class="empty" style="padding:0 20px">Трат в этом месяце ещё нет.</p>`}
     ${pigs.length?`<div class="glabel">Копилки на цели</div><div class="list">${pigs.map(([g,v,t])=>`<button type="button" class="hrow go" data-gopen="${esc(g.id)}"><span class="mi">${esc(g.emoji||"🎯")}</span><span class="nm"><b>${esc(g.name)}</b>${t?`<span class="pbar" style="display:block"><i style="width:${Math.min(100,Math.round(v/t*100))}%;background:var(--fire)"></i></span>`:""}</span><span class="val">${eur(v)}${t?`<small style="display:block;color:var(--dim);font-size:11px;text-align:right">из ${eur(t)}</small>`:""}</span></button>`).join("")}</div>`:""}
     <div class="glabel">Регулярные${rl.length?` <span style="font-weight:700;color:var(--dim);font-size:12px">впереди ${eur(rl.reduce((s,r)=>s+r.amt,0))}</span>`:""}</div>
     ${m.reg.length?`<div class="list">${m.reg.slice().sort((a,b)=>(+a.day||1)-(+b.day||1)).map(r=>`<div class="hrow"><button type="button" class="nm" data-mreg="${esc(r.id)}" style="background:none;border:none;color:inherit;font:inherit;text-align:left;padding:0"><b>${esc(r.n)} · ${eur(r.amt)}</b><small>${r.day||1}-го${r.paid===ym()?" · оплачено":""}</small></button>${r.paid===ym()?`<span class="rs ok">${IC.check}</span>`:`<button type="button" class="chip take" data-mpaid="${esc(r.id)}">Оплачено</button>`}</div>`).join("")}</div>`:""}
@@ -1376,9 +1405,10 @@ document.addEventListener("click",e=>{
   if(t.dataset.gopen){tab="goals";goalSeg=t.dataset.gopen;render();window.scrollTo(0,0);return}
   if(t.dataset.gback){goalSeg="";render();window.scrollTo(0,0);return}
   if(t.dataset.hsetup){W={step:"gtext",text:"",health:1};renderSheet();return}
-  if(t.dataset.mnew){const m=MON();W={step:"mop",isNew:true,o:{id:hid("m"),k:"exp",amt:0,cat:"food",acc:m.accts[0].id,n:"",d:key()}};renderSheet();return}
+  if(t.dataset.mnew){const m=MON();W={step:"mop",isNew:true,o:{id:hid("m"),k:"exp",amt:0,cat:MC[t.dataset.mnew]?t.dataset.mnew:"food",acc:mDefAcc(m),n:"",d:key()}};renderSheet();return}
   if(t.dataset.mop){const o=MON().ops.find(x=>x.id===t.dataset.mop);if(o){W={step:"mop",isNew:false,o:clone(o)};renderSheet()}return}
-  if(t.dataset.macc){W={step:"macc",isNew:t.dataset.macc==="+",id:t.dataset.macc};renderSheet();return}
+  if(t.dataset.macc){W={step:"macc",id:t.dataset.macc};renderSheet();return}
+  if(t.dataset.mlims){W={step:"mlims"};renderSheet();return}
   if(t.dataset.mlim){W={step:"mlim",cat:t.dataset.mlim};renderSheet();return}
   if(t.dataset.mreg){W={step:"mreg",isNew:t.dataset.mreg==="+",id:t.dataset.mreg};renderSheet();return}
   if(t.dataset.mpaid){const m=MON(),r=m.reg.find(x=>x.id===t.dataset.mpaid);if(r){let warn="";mutate(()=>{mAdd("exp",r.amt,r.cat||"other",r.acc,r.n,null,"reg:"+r.id);r.paid=ym();r.u=Date.now();warn=mWarn(m,r.cat||"other")});toast(warn||r.n+": оплачено, "+eur(r.amt)+" в тратах")}return}
@@ -1524,13 +1554,17 @@ function renderSheet(){
     body=`<h2>${W.isNew?"Новая запись":"Операция"}</h2><div class="opts three" style="grid-template-columns:1fr 1fr"><button type="button" class="opt" data-w="mk:exp" aria-pressed="${o.k==="exp"}">Трата</button><button type="button" class="opt" data-w="mk:inc" aria-pressed="${o.k==="inc"}">Доход</button></div>
       <form data-wf="mop" style="display:flex;flex-direction:column;gap:8px"><input name="amt" inputmode="decimal" value="${o.amt||""}" placeholder="Сумма, €" aria-label="Сумма" autocomplete="off"><input name="n" maxlength="60" value="${esc(o.n||"")}" placeholder="${o.k==="inc"?"Откуда, например WW":"На что, например заправка"}" aria-label="Заметка" autocomplete="off"></form>
       <p class="rl">Категория</p><div class="perm">${Object.keys(cats).map(c=>`<button type="button" class="chip" data-w="mc:${c}" aria-pressed="${o.cat===c}">${cats[c][0]} ${cats[c][1]}</button>`).join("")}</div>
-      ${m.accts.length>1?`<p class="rl">Счёт</p><div class="perm">${m.accts.map(a=>`<button type="button" class="chip" data-w="ma:${esc(a.id)}" aria-pressed="${o.acc===a.id}">${esc(a.n)}</button>`).join("")}</div>`:""}
+      <p class="rl">${o.k==="inc"?"Куда":"Чем платил"}</p><div class="perm">${m.accts.filter(a=>mSpend(a)||o.acc===a.id||o.k==="inc").map(a=>`<button type="button" class="chip" data-w="ma:${esc(a.id)}" aria-pressed="${o.acc===a.id}">${AT[aType(a)][0]} ${AT[aType(a)][1]}</button>`).join("")}</div>
       <div class="srow2">Дата<input type="date" id="mdate" value="${o.d||key()}" aria-label="Дата"></div>
       <button type="button" class="goldbtn" data-w="msave">Сохранить</button>${W.isNew?"":`<button type="button" class="dellink" data-w="mdel">Удалить</button>`}`}
-  if(W.step==="macc"){const m=MON(),a=W.isNew?null:m.accts.find(x=>x.id===W.id);
-    body=`<h2>${a?esc(a.n):"Новый счёт"}</h2><p class="q">${a?"Сверка: впиши, сколько на счёте сейчас. Разницу учту сам.":"Например: Наличные, Trading 212, крипта."}</p>
-      <form data-wf="macc" style="display:flex;flex-direction:column;gap:8px">${a?"":`<input name="n" maxlength="30" placeholder="Название" aria-label="Название" autocomplete="off">`}<input name="v" inputmode="decimal" value="${a?mBal(m,a.id):""}" placeholder="Сейчас на счёте, €" aria-label="Сейчас на счёте" autocomplete="off"></form>
-      <button type="button" class="goldbtn" data-w="maccsave">Сохранить</button>${a&&m.accts.length>1&&!m.ops.some(o=>o.acc===a.id)?`<button type="button" class="dellink" data-w="maccdel">Удалить счёт</button>`:""}`}
+  if(W.step==="macc"){const m=MON(),a=m.accts.find(x=>x.id===W.id);if(!a){closeSheet();return}const t=aType(a);
+    body=`<h2>${AT[t][0]} ${AT[t][1]}</h2><p class="q">${AT[t][2]?"Деньги на жизнь: из них траты по умолчанию"+(t==="card"?" (карта)":"")+".":"Сбережения: во «Всего», но не в «на месяц»."} Впиши, сколько сейчас, разницу учту сам.</p>
+      <form data-wf="macc"><input name="v" inputmode="decimal" value="${mBal(m,a.id)||""}" placeholder="Сейчас, €" aria-label="Сейчас" autocomplete="off"></form>
+      <button type="button" class="goldbtn" data-w="maccsave">Сохранить</button>`}
+  if(W.step==="mlims"){const m=MON(),sp=mSpent(m);
+    body=`<h2>Лимиты на месяц</h2><p class="q">Пусто = без лимита. Бот предупредит на 80% и когда лимит кончится.</p>
+      <form data-wf="mlims" class="mlims">${Object.keys(MC).filter(x=>x!=="fine").map(c=>`<label><span>${MC[c][0]} ${MC[c][1]}${sp[c]?`<small>сейчас ${eur(sp[c])}</small>`:""}</span><input name="${c}" inputmode="decimal" value="${(m.lim||{})[c]||""}" placeholder="—" aria-label="${MC[c][1]}" autocomplete="off"></label>`).join("")}</form>
+      <button type="button" class="goldbtn" data-w="mlimsave">Сохранить</button>`}
   if(W.step==="mlim"){const m=MON(),c=W.cat,v=(m.lim||{})[c]||"";
     body=`<h2>Лимит на месяц</h2><div class="perm">${Object.keys(MC).filter(x=>x!=="fine").map(x=>`<button type="button" class="chip" data-w="ml:${x}" aria-pressed="${c===x}">${MC[x][0]} ${MC[x][1]}</button>`).join("")}</div>
       <form data-wf="mlim"><input name="v" inputmode="decimal" value="${v}" placeholder="€ в месяц, пусто = без лимита" aria-label="Лимит" autocomplete="off"></form>
@@ -1758,11 +1792,11 @@ $("sheet").addEventListener("click",e=>{
   if(a==="msave"){mKeep();const o=W.o;if(!(o.amt>0)){toast("Впиши сумму");return}const m=MON();closeSheet();let warn="";
     mutate(()=>{const ex=m.ops.find(x=>x.id===o.id);if(ex)Object.assign(ex,o,{u:Date.now()});else m.ops.push(Object.assign(o,{u:Date.now()}));if(o.k==="exp")warn=mWarn(m,o.cat)});toast(warn||"Записал");return}
   if(a==="mdel"){const id=W.o.id,m=MON();closeSheet();mutate(()=>{m.ops=m.ops.filter(x=>x.id!==id);m.del=m.del.concat([id]).slice(-500)});toast("Удалил");return}
-  if(a==="maccsave"){const m=MON(),f=$("sheet").querySelector("form[data-wf=macc]"),v=parseFloat(String(f.v.value).replace(",","."));if(isNaN(v)){toast("Впиши сумму");return}
-    const isNew=W.isNew;let ac=isNew?null:m.accts.find(x=>x.id===W.id);if(isNew){const n=(f.n.value||"").trim();if(!n){toast("Назови счёт");return}ac={id:hid("a"),n:n.slice(0,30),base:0,u:0}}
-    closeSheet();mutate(()=>{if(isNew)m.accts.push(ac);ac.base=Math.round(((+ac.base||0)+v-mBal(m,ac.id))*100)/100;ac.u=Date.now()});toast(ac.n+": "+eur(v));return}
-  if(a==="maccdel"){const m=MON(),id=W.id;closeSheet();mutate(()=>{m.accts=m.accts.filter(x=>x.id!==id);m.del=m.del.concat([id])});return}
+  if(a==="maccsave"){const m=MON(),v=parseFloat(String($("sheet").querySelector("form[data-wf=macc] input[name=v]").value).replace(",","."));if(isNaN(v)){toast("Впиши сумму");return}
+    const ac=m.accts.find(x=>x.id===W.id);closeSheet();if(!ac)return;mutate(()=>{ac.base=Math.round(((+ac.base||0)+v-mBal(m,ac.id))*100)/100;ac.u=Date.now()});toast(AT[aType(ac)][1]+": "+eur(v));return}
   if(a.startsWith("ml:")){W.cat=a.slice(3);return renderSheet()}
+  if(a==="mlimsave"){const m=MON(),f=$("sheet").querySelector("form[data-wf=mlims]"),lim={};for(const c of Object.keys(MC)){const i=f.querySelector(`[name="${c}"]`);const v=i?parseFloat(String(i.value).replace(",",".")):0;if(v>0)lim[c]=v}
+    closeSheet();mutate(()=>{m.lim=lim;m.lu=Date.now()});toast(Object.keys(lim).length?"Лимиты сохранены":"Лимиты убраны");return}
   if(a==="mlsave"){const m=MON(),v=parseFloat(String($("sheet").querySelector("input[name=v]").value).replace(",","."));const c=W.cat;closeSheet();mutate(()=>{m.lim=Object.assign({},m.lim,{[c]:v>0?v:0});m.lu=Date.now()});toast(v>0?"Лимит "+MC[c][1]+": "+eur(v)+" в месяц":"Лимит убран");return}
   if(a.startsWith("mrc:")){mrKeep();W.cat=a.slice(4);return renderSheet()}
   if(a==="mrsave"){const m=MON(),f=$("sheet").querySelector("form[data-wf=mreg]"),n=f.n.value.trim(),amt=parseFloat(String(f.amt.value).replace(",",".")),day=Math.min(31,Math.max(1,parseInt(f.day.value,10)||1));
