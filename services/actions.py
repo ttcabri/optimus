@@ -540,7 +540,7 @@ def routine_context(P: dict) -> str:
         for x in gs:
             m = x.get("metric") or {}
             num = (f", {m.get('name') or 'число'} ({m.get('unit') or ''})" + (f", цель {m['target']:g}" if isinstance(m.get('target'), (int, float)) else "")) if m else ""
-            out.append(f"- {x.get('emoji', '')} {x['name']} (id {x['id']}){num}" + (f", к {x['date']}" if x.get("date") else "") + f", дела: {', '.join(x.get('tasks') or []) or 'нет'}")
+            out.append(f"- {x.get('emoji', '')} {'ЗДОРОВЬЕ (основа, не цель): ' if x.get('kind') == 'health' else ''}{x['name']} (id {x['id']}){num}" + (f", к {x['date']}" if x.get("date") else "") + f", дела: {', '.join(x.get('tasks') or []) or 'нет'}")
     else:
         out.append(f"ТЕКУЩАЯ ЦЕЛЬ: {g['name']} ({g.get('unit') or 'без цифры'}), привычка: {g.get('habit') or 'не задана'}" if g else "ТЕКУЩАЯ ЦЕЛЬ: нет (здоровье есть всегда)")
     return "\n".join(out)
