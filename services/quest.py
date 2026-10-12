@@ -201,7 +201,7 @@ def reqs(day: dict, weekday: int | None = None) -> list[dict]:
     skip = set(day.get("skip", []))
     pi = pen_item(P)
     r = [{"id": it["id"], "name": it["name"],
-          "t": item_t(day, it) or ("skip" if it["id"] in skip and it is not pi else None)}
+          "t": item_t(day, it)}  # убранное или перенесённое главное дело не сделано
          for it in items(P) if it.get("main") and on_day(it, (w + 1) % 7)]
     if day.get("_debt") and pi:
         at = day.get("at", {})

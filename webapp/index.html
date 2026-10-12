@@ -600,7 +600,7 @@ const debtClosed=d=>has(d,"vid2")&&(has(d,"fine")||!(prof().penalty||{}).fine);
 /* ---------- награда дня и серии ---------- */
 // Награда (что именно, в анкете) открывается, когда закрыты все главные дела дня. Убранное на сегодня не блокирует, штрафное дело убрать нельзя.
 function reqs(k){const d=peek(k)||{},at=d.at||{},sk=d.skip||[],pi=penItem(),P=prof();
-  const r=ritems().filter(it=>it.main&&onDay(it,dow(k))).map(it=>({id:it.id,name:it.name,t:itemT(d,it)||(sk.includes(it.id)&&it!==pi?"skip":null)}));
+  const r=ritems().filter(it=>it.main&&onDay(it,dow(k))).map(it=>({id:it.id,name:it.name,t:itemT(d,it)||null}));
   if(debtOf(k)&&pi){r.push({id:"debt",name:pi.debt||`Долг: ещё раз «${pi.name}»`,t:at.vid2,pen:1});if(P.penalty.fine)r.push({id:"fine",name:"Штраф €"+P.penalty.fine,t:at.fine,pen:1})}
   return r}
 const dayClosed=k=>{const r=reqs(k);return r.length>0&&r.every(x=>x.t)};
@@ -802,13 +802,14 @@ function spoilers(k,d,done,up,dname){
   const mv=d.moved||{},skipped=(d.skip||[]).filter(id=>!mv[id]),moved=(d.skip||[]).filter(id=>mv[id]);
   const fromToday=new Set(moved.map(id=>(mv[id].to||mv[id])+"|"+(mv[id].n||nameOf(id,d))));
   const later=up.filter(({kk,c})=>!c.from||!moved.includes(c.from)).filter(({kk,c})=>!fromToday.has(kk+"|"+c.name));
-  const box=(id,title,n,body)=>`<button type="button" class="sec spo" data-spo="${id}" aria-expanded="${!!spo[id]}"><h3>${title}</h3><span>${n} ${spo[id]?"▴":"▾"}</span></button>${spo[id]?`<div class="list">${body}</div>`:""}`;
+  const box=(id,title,rows,last)=>{const n=rows.length,show=spo[id]||n<2?rows:last?rows.slice(-1):rows.slice(0,1);
+    return `<div class="sec"><h3>${title}</h3>${n>1?`<button type="button" data-spo="${id}">${spo[id]?"свернуть":"все "+n+" ›"}</button>`:""}</div><div class="list">${show.join("")}</div>`};
   const back=id=>`<button type="button" class="chip" data-unskip="${esc(id)}">Вернуть</button>`;
-  return (done.length?box("done","Сделано",done.length,done.map(q=>doneRow(d,q)).join("")):"")
-    +(skipped.length?box("skip","Убрано",skipped.length,skipped.map(id=>`<div class="hrow"><span class="nm"><b style="font-weight:600;color:var(--muted)">${esc(nameOf(id,d))}</b><small>убрано на сегодня</small></span>${back(id)}</div>`).join("")):"")
-    +(moved.length||later.length?box("mv","Перенесено",moved.length+later.length,
-        moved.map(id=>`<div class="hrow"><span class="nm"><b style="font-weight:600;color:var(--muted)">${esc(mv[id].n||nameOf(id,d))}</b><small>на ${ddmm(mv[id].to||mv[id])}</small></span>${back(id)}</div>`).join("")
-        +later.map(({kk,c})=>`<div class="row"><span class="tm">${esc(dname(kk))}<small>${esc(c.at||"")}</small></span><span class="nm"><b>${esc(c.name)}</b><small>${durTxt(c.dur||30)}</small></span><button type="button" class="x" data-delon="${esc(kk)}|${esc(c.id)}" aria-label="Удалить">${IC.x}</button></div>`).join("")):"")}
+  return (done.length?box("done","Сделано",done.map(q=>doneRow(d,q)),1):"")
+    +(skipped.length?box("skip","Убрано",skipped.map(id=>`<div class="hrow"><span class="nm"><b style="font-weight:600;color:var(--muted)">${esc(nameOf(id,d))}</b><small>убрано на сегодня</small></span>${back(id)}</div>`)):"")
+    +(moved.length||later.length?box("mv","Перенесено",
+        moved.map(id=>`<div class="hrow"><span class="nm"><b style="font-weight:600;color:var(--muted)">${esc(mv[id].n||nameOf(id,d))}</b><small>на ${ddmm(mv[id].to||mv[id])}</small></span>${back(id)}</div>`)
+        .concat(later.map(({kk,c})=>`<div class="row"><span class="tm">${esc(dname(kk))}<small>${esc(c.at||"")}</small></span><span class="nm"><b>${esc(c.name)}</b><small>${durTxt(c.dur||30)}</small></span><button type="button" class="x" data-delon="${esc(kk)}|${esc(c.id)}" aria-label="Удалить">${IC.x}</button></div>`))):"")}
 function viewToday(){
   const k=key(),d=dayOf(k);
   if(!wokeAt(d))return wakeCard(k);
