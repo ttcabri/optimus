@@ -22,6 +22,9 @@ TOOLS = [
      "description": "Текущая цель (одна, кроме здоровья): name (например Канал, Рисование), unit (что считаем: подписчиков, картин, €), habit = id дела из распорядка, которое ведёт к цели (его серия дней). value = текущая цифра. Если цель та же, меняй только переданные поля. clear=true убирает цель.",
      "input_schema": {"type": "object", "properties": {"name": {"type": "string"}, "unit": {"type": "string"}, "habit": {"type": "string"},
          "value": {"type": "number"}, "clear": {"type": "boolean"}}}},
+    {"name": "goal_value",
+     "description": "Записать число по цели из списка ЦЕЛИ (накоплено €, баллы теста, страниц и т.п.). goal = название или id цели. add=true если человек говорит, сколько ДОБАВИЛ («отложил 50»), иначе value = текущее значение. Вес: log_weight, подписчики: set_channel.",
+     "input_schema": {"type": "object", "properties": {"goal": {"type": "string"}, "value": {"type": "number"}, "add": {"type": "boolean"}}, "required": ["goal", "value"]}},
     {"name": "set_penalty",
      "description": "Штраф за пропуск: task = id главного дела, без которого день считается проваленным (завтра долг: повторить его и перевести fine евро в to). task пустой = штраф выключен.",
      "input_schema": {"type": "object", "properties": {"task": {"type": "string"}, "fine": {"type": "integer"}, "to": {"type": "string"}}}},
@@ -207,6 +210,27 @@ def run(state: dict, name: str, a: dict) -> str | None:
                 state["goals"] = G
         state["profile"] = dict(state.get("profile") or {}, routine=P["routine"], penalty=P.get("penalty"), goal=g, u=int(time.time() * 1000))
         return f"цель: {g['name']}" + (f", считаем {g['unit']}" if g.get("unit") else "") + (f", привычка {g['habit']}" if g.get("habit") else "") if g else "цель убрана"
+
+    if name == "goal_value":
+        q = str(a.get("goal") or "").strip().lower()
+        gs = [g for g in (P.get("goals") or []) if g.get("status") != "done" and g.get("metric")]
+        g = next((g for g in gs if g.get("id") == q or g.get("name", "").lower() == q), None) or next((g for g in gs if q and (q in g.get("name", "").lower() or g.get("name", "").lower() in q)), None)
+        if not g:
+            return "нет такой цели с числом. Цели: " + (", ".join(x.get("name", "") for x in gs) or "нет")
+        m = g["metric"]
+        if m.get("src") == "body":
+            return run(state, "log_weight", {"kg": a.get("value")})
+        if m.get("src") == "chan":
+            return run(state, "set_channel", {"subs": a.get("value")})
+        v = float(a.get("value") or 0)
+        L = list((state.get("metrics") or {}).get(g["id"]) or [])
+        cur = L[-1]["v"] if L else (m.get("start") or 0)
+        add = bool(a["add"]) if a.get("add") is not None else m.get("mode") == "add"
+        nv = cur + v if add else v
+        L = [x for x in L if add or x.get("d") != today] + [dict({"d": today, "v": nv}, **({"add": v} if add else {}))]
+        state["metrics"] = dict(state.get("metrics") or {}, **{g["id"]: L[-300:]})
+        t = m.get("target")
+        return f"{g['name']}: {nv:g} {m.get('unit') or ''}" + (f" из {t:g}" if t else "")
 
     if name == "set_penalty":
         t = str(a.get("task") or "")
@@ -510,7 +534,15 @@ def routine_context(P: dict) -> str:
     out.append(f"ШТРАФ: день без «{pi['name']}» = завтра долг (повторить) и €{pen.get('fine') or 0} в {pen.get('to') or 'копилку'}" if pi else "ШТРАФ: выключен")
     out.append(f"НАГРАДА ДНЯ: {P.get('reward') or 'нет'}. Подъём {P['wake']}, отбой {P['bed']}.")
     g = P.get("goal")
-    out.append(f"ТЕКУЩАЯ ЦЕЛЬ: {g['name']} ({g.get('unit') or 'без цифры'}), привычка: {g.get('habit') or 'не задана'}" if g else "ТЕКУЩАЯ ЦЕЛЬ: нет (здоровье есть всегда)")
+    gs = [x for x in (P.get("goals") or []) if x.get("status") != "done"]
+    if gs:
+        out.append("ЦЕЛИ (дела цели в распорядке, число пиши через goal_value, вес log_weight, подписчики set_channel):")
+        for x in gs:
+            m = x.get("metric") or {}
+            num = (f", {m.get('name') or 'число'} ({m.get('unit') or ''})" + (f", цель {m['target']:g}" if isinstance(m.get('target'), (int, float)) else "")) if m else ""
+            out.append(f"- {x.get('emoji', '')} {x['name']} (id {x['id']}){num}" + (f", к {x['date']}" if x.get("date") else "") + f", дела: {', '.join(x.get('tasks') or []) or 'нет'}")
+    else:
+        out.append(f"ТЕКУЩАЯ ЦЕЛЬ: {g['name']} ({g.get('unit') or 'без цифры'}), привычка: {g.get('habit') or 'не задана'}" if g else "ТЕКУЩАЯ ЦЕЛЬ: нет (здоровье есть всегда)")
     return "\n".join(out)
 
 

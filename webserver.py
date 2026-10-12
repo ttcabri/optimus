@@ -142,6 +142,27 @@ async def post_cook(request: web.Request) -> web.Response:
     return web.json_response({"ideas": ideas[:3]})
 
 
+async def post_goal(request: web.Request) -> web.Response:
+    """Цель одной фразой: {text} -> вопросы; {text, answers, fix?, prev?} -> план."""
+    uid = await _auth(request)
+    try:
+        body = await request.json()
+    except ValueError:
+        body = {}
+    text = str(body.get("text") or "").strip()
+    if not text:
+        raise web.HTTPBadRequest(text="no text")
+    state = await database.get_quest_state(uid)
+    from services import goalplan
+    try:
+        if body.get("answers") is None:
+            return web.json_response(await goalplan.questions(state, text))
+        return web.json_response({"plan": await goalplan.plan(state, text, body.get("answers") or [], str(body.get("fix") or ""), body.get("prev"))})
+    except Exception as e:
+        logger.error(f"goal plan error: {e}")
+        return web.json_response({"error": "fail"}, status=502)
+
+
 async def health(request: web.Request) -> web.Response:
     return web.Response(text="ok")
 
@@ -154,6 +175,7 @@ async def start_web() -> web.AppRunner:
     app.router.add_post("/api/state", post_state)
     app.router.add_post("/api/gifts", post_gifts)
     app.router.add_post("/api/cook", post_cook)
+    app.router.add_post("/api/goal", post_goal)
     runner = web.AppRunner(app)
     await runner.setup()
     await web.TCPSite(runner, "0.0.0.0", PORT).start()

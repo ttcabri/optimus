@@ -478,7 +478,7 @@ def merge_incoming(server: dict, incoming: dict) -> dict:
             if r.get("id") not in byid or r.get("sent"):
                 byid[r.get("id")] = r
         incoming["reminders"] = list(byid.values())
-    for k in ("prefs", "gifts", "claims", "goals", "notify", "tgoals"):
+    for k in ("prefs", "gifts", "claims", "goals", "notify", "tgoals", "metrics"):
         if not incoming.get(k) and server.get(k):
             incoming[k] = server[k]
     sp, ip = server.get("profile") or {}, incoming.get("profile") or {}
