@@ -97,6 +97,7 @@ button{cursor:pointer}
 .sec h3{margin:0;font-size:15px;font-weight:800}
 .sec.spo{width:calc(100% - 32px);margin:8px 16px 0;padding:14px;border-radius:14px;background:var(--panel);border:none;color:var(--fg);font:inherit;text-align:left}
 .sec.spo span{font-size:13px;font-weight:700;color:var(--muted)}
+.spol{margin-top:6px}
 .sec span,.sec button{font-size:13px;font-weight:700;color:var(--muted);background:none;border:none;padding:0}
 .sec button{color:var(--gold);padding:6px 0 6px 12px;margin:-6px 0}
 .list{display:flex;flex-direction:column;gap:6px;padding:0 16px}
@@ -802,10 +803,9 @@ function spoilers(k,d,done,up,dname){
   const mv=d.moved||{},skipped=(d.skip||[]).filter(id=>!mv[id]),moved=(d.skip||[]).filter(id=>mv[id]);
   const fromToday=new Set(moved.map(id=>(mv[id].to||mv[id])+"|"+(mv[id].n||nameOf(id,d))));
   const later=up.filter(({kk,c})=>!c.from||!moved.includes(c.from)).filter(({kk,c})=>!fromToday.has(kk+"|"+c.name));
-  const box=(id,title,rows,last)=>{const n=rows.length,show=spo[id]||n<2?rows:last?rows.slice(-1):rows.slice(0,1);
-    return `<div class="sec"><h3>${title}</h3>${n>1?`<button type="button" data-spo="${id}">${spo[id]?"свернуть":"все "+n+" ›"}</button>`:""}</div><div class="list">${show.join("")}</div>`};
+  const box=(id,title,rows)=>`<button type="button" class="sec spo" data-spo="${id}" aria-expanded="${!!spo[id]}"><h3>${title}</h3><span>${rows.length} ${spo[id]?"▴":"▾"}</span></button>${spo[id]?`<div class="list spol">${rows.join("")}</div>`:""}`;
   const back=id=>`<button type="button" class="chip" data-unskip="${esc(id)}">Вернуть</button>`;
-  return (done.length?box("done","Сделано",done.map(q=>doneRow(d,q)),1):"")
+  return (done.length?box("done","Сделано",done.map(q=>doneRow(d,q))):"")
     +(skipped.length?box("skip","Убрано",skipped.map(id=>`<div class="hrow"><span class="nm"><b style="font-weight:600;color:var(--muted)">${esc(nameOf(id,d))}</b><small>убрано на сегодня</small></span>${back(id)}</div>`)):"")
     +(moved.length||later.length?box("mv","Перенесено",
         moved.map(id=>`<div class="hrow"><span class="nm"><b style="font-weight:600;color:var(--muted)">${esc(mv[id].n||nameOf(id,d))}</b><small>на ${ddmm(mv[id].to||mv[id])}</small></span>${back(id)}</div>`)
@@ -820,10 +820,10 @@ function viewToday(){
   const dname=kk=>{const i=Math.round((new Date(kk+"T12:00:00")-new Date(k+"T12:00:00"))/864e5);return i===1?"Завтра":i===2?"Послезавтра":new Date(kk+"T12:00:00").toLocaleDateString("ru-RU",{weekday:"short",day:"numeric",month:"short"})};
   const tl=up.map(({kk,c})=>`<div class="row"><span class="tm">${esc(dname(kk))}<small>${esc(c.at||"")}</small></span><span class="nm"><b>${esc(c.name)}</b><small>${durTxt(c.dur||30)}</small></span><button type="button" class="x" data-delon="${esc(kk)}|${esc(c.id)}" aria-label="Удалить">${IC.x}</button></div>`).join("");
   const hidden=rest.length-shown.length;
-  const more=dayOpen&&rest.length>4?`<button type="button" data-dayopen="0">свернуть</button>`:hidden?`<button type="button" data-dayopen="1">все ${rest.length} ›</button>`:`<span>до ${DAY_END_()}</span>`;
+  const more=dayOpen&&rest.length>4?`<button type="button" class="sec spo" data-dayopen="0"><h3>Свернуть</h3><span>▴</span></button>`:hidden?`<button type="button" class="sec spo" data-dayopen="1"><h3>Ещё ${hidden} ${hidden%10===1&&hidden%100!==11?"дело":hidden%10>=2&&hidden%10<=4&&(hidden%100<10||hidden%100>=20)?"дела":"дел"}</h3><span>▾</span></button>`:"";
   return nowCard(k,d,p)+overCard(p)+
-    `<div class="sec"><h3>Дальше</h3>${more}</div>
-     <div class="list">${shown.map(it=>planRow(d,it,{edit:dayOpen})).join("")||'<p class="empty">Больше ничего.</p>'}</div>
+    `<div class="sec"><h3>Дальше</h3><span>до ${DAY_END_()}</span></div>
+     <div class="list">${shown.map(it=>planRow(d,it,{edit:dayOpen})).join("")||'<p class="empty">Больше ничего.</p>'}</div>${more}
      ${spoilers(k,d,done,up,dname)}`;
 }
 // Серия привычки: огонь, 7 дней, ступени-подарки за 7/14/30 дней подряд
