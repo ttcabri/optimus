@@ -74,7 +74,9 @@ button{cursor:pointer}
 .rl{margin:2px 0 0;font-size:13px;font-weight:800;color:var(--muted);display:flex;justify-content:space-between}.rl span{font-weight:700;color:var(--dim)}
 .rhint{margin:0;font-size:12.5px;color:var(--dim);font-weight:600}
 .rgoal{margin:-4px 0 4px;font-size:13px;font-weight:800;color:var(--gold)}
-.rdays{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}.rdays .chip{padding:8px 0;text-align:center;justify-content:center}
+.rdays{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}.rdays .chip{padding:8px 0;text-align:center;justify-content:center;color:var(--dim)}
+.rdays .chip[aria-pressed="true"]{background:var(--panel2);border-color:var(--gold);color:var(--gold)}
+.opts.rtwo{grid-template-columns:1fr 1fr}.rtpick{position:relative;display:grid;place-items:center;cursor:pointer}.rtpick input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:none}
 .rsteps{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);font-weight:600}
 .opt{min-height:52px;border-radius:14px;border:1px solid var(--line2);background:var(--panel);font-weight:700;font-size:15px;padding:8px;text-align:center}
 .opt small{display:block;font-size:12px;font-weight:600;color:var(--muted)}
@@ -1378,6 +1380,7 @@ document.addEventListener("click",e=>{const b=e.target.closest("[data-onb]");if(
   if(n===3){const w=$("onbwake").value||"08:00",bd=$("onbbed").value||"23:30";mutate(()=>{setProf({name:ONB.name,wake:w,bed:bd,onb:1});const d=dayOf(key());d.woke=hhmm();logEv(d,"woke")});ONB=null;renderOnb();tab="today";render();toast("Готово! Цели добавишь во вкладке «Цели»");return}
   ONB.s=n;renderOnb()});
 document.addEventListener("submit",e=>{if(e.target.dataset&&e.target.dataset.onbf){e.preventDefault();const b=document.querySelector("[data-onb='2']");if(b)b.click()}});
+document.addEventListener("change",e=>{if(e.target.id==="rtime"&&W&&W.step==="ritem"){rKeep();W.it.at=e.target.value||W.it.at;renderSheet()}});
 document.addEventListener("change",e=>{if(e.target.id==="bfile"&&e.target.files&&e.target.files[0]){const fl=e.target.files[0];if(fl.size>19*1024*1024){toast("Файл больше 19 МБ");return}const i=document.querySelector("form[data-add=brain] input[name=t]");brainAdd(i?i.value.trim():"",fl);if(i)i.value="";return}});
 document.addEventListener("change",e=>{if(ONB&&(e.target.id==="onbwake"||e.target.id==="onbbed")){ONB.wake=$("onbwake").value||ONB.wake;ONB.bed=$("onbbed").value||ONB.bed;renderOnb()}});
 function render(){
@@ -1680,8 +1683,7 @@ function renderSheet(){
       <form data-wf="ritem"><input name="v" maxlength="60" value="${esc(it.name||"")}" placeholder="Например: чтение" autocomplete="off" aria-label="Название"></form>
       <p class="rl">Сколько занимает</p><div class="opts four">${[10,15,20,30,45,60,90,120].map(m=>`<button type="button" class="opt" data-w="rdur:${m}" aria-pressed="${(it.dur||30)===m}">${durTxt(m)}</button>`).join("")}</div>
       <p class="rl">Дни <span>${all?"каждый день":""}</span></p><div class="rdays">${WD_ORDER.map(x=>`<button type="button" class="chip" data-w="rday:${x}" aria-pressed="${all||it.days.includes(x)}">${WD[x]}</button>`).join("")}</div>
-      <p class="rl">Время</p><div class="opts three"><button type="button" class="opt" data-w="rat:" aria-pressed="${!it.at}">Плавает</button><button type="button" class="opt" data-w="rat:pick" aria-pressed="${!!it.at&&it.at!=="end"}">${it.at&&it.at!=="end"&&it.at!=="pick"?"В "+esc(it.at):"Точно в…"}</button><button type="button" class="opt" data-w="rat:end" aria-pressed="${it.at==="end"}">Перед сном</button></div>
-      ${it.at&&it.at!=="end"?`<input type="time" id="rtime" value="${it.at==="pick"?"":esc(it.at)}" aria-label="Время">`:""}
+      <p class="rl">Время</p><div class="opts rtwo"><button type="button" class="opt" data-w="rat:" aria-pressed="${!it.at}">Время не важно</button><label class="opt rtpick" aria-pressed="${!!it.at&&it.at!=="pick"}">${it.at==="end"?"🌙 Перед сном":it.at&&it.at!=="pick"?"🕐 В "+esc(it.at):"🕐 Ко времени"}<input type="time" id="rtime" value="${it.at&&/^\d\d:\d\d$/.test(it.at)?esc(it.at):""}" aria-label="Выбрать время"></label></div>
       <p class="rhint">${!it.at?"Сдвигается по дню, если опоздал или залип.":it.at==="end"?"Последнее дело перед отбоем.":"Стоит на месте, остальное обтекает его."}</p>
       <div class="perm"><button type="button" class="chip" data-w="rflag:main" aria-pressed="${!!it.main}">★ Главное: нужно для награды дня</button>${it.steps?"":`<button type="button" class="chip" data-w="rflag:proof" aria-pressed="${!!it.proof}">📸 Закрывается скрином боту</button>`}</div>
       ${it.proof&&!it.steps?`<form data-wf="ritem"><input name="check" maxlength="200" value="${esc(it.check||"")}" placeholder="Что на скрине (например: пройденный урок)" autocomplete="off" aria-label="Что на скрине"></form>`:""}
