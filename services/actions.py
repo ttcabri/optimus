@@ -25,6 +25,11 @@ TOOLS = [
     {"name": "goal_value",
      "description": "Записать число по цели из списка ЦЕЛИ (накоплено €, баллы теста, страниц и т.п.). goal = название или id цели. add=true если человек говорит, сколько ДОБАВИЛ («отложил 50»), иначе value = текущее значение. Вес: log_weight, подписчики: set_channel.",
      "input_schema": {"type": "object", "properties": {"goal": {"type": "string"}, "value": {"type": "number"}, "add": {"type": "boolean"}}, "required": ["goal", "value"]}},
+    {"name": "brain",
+     "description": "МОЗГ (сохранённое им). op: save (сохранить заметку или идею, которую он надиктовал: title, sum, folder ideas|apply|recipes|want|docs, ctx = когда пригодится), "
+                    "task (сделать запись делом: id, day today|tomorrow|YYYY-MM-DD), done (применил, больше не предлагать: id), move (переложить: id, folder), delete (id), later (не сейчас: id).",
+     "input_schema": {"type": "object", "properties": {"op": {"type": "string", "enum": ["save", "task", "done", "move", "delete", "later"]}, "id": {"type": "string"},
+         "title": {"type": "string"}, "sum": {"type": "string"}, "folder": {"type": "string"}, "ctx": {"type": "string"}, "day": {"type": "string"}}, "required": ["op"]}},
     {"name": "set_penalty",
      "description": "Штраф за пропуск: task = id главного дела, без которого день считается проваленным (завтра долг: повторить его и перевести fine евро в to). task пустой = штраф выключен.",
      "input_schema": {"type": "object", "properties": {"task": {"type": "string"}, "fine": {"type": "integer"}, "to": {"type": "string"}}}},
@@ -377,6 +382,37 @@ def run(state: dict, name: str, a: dict) -> str | None:
                 quest.log_ev(td, "rest_end", "")
                 return "отдых закончен"
         return "сейчас нет отдыха"
+
+    if name == "brain":
+        from services import brain
+        op = a.get("op")
+        if op == "save":
+            f = a.get("folder") if a.get("folder") in brain.FOLDERS and a.get("folder") != "inbox" else "ideas"
+            it = brain.touch({"id": brain._new_id(), "f": f, "t": str(a.get("title") or "Заметка")[:60], "s": str(a.get("sum") or "")[:300],
+                              "ctx": str(a.get("ctx") or "")[:120], "fit": "later", "src": "chat", "d": today})
+            brain.get(state)["items"].append(it)
+            return f"сохранено в мозг, папка {brain.FOLDERS[f]}"
+        it = brain.find(state, str(a.get("id") or ""))
+        if not it:
+            return "нет такой записи в мозге"
+        if op == "task":
+            return "в плане на " + brain.to_task(state, it, _key(a.get("day")) if a.get("day") else None)
+        if op == "done":
+            it["st"] = "done"
+            it.pop("pin", None)
+        elif op == "move" and a.get("folder") in brain.FOLDERS:
+            it["f"] = a["folder"]
+        elif op == "delete":
+            brain.remove(state, it["id"])
+            return "удалено из мозга"
+        elif op == "later":
+            if it.get("pin"):
+                it["pin"]["off"] = 1
+            it["fit"] = "later"
+        else:
+            return "неизвестная операция"
+        brain.touch(it)
+        return "готово"
 
     if name == "log_weight":
         kg = float(a.get("kg") or 0)

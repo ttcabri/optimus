@@ -173,6 +173,30 @@ async def send_review(bot: Bot) -> None:
         logger.error(f"Review error: {e}")
 
 
+async def send_brain(bot: Bot) -> None:
+    """Мозг: раз в неделю или при новом этапе (поменялись цели) перечитать всё и поднять 0–2 вещи к месту."""
+    try:
+        import html
+        from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+        from services import brain
+        state = await database.get_quest_state(TELEGRAM_USER_ID)
+        why = brain.due(state)
+        if not why:
+            return
+        pins = await brain.review(state, changed=why == "stage")
+        await database.save_quest_state(TELEGRAM_USER_ID, state)
+        if not pins:
+            return
+        head = "🧠 У тебя новый этап, перечитал мозг. Вот что теперь к месту:" if why == "stage" else "🧠 Перечитал мозг под то, что у тебя сейчас:"
+        for i, x in enumerate(pins):
+            text = (head + "\n\n" if i == 0 else "") + f"<b>{html.escape(x['t'])}</b>\n{html.escape(x['pin'].get('why') or x.get('s') or '')}"
+            row = [InlineKeyboardButton(text="Сделать делом на завтра", callback_data=f"br:task:{x['id']}")] if x["pin"].get("act") in ("task", "habit") else []
+            row.append(InlineKeyboardButton(text="Не сейчас", callback_data=f"br:later:{x['id']}"))
+            await bot.send_message(TELEGRAM_USER_ID, text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[row]))
+    except Exception as e:
+        logger.error(f"Brain review error: {e}")
+
+
 def setup_scheduler(bot: Bot) -> AsyncIOScheduler:
     tz = pytz.timezone(TIMEZONE)
     scheduler = AsyncIOScheduler(timezone=tz)
@@ -183,5 +207,6 @@ def setup_scheduler(bot: Bot) -> AsyncIOScheduler:
     scheduler.add_job(send_quest_night, "cron", hour=22, minute=30, kwargs={"bot": bot})
     scheduler.add_job(send_quest_week, "cron", day_of_week="sun", hour=21, minute=0, kwargs={"bot": bot})
     scheduler.add_job(send_review, "cron", day_of_week="sun", hour=20, minute=30, kwargs={"bot": bot})
+    scheduler.add_job(send_brain, "cron", hour=12, minute=40, kwargs={"bot": bot})
 
     return scheduler

@@ -48,7 +48,7 @@ def validate_init_data(init_data: str) -> int | None:
 async def _auth(request: web.Request) -> int:
     """Подпись Telegram, свежесть (не старше 7 дней) и доступ к боту: владелец или одобренный им."""
     from handlers.access import allowed
-    init = request.headers.get("X-Init-Data", "")
+    init = request.headers.get("X-Init-Data", "") or request.query.get("init", "")
     uid = validate_init_data(init)
     try:
         fresh = time.time() - int(dict(parse_qsl(init)).get("auth_date", "0")) < 7 * 86400
@@ -122,14 +122,15 @@ async def post_cook(request: web.Request) -> web.Response:
     """Что приготовить из того, что есть дома."""
     uid = await _auth(request)
     state = await database.get_quest_state(uid)
-    from services import claude, house
+    from services import brain, claude, house
     h = house.get(state, uid)
     try:
         r = await claude.client.messages.create(
             model="claude-haiku-4-5", max_tokens=700,
             messages=[{"role": "user", "content": (
                 "Вот что есть дома (человек готовит заготовки на 2–3 дня, ходит в зал, любит сытное):\n"
-                + house.summary(h) + "\n\nПредложи 3 блюда, которые можно сделать в основном из этого. "
+                + house.summary(h) + ("\n\nЕго сохранённые рецепты (если подходят под то, что есть, предложи их первыми): " + "; ".join(x["t"] + (": " + x.get("s", "")[:100]) for x in brain.recipes(state)[:20]) if brain.recipes(state) else "")
+                + "\n\nПредложи 3 блюда, которые можно сделать в основном из этого. "
                 "Сначала из того, что скоро испортится. Ответь ТОЛЬКО JSON: [{\"name\": \"блюдо\", \"uses\": \"что берём из дома\", "
                 "\"buy\": \"чего не хватает или пусто\", \"time\": \"минут\", \"prep\": true если годится на заготовку}]")}])
         text = "".join(b.text for b in r.content if b.type == "text")
@@ -163,12 +164,72 @@ async def post_goal(request: web.Request) -> web.Response:
         return web.json_response({"error": "fail"}, status=502)
 
 
+async def post_brain(request: web.Request) -> web.Response:
+    """Мозг из приложения: {text} или форма с файлом. Бот раскладывает так же, как пересланное."""
+    uid = await _auth(request)
+    from services import brain
+    text, file = "", None
+    if request.content_type.startswith("multipart/"):
+        form = await request.post()
+        text = str(form.get("text") or "")[:3000]
+        f = form.get("file")
+        if f is not None and hasattr(f, "file") and BOT:
+            from aiogram.types import BufferedInputFile
+            data, name, mime = f.file.read(), (f.filename or "файл")[:80], f.content_type or ""
+            try:
+                if mime.startswith("image/"):
+                    m = await BOT.send_photo(uid, BufferedInputFile(data, name), caption="🧠 В мозг из приложения", disable_notification=True)
+                    file = {"id": m.photo[-1].file_id, "kind": "photo", "name": name}
+                else:
+                    m = await BOT.send_document(uid, BufferedInputFile(data, name), caption="🧠 В мозг из приложения", disable_notification=True)
+                    file = {"id": m.document.file_id, "kind": "doc", "name": name, "mime": mime}
+            except Exception as e:
+                logger.error(f"brain upload: {e}")
+                return web.json_response({"error": "upload"}, status=502)
+    else:
+        try:
+            text = str((await request.json()).get("text") or "")[:3000]
+        except ValueError:
+            pass
+    if not text.strip() and not file:
+        raise web.HTTPBadRequest(text="empty")
+    state = await database.get_quest_state(uid)
+    try:
+        it = await brain.ingest(state, text=text, file=file, src="app", folder="docs" if file and not text.strip() else None)
+    except Exception as e:
+        logger.error(f"brain ingest: {e}")
+        return web.json_response({"error": "fail"}, status=502)
+    offer = it.pop("_offer", "")
+    await database.save_quest_state(uid, state)
+    return web.json_response({"item": it, "offer": offer})
+
+
+async def get_brain_file(request: web.Request) -> web.Response:
+    """Файл из мозга (фото, документ): лежит в Телеграме, отдаём через бота."""
+    uid = await _auth(request)
+    from services import brain
+    it = brain.find(await database.get_quest_state(uid), request.query.get("id", ""))
+    if not it or not it.get("file") or not BOT:
+        raise web.HTTPNotFound(text="no file")
+    import io
+    f = it["file"]
+    try:
+        tf = await BOT.get_file(f["id"])
+        buf = io.BytesIO()
+        await BOT.download_file(tf.file_path, destination=buf)
+    except Exception as e:
+        logger.error(f"brain file: {e}")
+        return web.Response(status=502, text="Файл недоступен (Телеграм отдаёт файлы до 20 МБ)")
+    ct = "image/jpeg" if f.get("kind") == "photo" else (f.get("mime") or "application/octet-stream")
+    return web.Response(body=buf.getvalue(), content_type=ct.split(";")[0], headers={"Cache-Control": "private, max-age=3600"})
+
+
 async def health(request: web.Request) -> web.Response:
     return web.Response(text="ok")
 
 
 async def start_web() -> web.AppRunner:
-    app = web.Application(client_max_size=2 * 1024 * 1024)
+    app = web.Application(client_max_size=20 * 1024 * 1024)
     app.router.add_get("/", index)
     app.router.add_get("/health", health)
     app.router.add_get("/api/state", get_state)
@@ -176,6 +237,8 @@ async def start_web() -> web.AppRunner:
     app.router.add_post("/api/gifts", post_gifts)
     app.router.add_post("/api/cook", post_cook)
     app.router.add_post("/api/goal", post_goal)
+    app.router.add_post("/api/brain", post_brain)
+    app.router.add_get("/api/brainfile", get_brain_file)
     runner = web.AppRunner(app)
     await runner.setup()
     await web.TCPSite(runner, "0.0.0.0", PORT).start()

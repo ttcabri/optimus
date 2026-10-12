@@ -254,6 +254,9 @@ button.hrow{width:100%;border:none;color:inherit;font:inherit;text-align:left}
 .btile .bi{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;font-size:25px;line-height:1}
 .btile b{display:block;font-size:16px;font-weight:800;line-height:1.2}
 .btile small{display:block;margin-top:3px;font-size:12px;font-weight:700;color:var(--muted);line-height:1.3}.btile small.bad{color:var(--red)}
+.bdrop .r{align-items:center}.bfile{width:44px;height:44px;border-radius:12px;border:1px solid var(--line2);display:grid;place-items:center;font-size:20px;flex-shrink:0;cursor:pointer}
+.btags{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}.btag{padding:2px 8px;border-radius:8px;font-size:11px;font-weight:800;background:var(--panel2);color:var(--dim)}.btag.ok{background:#1f2a20;color:var(--okl)}
+.bimg{width:100%;max-height:340px;object-fit:contain;border-radius:14px;background:var(--panel2)}
 .mehello{margin:2px 18px 12px;color:var(--muted);font-weight:700;font-size:14px}.mehello b{color:var(--fg)}
 .hsetup{margin:0 16px 12px;padding:16px;border-radius:20px;background:var(--paper);color:var(--ink);display:flex;flex-direction:column;gap:8px}
 .hsetup b{font-family:var(--display);font-weight:400;font-size:21px}.hsetup p{margin:0;color:#5a4436;font-size:14px}
@@ -1086,7 +1089,7 @@ function viewHome(){
         +(p.steps.length?"":'<p class="empty" style="padding:10px 20px 0">Шагов нет. Нажми «+».</p>')}
     return head("Проекты","",'data-hnew="proj"')+(h.projects.length?`<div class="list">${h.projects.map(p=>{const dn=p.steps.filter(x=>x.done).length;
       return `<button type="button" class="hrow go" data-hseg="proj:${p.id}"><span class="nm"><b>${esc(p.name)}</b><small>${dn} из ${p.steps.length}${p.due?" · до "+ddmm(p.due):""}</small></span></button>`}).join("")}</div>`:'<p class="empty" style="padding:4px 20px 0">Проект: большое разовое дело из шагов. Переезд, WW, ремонт. Нажми «+».</p>')}
-  if(seg==="cook")return head("Что приготовить","food")+`<div class="segfoot" style="padding-top:0"><button type="button" class="line" data-cook="1">${cookBusy?"Думаю…":cookIdeas?"Подобрать ещё":"Подобрать блюда"}</button></div>
+  if(seg==="cook")return head("Что приготовить","food")+(bItems("recipes").length?`<div class="glabel">Твои рецепты</div><div class="list">${bItems("recipes").map(bRow).join("")}</div><div class="glabel">Из того, что дома</div>`:"")+`<div class="segfoot" style="padding-top:0"><button type="button" class="line" data-cook="1">${cookBusy?"Думаю…":cookIdeas?"Подобрать ещё":"Подобрать блюда"}</button></div>
       ${cookIdeas?`<div class="list">${cookIdeas.map(c=>`<div class="idea"><b>${esc(c.name)}${c.prep?' <span class="pin">ЗАГОТОВКА</span>':""}</b><small style="color:var(--muted);font-weight:700">${esc(c.uses||"")}${c.time?" · "+esc(String(c.time))+" мин":""}</small>${c.buy?`<small style="color:var(--gold);font-weight:700">Докупить: ${esc(c.buy)}</small>`:""}</div>`).join("")}</div>`:'<p class="empty" style="padding:0 20px">Из того, что есть дома, сначала то, что скоро испортится.</p>'}`;
   if(seg==="people")return head("Настройки дома","")+`<div class="glabel">Люди</div><div class="list">${h.members.map(m=>`<div class="hrow"><span class="nm"><b>${esc(m.name||prof().name||"Я")}</b><small>${esc((h.roles.find(r=>r.id===m.role)||{}).name||m.role)}</small></span></div>`).join("")}</div>
       <div class="glabel">Правила дома</div><div class="list">${h.notes.map(n=>`<div class="hrow"><span class="nm"><b style="font-weight:600">${esc(n.t)}</b></span><button type="button" class="x" data-ndel="${n.id}" aria-label="Удалить">${IC.x}</button></div>`).join("")}</div>
@@ -1147,10 +1150,48 @@ function viewMe(){
   if(meSeg==="routine")return meHead("Распорядок")+routineCard();
   if(meSeg==="hist")return meHead("История")+viewHist();
   if(meSeg==="health"||meSeg.startsWith("h:"))return viewHealth();
+  if(meSeg==="brain"||meSeg.startsWith("b:"))return viewBrain();
+  if(meSeg==="money")return viewMoney();
   const P=prof(),H=healthGoal(),it=H&&gTask(H),cs=closedStreak(),kg=curKg();
   const hsub=H?[it?weekDone(it).join("/")+" трен. за неделю":"",kg!=null?kg+" кг":""].filter(Boolean).join(" · ")||esc(H.name):"настроить";
   return `<div class="mehello">Привет, <b>${esc(P.name||"друг")}</b>${cs?` · 🔥 закрыто ${cs} ${dayW(cs)} подряд`:""}</div>
-    <div class="btiles">${bTile('data-meseg="health"',"💪","#3a1d14","Здоровье",hsub)}${bTile('data-meseg="routine"',"📅","#2c2412","Распорядок",ritems().length+" дел")}${bTile('data-rwopen="1"',"🌿","#1f2a20","Награда дня",P.reward?esc(P.reward):"не задана")}${bTile('data-meseg="hist"',"📜","#1d2430","История",cs?cs+" "+dayW(cs)+" подряд":"по дням")}</div>`}
+    <div class="btiles">${bTile('data-meseg="health"',"💪","#3a1d14","Здоровье",hsub)}${bTile('data-meseg="brain"',"🧠","#242030","Мозг",brSub(),bPins().length+bItems("inbox").length)}${bTile('data-meseg="money" style="opacity:.6"',"💰","#2c2412","Деньги","скоро")}${bTile('data-meseg="routine"',"📅","#1f2a20","Распорядок",ritems().length+" дел")}</div>
+    <button type="button" class="prow" data-meseg="hist"><span style="font-size:22px">📜</span><span style="flex:1"><b style="font-size:14px">История</b><small style="display:block;font-size:12px;font-weight:700;color:var(--muted)">${cs?cs+" "+dayW(cs)+" подряд всё закрыто":"по дням"}</small></span><span class="go"></span></button>`}
+/* ---------- мозг: всё, что сохранил; бот раскладывает и достаёт к месту ---------- */
+const BF={inbox:["📥","Разобрать"],ideas:["💡","Идеи"],apply:["🎯","Применить"],recipes:["🍳","Рецепты"],want:["🌍","Хочу"],docs:["📄","Документы"]};
+const BR=()=>{if(!state.brain||typeof state.brain!=="object")state.brain={items:[],del:[]};state.brain.items=state.brain.items||[];state.brain.del=state.brain.del||[];return state.brain};
+const bAll=()=>((state.brain||{}).items||[]).filter(x=>x.fit!=="no");
+const bItems=f=>bAll().filter(x=>x.f===f).sort((a,b)=>(b.u||0)-(a.u||0));
+const bPins=()=>bAll().filter(x=>x.pin&&!x.pin.off&&x.st!=="used"&&x.st!=="done");
+const bById=id=>((state.brain||{}).items||[]).find(x=>x.id===id);
+const brSub=()=>{const n=bAll().length,p=bPins().length;return n?n+" "+(p?"· "+p+" к месту":"записей"):"кидай ссылки и заметки"};
+let brBusy=false;
+function bTags(x){const t=[];if(x.st==="done")t.push(`<span class="btag ok">✓ применил</span>`);else if(x.st==="used")t.push(`<span class="btag ok">в деле</span>`);else if(x.fit==="now")t.push(`<span class="btag ok">сейчас к месту</span>`);
+  if(x.gift)t.push(`<span class="btag">подарок</span>`);if(x.file)t.push(`<span class="btag">${x.file.kind==="photo"?"фото":"файл"}</span>`);return t.join("")}
+const bRow=x=>`<button type="button" class="hrow go" data-bitem="${esc(x.id)}"><span class="nm"><b>${esc(x.t)}</b>${x.s?`<small>${esc(x.s)}</small>`:""}${bTags(x)?`<span class="btags">${bTags(x)}</span>`:""}</span></button>`;
+function viewBrain(){const seg=meSeg.startsWith("b:")?meSeg.slice(2):"";
+  if(seg&&BF[seg]){const its=bItems(seg);
+    return meHead(BF[seg][0]+" "+BF[seg][1],"brain")+(its.length?`<div class="list">${its.map(bRow).join("")}</div>`:`<p class="empty" style="padding:4px 20px">Пусто.${seg==="inbox"?" Сюда попадает то, что бот не понял, например голое видео по ссылке.":""}</p>`)
+      +(seg==="want"?`<p class="empty" style="padding:8px 20px 0">Отсюда берутся подарки за этапы и цели. Нажми на запись: «Сделать целью».</p>`:"")}
+  const pins=bPins(),n=bAll().length;
+  return meHead("Мозг")
+    +`<form class="add bdrop" data-add="brain"><div class="r"><input name="t" maxlength="2000" placeholder="Ссылка, заметка, идея…" aria-label="Что сохранить" autocomplete="off"><label class="bfile" aria-label="Фото или файл">📎<input type="file" id="bfile" accept="image/*,application/pdf,.doc,.docx,.txt" hidden></label><button type="submit" aria-label="Сохранить">${brBusy?"…":"+"}</button></div></form>
+    <p class="empty" style="padding:6px 20px 0">${brBusy?"Разбираю…":"Или просто перешли боту пост, ссылку, фото документа."}</p>`
+    +(pins.length?`<div class="glabel">К месту сейчас</div>${pins.map(x=>`<section class="nextc"><span class="k">${BF[x.f][0]} ${BF[x.f][1].toUpperCase()}</span><b>${esc(x.t)}</b>${x.pin.why?`<small style="color:var(--muted);font-weight:600;font-size:13px">${esc(x.pin.why)}</small>`:""}<div class="btns"><button type="button" class="line" data-blater="${esc(x.id)}">Позже</button><button type="button" class="goldbtn" data-bitem="${esc(x.id)}">Внедрить</button></div></section>`).join("")}`:"")
+    +`<div class="glabel">Папки</div><div class="htiles">${Object.keys(BF).map(f=>{const c=bItems(f).length;return `<button type="button" class="htile" data-meseg="b:${f}">${f==="inbox"&&c?`<i class="sb2">${c}</i>`:""}<span class="hi">${BF[f][0]}</span><span class="tb"><b>${BF[f][1]}</b><small>${c||"пусто"}</small></span></button>`}).join("")}</div>`
+    +(n?"":`<p class="empty" style="padding:10px 20px 0">Сюда складывается всё полезное: лайфхаки, идеи, рецепты, места, куда хочешь, справки. Бот сам раскладывает по папкам и достаёт, когда это реально к месту.</p>`)}
+function viewMoney(){return meHead("Деньги")+`<section class="hbig" style="margin-top:6px"><span style="font-size:34px">💰</span><b style="font-size:22px;font-family:inherit;font-weight:800">Скоро</b><span style="text-align:center">Копилка, штрафы и накопления на цели будут здесь. Раздел ещё продумываем.</span></section>`}
+function bFileUrl(x){const tgw=window.Telegram&&Telegram.WebApp;return "api/brainfile?id="+encodeURIComponent(x.id)+"&init="+encodeURIComponent(tgw?tgw.initData:"")}
+function bOpen(url){const tgw=window.Telegram&&Telegram.WebApp;if(tgw&&tgw.openLink)tgw.openLink(url);else window.open(url,"_blank")}
+function bTask(x,day){const d=dayOf(day);mutate(()=>{d.custom.push({id:"c"+Date.now().toString(36),name:x.t.slice(0,60),dur:30,brain:x.id});x.st="used";delete x.pin;touch(x)})}
+async function brainAdd(text,file){
+  if(!BOT||typeof fetchBrain!=="function"){mutate(()=>BR().items.push(touch({id:hid("b"),f:"inbox",t:(text||"Без названия").slice(0,60),s:"",fit:"later",src:"app",d:key(),text})));toast("Сохранил. Разбирает по папкам бот в Телеграме");return}
+  brBusy=true;render();
+  try{const r=await fetchBrain(text,file);if(r.item){const B=BR();B.items=B.items.filter(x=>x.id!==r.item.id).concat([r.item]);brBusy=false;render();
+      toast(r.item.f==="inbox"?"Сохранил в «Разобрать». "+(r.item.ask||"Бот спросит, о чём это"):"В «"+BF[r.item.f][1]+"»: "+r.item.t+(r.offer?". "+r.offer:""))}}
+  catch(e){toast("Не получилось сохранить, попробуй ещё раз")}
+  brBusy=false;render()}
+
 /* ---------- здоровье: у каждого, настраивается фразой ---------- */
 const healthGoal=()=>ALLGOALS().find(g=>g.kind==="health"&&g.status!=="done");
 function weekDone(it){let n=0,m=0;for(let i=0;i<7;i++){const x=shift(key(),-i);if(onDay(it,dow(x))){m++;if(itemDone(peek(x),it))n++}}return [n,m]}
@@ -1216,6 +1257,7 @@ document.addEventListener("click",e=>{const b=e.target.closest("[data-onb]");if(
   if(n===3){const w=$("onbwake").value||"08:00",bd=$("onbbed").value||"23:30";mutate(()=>{setProf({name:ONB.name,wake:w,bed:bd,onb:1});const d=dayOf(key());d.woke=hhmm();logEv(d,"woke")});ONB=null;renderOnb();tab="today";render();toast("Готово! Цели добавишь во вкладке «Цели»");return}
   ONB.s=n;renderOnb()});
 document.addEventListener("submit",e=>{if(e.target.dataset&&e.target.dataset.onbf){e.preventDefault();const b=document.querySelector("[data-onb='2']");if(b)b.click()}});
+document.addEventListener("change",e=>{if(e.target.id==="bfile"&&e.target.files&&e.target.files[0]){const fl=e.target.files[0];if(fl.size>19*1024*1024){toast("Файл больше 19 МБ");return}const i=document.querySelector("form[data-add=brain] input[name=t]");brainAdd(i?i.value.trim():"",fl);if(i)i.value="";return}});
 document.addEventListener("change",e=>{if(ONB&&(e.target.id==="onbwake"||e.target.id==="onbbed")){ONB.wake=$("onbwake").value||ONB.wake;ONB.bed=$("onbbed").value||ONB.bed;renderOnb()}});
 function render(){
   if(!ONB&&needOnb())ONB={s:0,name:"",wake:"08:00",bed:"23:30"};else if(ONB&&!needOnb())ONB=null;
@@ -1274,7 +1316,8 @@ document.addEventListener("click",e=>{
   if(t.dataset.gopen){tab="goals";goalSeg=t.dataset.gopen;render();window.scrollTo(0,0);return}
   if(t.dataset.gback){goalSeg="";render();window.scrollTo(0,0);return}
   if(t.dataset.hsetup){W={step:"gtext",text:"",health:1};renderSheet();return}
-  if(t.dataset.rwopen){W={step:"reward"};renderSheet();return}
+  if(t.dataset.bitem){W={step:"bitem",id:t.dataset.bitem};renderSheet();return}
+  if(t.dataset.blater){const x=bById(t.dataset.blater);if(x)mutate(()=>{x.pin=Object.assign({},x.pin,{off:1});touch(x)});toast("Ок, полежит. Достану, когда будет к месту");return}
   if(t.dataset.water){const v=Math.max(0,(hlToday("water")||0)+(+t.dataset.water));hlSet("water",v);return}
   if(t.dataset.garch){goalsArch=!goalsArch;render();return}
   if(t.dataset.gnew){W={step:"gtext",text:""};renderSheet();return}
@@ -1333,6 +1376,7 @@ document.addEventListener("submit",e=>{
   if(kind==="today"||kind==="tomorrow"){const v=f.t.value.trim();if(!v)return;const dd=dayOf(kind==="today"?key():shift(key(),1));
     const c={id:"c"+Date.now().toString(36),name:v.slice(0,80),dur:parseInt(f.dur.value,10)||30};if(f.at.value)c.at=f.at.value;
     mutate(()=>dd.custom.push(c));toast(kind==="today"?(c.at?"Поставил на "+c.at+", остальное сдвинется":"Добавил, план пересчитан"):"Добавил на завтра")}
+  if(kind==="brain"){const v=f.t.value.trim();if(brBusy)return;if(!v){toast("Вставь ссылку или напиши заметку. Фото и файлы через 📎");return}f.t.value="";brainAdd(v,null);return}
   if(kind.startsWith("hlog:")){const k=kind.slice(5),L=HL[k],v=parseFloat(f.t.value.replace(",",".").replace(/\s/g,""));if(!(v>=L.min&&v<=L.max)){toast("Напиши числом");return}hlSet(k,k==="sleep"?Math.round(v*10)/10:Math.round(v));toast("Записал");return}
   if(kind==="weight"){const kg=parseFloat(f.t.value.replace(",","."));if(!(kg>30&&kg<250)){toast("Напиши вес числом, например 82.5");return}
     mutate(()=>{state.body=state.body.filter(b=>b.d!==key());state.body.push({d:key(),kg:Math.round(kg*10)/10})});toast("Вес записан")}
@@ -1394,12 +1438,13 @@ function renderSheet(){
     const ideas=giftBusy?'<p class="empty">Ищу…</p>':giftIdeas?giftIdeas.map((x,i)=>`<div class="card" style="margin:0;gap:6px;background:var(--panel)"><b>${esc(x.title)}</b><span class="empty" style="color:var(--muted)">${esc(x.what||"")}</span><div class="mini"><div><span>${esc(x.where||"")}</span><b>${esc(x.price||"")}</b></div></div><div class="btns">${x.link&&/^https?:\/\//.test(x.link)?`<a class="chip" style="flex:1;display:grid;place-items:center;text-decoration:none;color:var(--fg)" href="${esc(x.link)}" target="_blank" rel="noopener">Открыть</a>`:""}<button type="button" class="pri" data-w="gpick:${i}">Беру</button></div></div>`).join(""):"";
     const rs=rungState(r),extra=(rs==="open"?`<button type="button" class="goldbtn" data-w="claim">Забрал подарок</button>`:"")+(r.flag&&rs==="locked"?`<button type="button" class="line" data-w="flag">Цель достигнута, отметить</button>`:"")+(r.grp==="Канал"&&!r.flag&&rs==="locked"?`<button type="button" class="line" data-w="tochan">Обновить цифры канала</button>`:"");
     body=`<h2>${esc(r.t)}</h2><p class="q">Бюджет до €${r.budget} · ${esc(rungSub(r))}</p>${extra}<form data-wf="g"><input name="v" maxlength="80" value="${esc(g)}" placeholder="Впиши сам, что купишь" autocomplete="off" aria-label="Подарок"></form>
+      ${bItems("want").length?`<p class="rl">Из «Хочу»</p><div class="perm">${bItems("want").slice(0,8).map((x,i)=>`<button type="button" class="chip" data-w="gwant:${i}">${esc(x.t)}</button>`).join("")}</div>`:""}
       <div class="btns"><button type="button" data-w="gfind">Подобрать реальный</button><button type="button" class="pri" data-w="gsave">Сохранить</button></div>${ideas}`}
   if(W.step==="chan"){const G=goalsSt();body=`<h2>Цифры канала</h2><p class="q">Из YouTube Studio.</p><form data-wf="c" style="display:flex;flex-direction:column;gap:8px">
       <input name="subs" inputmode="numeric" value="${G.subs||""}" placeholder="Подписчиков" aria-label="Подписчиков"><input name="views" inputmode="numeric" value="${G.maxViews||""}" placeholder="Просмотров у лучшего видео" aria-label="Просмотров у лучшего видео"></form><button type="button" class="goldbtn" data-w="csave">Сохранить</button>`}
   if(W.step==="goalkg"){const G=goalsSt();body=`<h2>Цель по весу</h2><p class="q">${curKg()!=null?"Сейчас "+curKg()+" кг. ":""}Когда дойдёшь, откроется подарок до €50.</p><form data-wf="gk"><input name="v" inputmode="decimal" value="${G.goalKg||""}" placeholder="Например 78" aria-label="Цель, кг" autocomplete="off"></form><button type="button" class="goldbtn" data-w="gksave">Сохранить</button>`}
   if(W.step==="reward"){const k=key(),R=reqs(k),st=rewardState(k);
-    const T={pending:R.length?"Закрой все главные дела, и награда твоя.":"Главных дел нет. Отметь их в распорядке: Я → ⚙.",open:"Всё закрыто. Заслужил.",taken:"Награда сегодня взята."}[st];
+    const T={pending:R.length?"Закрой все главные дела, и награда твоя.":"Главных дел нет. Отметь их в распорядке: Я → Распорядок.",open:"Всё закрыто. Заслужил.",taken:"Награда сегодня взята."}[st];
     body=`<h2>Награда дня: ${esc(prof().reward||"награда")}</h2><p class="q">${T}</p>
       <div class="rqlist">${R.map(x=>`<div class="${x.t?"on":""}"><span class="c">${x.t?IC.check:""}</span>${esc(x.name)}${x.t&&x.t!=="skip"?`<span style="margin-left:auto;font-size:12px;color:var(--dim)">${esc(x.t)}</span>`:x.t==="skip"?`<span style="margin-left:auto;font-size:12px;color:var(--dim)">убрано</span>`:""}</div>`).join("")}</div>
       ${st==="open"?`<button type="button" class="goldbtn" data-w="take">Взял награду</button>`:st==="pending"?`<button type="button" class="line" data-w="take">Взял раньше</button>`:""}`}
@@ -1409,6 +1454,17 @@ function renderSheet(){
     body=`<h2>${esc(W.name)}</h2><p class="q">${W.house?"Дело из Дома: перенос значит «не сегодня», завтра оно снова в плане.":"Перенести на"}</p>
       ${W.house?"":`<div class="sopts"><button type="button" class="opt" data-w="mvto:${t1}" aria-pressed="${W.to===t1}">Завтра</button><button type="button" class="opt" data-w="mvto:${t2}" aria-pressed="${W.to===t2}">Послезавтра</button><label class="opt" style="position:relative;overflow:hidden;display:grid;place-items:center" aria-pressed="${oth}">${oth?ddmm(W.to):"Дата…"}<input type="date" id="mvdate" min="${t1}" style="position:absolute;inset:0;opacity:0"></label></div>`}
       <button type="button" class="goldbtn" data-w="mvgo">${W.house?"Не сегодня, завтра":"Перенести"}</button>${dele("mvdel",W.house?"Убрать из моего плана":"Убрать совсем")}`}
+  if(W.step==="bitem"){const x=bById(W.id);if(!x){closeSheet();return}const fo=BF[x.f]||BF.inbox;
+    body=`<p class="rgoal" style="margin:0">${fo[0]} ${fo[1]}${x.d?" · "+ddmm(x.d):""}</p><h2 style="margin-top:2px">${esc(x.t)}</h2>${x.s?`<p class="q" style="margin:0">${esc(x.s)}</p>`:""}
+      ${x.pin&&x.pin.why&&!x.pin.off?`<div class="gwarn" style="background:#2a2014;color:var(--gold)">🧠 ${esc(x.pin.why)}</div>`:""}
+      ${x.ctx?`<p class="rhint">Пригодится: ${esc(x.ctx)}</p>`:""}${bTags(x)?`<span class="btags">${bTags(x)}</span>`:""}
+      ${x.file&&x.file.kind==="photo"?`<img class="bimg" src="${bFileUrl(x)}" alt="${esc(x.t)}">`:""}
+      <div class="perm">${x.url?`<button type="button" class="chip" data-w="bopen">🔗 Открыть ссылку</button>`:""}${x.file&&x.file.kind!=="photo"?`<button type="button" class="chip" data-w="bfile">📄 Открыть файл</button>`:""}</div>
+      ${x.st==="done"?"":`${x.f!=="docs"?`<p class="rl">Сделать делом</p><div class="opts three"><button type="button" class="opt" data-w="bt:0">Сегодня</button><button type="button" class="opt" data-w="bt:1">Завтра</button><button type="button" class="opt" data-w="broutine">В распорядок</button></div>`:""}
+      ${x.f==="want"||x.f==="ideas"?`<button type="button" class="line" data-w="bgoal">🎯 Сделать целью</button>`:""}
+      ${x.f==="apply"||x.f==="ideas"?`<button type="button" class="line" data-w="bdone">✓ Уже применил</button>`:""}`}
+      <p class="rl">Папка</p><div class="perm">${Object.keys(BF).filter(f=>f!=="inbox").map(f=>`<button type="button" class="chip" data-w="bmv:${f}" aria-pressed="${x.f===f}">${BF[f][0]} ${BF[f][1]}</button>`).join("")}</div>
+      <button type="button" class="dellink" data-w="bdel">Удалить из мозга</button>`}
   if(W.step==="prepnew")body=`<h2>Что приготовил?</h2><form data-wf="prep"><input name="v" maxlength="60" value="${esc(W.name)}" placeholder="Например: курица с рисом" autocomplete="off" aria-label="Блюдо"></form>
       <p class="q" style="margin:0">Сколько порций</p><div class="sopts" style="grid-template-columns:repeat(4,minmax(0,1fr))">${[2,3,4,5,6,8].map(n=>`<button type="button" class="opt" data-w="pn:${n}" aria-pressed="${W.n===n}">${n}</button>`).join("")}</div>
       <button type="button" class="goldbtn" data-w="prepsave">Записать заготовку</button><button type="button" class="line" data-w="close">Пропустить</button>`;
@@ -1590,6 +1646,14 @@ $("sheet").addEventListener("click",e=>{
     const same=old&&old.name.toLowerCase()===g.name.toLowerCase(),ng=Object.assign({},same?old:{kind:"num"},{name:g.name,unit:g.unit,habit:g.habit});
     closeSheet();mutate(()=>{if(!same&&state.tgoals){delete state.tgoals.goal}setProf({goal:ng})});meSeg="";toast("Цель: "+g.name);return}
   if(a==="gnclear"){closeSheet();mutate(()=>setProf({goal:null}));toast("Цель убрана");return}
+  if(a==="bopen"||a==="bfile"){const x=bById(W.id);if(x)bOpen(a==="bopen"?x.url:new URL(bFileUrl(x),location.href).href);return}
+  if(a.startsWith("bt:")){const x=bById(W.id),day=a==="bt:0"?key():shift(key(),1);closeSheet();if(x){bTask(x,day);toast("«"+x.t+"» в плане на "+(a==="bt:0"?"сегодня":"завтра"))}return}
+  if(a==="broutine"){const x=bById(W.id);if(!x)return;mutate(()=>{x.st="used";delete x.pin;touch(x)});openRoutine("+");W.it.name=x.t.slice(0,60);renderSheet();return}
+  if(a==="bgoal"){const x=bById(W.id);if(!x)return;W={step:"gtext",text:x.t+(x.s?". "+x.s:""),fromBrain:x.id};renderSheet();return}
+  if(a==="bdone"){const x=bById(W.id);closeSheet();if(x)mutate(()=>{x.st="done";delete x.pin;touch(x)});toast("Отметил: применил. Больше не предложу");return}
+  if(a.startsWith("bmv:")){const x=bById(W.id),f=a.slice(4);if(x&&BF[f])mutate(()=>{x.f=f;delete x.ask;touch(x)});return renderSheet()}
+  if(a==="bdel"){const id=W.id;closeSheet();mutate(()=>{const B=BR();B.items=B.items.filter(x=>x.id!==id);B.del=B.del.concat([id]).slice(-300)});toast("Удалил из мозга");return}
+  if(a.startsWith("gwant:")){const x=bItems("want")[+a.slice(6)],i=$("sheet").querySelector("input[name=v]");if(x&&i)i.value=x.t.slice(0,80);return}
   if(a==="gtnext"){const v=$("sheet").querySelector("textarea[name=v]").value.trim();if(v.length<3){toast("Напиши, чего хочешь");return}W.text=v;W.ans={};goalAsk();return}
   if(a.startsWith("ga:")){gqKeep();const [,qid,i]=a.split(":"),q=(W.qs.questions||[]).find(x=>x.id===qid);if(q){W.ans[qid]=W.ans[qid]===q.options[+i]?"":q.options[+i]}return renderSheet()}
   if(a==="gqnext"){gqKeep();goalPlan("");return}
@@ -1675,6 +1739,7 @@ function goalCreate(){const w=W,P0=w.plan,gid=w.health?"health":hid("g"),old=w.h
     if(ids.length&&P0.streak.length){const st=P0.streak.map(x=>({id:hid("t"),at:x.days,budget:x.budget}));state.tgoals["h_"+gid]={steps:st};st.forEach((s,i)=>{if(P0.streak[i].gift)state.gifts["h_"+gid+"_"+s.id]=P0.streak[i].gift})}
     const ng={id:gid,name:P0.name,emoji:P0.emoji,status:"active",tasks:ids,metric:m,date:P0.date||null,created:key()};if(w.health){ng.kind="health";if(!P0.emoji)ng.emoji="💪"}
     saveGoals(ALLGOALS().filter(g=>g.id!==gid).concat([ng]))});
+  if(w.fromBrain){const x=bById(w.fromBrain);if(x)mutate(()=>{x.st="used";delete x.pin;touch(x)})}
   if(w.health){tab="me";meSeg="health"}else{tab="goals";goalSeg=gid}
   render();window.scrollTo(0,0);haptic("success");toast(w.health?"Здоровье настроено. Дела уже в плане":"Цель «"+P0.name+"» в работе. Дела уже в плане")}
 function gKeep(){const f=$("sheet").querySelector("form[data-wf=goal]");if(f){W.g.name=f.name.value.trim().slice(0,40);W.g.unit=f.unit.value.trim().slice(0,30)}}
@@ -1738,6 +1803,7 @@ save=()=>{clearTimeout(st);st=setTimeout(async()=>{
     if(r.ok){state=norm(await r.json());render()}}catch(e){}},500)};
 async function fetchGoal(q){const r=await fetch("api/goal",{method:"POST",headers:hdr(),body:JSON.stringify(q)});const v=await r.json().catch(()=>({}));if(!r.ok)throw new Error(v.error||r.status);return v}
 async function fetchCook(){const r=await fetch("api/cook",{method:"POST",headers:hdr(),body:"{}"});const v=await r.json().catch(()=>({}));if(!r.ok)throw new Error(v.error||r.status);return v.ideas||[]}
+async function fetchBrain(text,file){let r;if(file){const fd=new FormData();fd.append("text",text||"");fd.append("file",file,file.name||"file");r=await fetch("api/brain",{method:"POST",headers:{"X-Init-Data":tg?tg.initData:""},body:fd})}else r=await fetch("api/brain",{method:"POST",headers:hdr(),body:JSON.stringify({text})});const v=await r.json().catch(()=>({}));if(!r.ok)throw new Error(v.error||r.status);return v}
 async function fetchGifts(q){const r=await fetch("api/gifts",{method:"POST",headers:hdr(),body:JSON.stringify(q)});const v=await r.json().catch(()=>({}));if(!r.ok)throw new Error(v.error||r.status);return v.ideas||[]}
 render();pull();
 document.addEventListener("visibilitychange",()=>{if(!document.hidden)pull()});

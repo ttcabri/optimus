@@ -13,6 +13,7 @@ RULES = """Ты помогаешь человеку превратить жел�
 Сегодня {today} ({wd}). Подъём {wake}, отбой {bed}.
 Уже в распорядке (дело, мин, дни): {routine}
 Уже есть цели: {goals}
+Что он сохранял в мозге (лайфхаки, идеи, хотелки). Если что-то реально подходит к этой цели, используй: в делах, подарках (из «Хочу»), summary упомяни коротко: {saved}
 
 Цель человека своими словами: «{text}»"""
 
@@ -54,7 +55,9 @@ def _ctx(state: dict, text: str) -> dict:
     routine = "; ".join(f"{it['id']}: {it['name']}, {it.get('dur', 30)}, {days(it)}" for it in quest.items(P)) or "пусто"
     goals = ", ".join(g.get("name", "") for g in (P.get("goals") or []) if g.get("status") != "done") or (P.get("goal") or {}).get("name") or "нет"
     n = quest.lnow()
-    return {"today": n.strftime("%Y-%m-%d"), "wd": WD[n.weekday()], "wake": P["wake"], "bed": P["bed"], "routine": routine, "goals": goals, "text": text[:1200]}
+    from services import brain
+    saved = "; ".join(f"[{brain.FOLDERS[x['f']]}] {x['t']}" + (f" ({x['s'][:80]})" if x.get("s") else "") for x in brain.live(state) if x["f"] in ("apply", "ideas", "want") and x.get("st") != "done")[:2500]
+    return {"today": n.strftime("%Y-%m-%d"), "wd": WD[n.weekday()], "wake": P["wake"], "bed": P["bed"], "routine": routine, "goals": goals, "text": text[:1200], "saved": saved or "пусто"}
 
 
 def _json(text: str) -> dict:

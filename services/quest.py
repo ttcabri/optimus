@@ -465,6 +465,9 @@ def merge_incoming(server: dict, incoming: dict) -> dict:
     if server.get("house") or incoming.get("house"):
         from services import house as _house
         incoming["house"] = _house.merge(server.get("house"), incoming.get("house"))
+    if server.get("brain") or incoming.get("brain"):  # мозг: по записям, кто позже менял
+        from services import brain as _brain
+        incoming["brain"] = _brain.merge(server.get("brain"), incoming.get("brain"))
     # то, что ведёт только бот: приложение это не меняет, берём с сервера
     for k in ("notes", "temp", "theory", "home", "loc", "insights"):
         if server.get(k) is not None:

@@ -189,6 +189,10 @@ async def proof_photo(message: Message, bot: Bot) -> None:
         await message.answer(head + "\n" + "\n".join(f"• {html.escape(g)}" for g in got)
                              + "\n\nЕсли что-то не так, скажи: «яиц нет», «убери колу».", reply_markup=quest_keyboard())
         return
+    if kind == "brain":
+        from handlers.brain import save
+        await save(message, (message.caption or ""), {"id": photo.file_id, "kind": "photo", "name": "фото"}, note=comment)
+        return
     if kind == "question":
         await message.answer("📚 " + html.escape(comment or "Не разобрал вопрос. Скинь скрин почётче."))
         return

@@ -12,7 +12,7 @@ from aiogram import Bot
 from aiogram.types import BufferedInputFile, InlineKeyboardButton, InlineKeyboardMarkup
 
 import database
-from services import house, quest, theory
+from services import brain, house, quest, theory
 
 logger = logging.getLogger(__name__)
 DAYS = ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"]
@@ -76,6 +76,9 @@ def morning_text(state: dict, day: dict) -> str:
         exp = house.expiring(h)
         if exp:
             extra.append("Скоро испортится: " + html.escape(", ".join(x["name"] for x in exp)))
+    bl = brain.morning_line(state)
+    if bl:
+        extra.append(bl)
     if n.weekday() == 0:
         extra.append("Понедельник: взвесься до завтрака и напиши «вес 82.5».")
     if extra:
@@ -90,6 +93,8 @@ async def send_morning(bot: Bot, uid: int) -> None:
     state = await database.get_quest_state(uid)
     day = await quest.get_day(uid)
     text = morning_text(state, day)
+    if "🧠" in text:  # закреп из мозга показан утром: запомнить
+        await database.save_quest_state(uid, state)
     n = morning.notify(state)
     if n["voice"]:
         try:

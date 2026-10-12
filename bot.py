@@ -9,7 +9,7 @@ import database
 from aiogram.types import MenuButtonWebApp, WebAppInfo
 
 from config import TELEGRAM_BOT_TOKEN, TELEGRAM_USER_ID, WEBAPP_URL
-from handlers import access, commands, day, proof, text, voice
+from handlers import access, brain, commands, day, proof, text, voice
 from webserver import start_web
 from services.scheduler import setup_scheduler
 
@@ -39,6 +39,7 @@ async def main() -> None:
     dispatcher.include_router(access.router)
     dispatcher.include_router(commands.router)
     dispatcher.include_router(day.router)
+    dispatcher.include_router(brain.router)
     dispatcher.include_router(proof.router)
     dispatcher.include_router(voice.router)
     dispatcher.include_router(text.router)

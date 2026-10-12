@@ -65,7 +65,7 @@ def _where(state: dict) -> str:
 
 
 async def build_context_block(telegram_id: int, state: dict, day: dict) -> str:
-    from services import actions, quest, theory
+    from services import actions, brain, quest, theory
     n = quest.now()
     notes = state.get("notes") or []
     goals = state.get("goals") or {}
@@ -79,6 +79,7 @@ async def build_context_block(telegram_id: int, state: dict, day: dict) -> str:
         f"КАНАЛ: подписчиков {goals.get('subs', 0)}, лучшее видео {goals.get('maxViews', 0)} просмотров\n"
         + (f"ВЕС: {body[-1]['kg']} кг ({body[-1]['d']})" + (f", цель {goals['goalKg']} кг" if goals.get("goalKg") else "") + "\n" if body else "")
         + f"\nТЕОРИЯ CBR:\n{theory.context(state)}\n\n"
+        + brain.context(state) + "\n\n"
         + f"ОТВЕТЫ НА ГОЛОСОВЫЕ СЕЙЧАС: {MODE_NAMES[reply_mode(state)]}\n\n"
         + _where(state)
         + "ЧТО ТЫ ЗНАЕШЬ О НЁМ (постоянная память, номера для forget):\n" + ("\n".join(f"{i + 1}. {x}" for i, x in enumerate(notes)) or "пока ничего") + "\n"
@@ -310,12 +311,13 @@ PROOF_PROMPT = """Ты проверяешь пруф выполнения дел
 {kinds}
 - "receipt" — чек из магазина (Albert Heijn, Lidl, Jumbo, Kruidvat и т.п.). Перечисли купленное в items.
 - "fridge" — фото холодильника, полок или шкафа с продуктами. Перечисли то, что ясно видно, в items.
+- "brain" — не пруф, а то, что человек хочет сохранить: документ (справка, анализы, письмо, договор), скрин поста, статьи или лайфхака, рецепт, вещь или место, которое хочется. В comment коротко, что это и о чём.
 - "none" — всё остальное, или пруф явно старый/фейковый/не относится к делу (например письмо, реклама).
 
 Для receipt и fridge: items = [{{"name": "по-русски, коротко: курица, рис, молоко", "cat": "meat|dairy|veg|grain|canned|bread|drinks|spice|other|home", "qty": "2 кг или 1 шт, если видно"}}]. meat = мясо и рыба, dairy = молочное и яйца, veg = овощи и фрукты, grain = крупы и макароны, canned = консервы и соусы, bread = хлеб и сладкое, drinks = напитки, spice = специи и масло, home = бытовое (мыло, порошок, бумага, губки). Не включай пакеты, депозит за бутылки, скидки. ok = true.
 {score}
 Ответь ТОЛЬКО JSON без markdown:
-{{"quest": "{ids}|receipt|fridge|none", "ok": true/false, "score": null, "total": null, "weak": "", "items": [], "comment": "1-2 коротких предложения по-русски, по делу."}}"""
+{{"quest": "{ids}|receipt|fridge|brain|none", "ok": true/false, "score": null, "total": null, "weak": "", "items": [], "comment": "1-2 коротких предложения по-русски, по делу."}}"""
 
 LIC_KINDS = """- "question" — скрин ОДНОГО вопроса по теории на права (картинка ситуации, знак, варианты ответа), а не итог теста. Тогда в comment объясни по-русски простыми словами правильный ответ и правило (3-5 предложений), с английским термином в скобках. ok = true."""
 LIC_SCORE = """
