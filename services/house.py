@@ -231,6 +231,70 @@ def _find(lst: list, name_or_id: str):
     return None
 
 
+# --- количество: граммы, миллилитры, штуки ---
+UNIT = {"г": ("г", 1), "g": ("г", 1), "гр": ("г", 1), "кг": ("г", 1000), "kg": ("г", 1000),
+        "мл": ("мл", 1), "ml": ("мл", 1), "л": ("мл", 1000), "l": ("мл", 1000),
+        "шт": ("шт", 1), "pcs": ("шт", 1), "": ("шт", 1)}
+LOW = {"г": 150, "мл": 200, "шт": 2}  # меньше этого: «мало», в покупки
+
+
+def norm_amt(amt, unit) -> tuple[float, str] | None:
+    try:
+        v = float(str(amt).replace(",", "."))
+    except (TypeError, ValueError):
+        return None
+    u, k = UNIT.get(str(unit or "").strip().lower().rstrip("."), ("шт", 1))
+    return round(v * k, 1), u
+
+
+def fmt_amt(x: dict) -> str:
+    if x.get("amt") is None:
+        return x.get("qty") or ""
+    v, u = float(x["amt"]), x.get("unit") or "шт"
+    if u in ("г", "мл") and v >= 1000:
+        return f"{v / 1000:g} {'кг' if u == 'г' else 'л'}"
+    return f"{v:g} {u}"
+
+
+def _relevel(x: dict) -> None:
+    if x.get("amt") is None:
+        return
+    v, u = float(x["amt"]), x.get("unit") or "шт"
+    x["level"] = "out" if v <= 0 else "low" if v < LOW.get(u, 1) else "ok"
+
+
+def use(h: dict, name: str, amt=None, unit=None, all_: bool = False) -> str:
+    """Съел / потратил: списать из дома. Без количества: «доел всё» = кончилось, иначе только отметка."""
+    x = _find([y for y in h["items"] if y.get("cat") != "prep"], name)
+    if not x:
+        return f"«{name}» в доме не числится"
+    x["u"] = now_ms()
+    if all_:
+        x["amt"] = 0 if x.get("amt") is not None else None
+        x["level"] = "out"
+        return f"{x['name']}: кончилось, в покупках"
+    n = norm_amt(amt, unit) if amt is not None else None
+    if not n:
+        return f"{x['name']}: сколько осталось, не знаю (впиши количество в Доме)"
+    v, u = n
+    if x.get("amt") is None or (x.get("unit") or "шт") != u:
+        return f"{x['name']}: в доме без количества в {u}, списать не могу. Скажи, сколько осталось"
+    x["amt"] = max(0, round(float(x["amt"]) - v, 1))
+    _relevel(x)
+    return f"{x['name']}: осталось {fmt_amt(x)}" + (" (мало, в покупках)" if x["level"] == "low" else " (кончилось, в покупках)" if x["level"] == "out" else "")
+
+
+def set_amt(h: dict, name: str, amt, unit) -> str:
+    x = _find(h["items"], name)
+    n = norm_amt(amt, unit)
+    if not x or not n:
+        return "не нашёл" if not x else "непонятное количество"
+    x["amt"], x["unit"], x["u"] = n[0], n[1], now_ms()
+    x.pop("qty", None)
+    _relevel(x)
+    return f"{x['name']}: {fmt_amt(x)}"
+
+
 # --- действия (бот) ---
 
 def add_items(h: dict, items: list[dict]) -> list[str]:
@@ -252,7 +316,15 @@ def add_items(h: dict, items: list[dict]) -> list[str]:
             if until:
                 x["until"] = until
             h["items"].append(x)
-        if it.get("qty"):
+        n = norm_amt(it.get("amt"), it.get("unit")) if it.get("amt") is not None else None
+        if n:
+            if x.get("amt") is not None and (x.get("unit") or "шт") == n[1] and x.get("level") != "out":
+                x["amt"] = round(float(x["amt"]) + n[0], 1)
+            else:
+                x["amt"], x["unit"] = n[0], n[1]
+            x.pop("qty", None)
+            _relevel(x)
+        elif it.get("qty"):
             x["qty"] = str(it["qty"])[:20]
         # купленное убираем из ручного списка покупок
         s = _find([y for y in h["shop"] if not y.get("done")], name)
@@ -418,7 +490,7 @@ def summary(h: dict) -> str:
         its = [x for x in h.get("items", []) if x.get("cat") == cat]
         if its:
             lines.append(f"{title}: " + "; ".join(
-                x["name"] + (f" {x['n']} порц." if cat == "prep" else "") + (f" {x['qty']}" if x.get("qty") else "") + (f" [{LEVELS.get(x.get('level'), '')}]" if x.get("level") != "ok" else "")
+                x["name"] + (f" {x['n']} порц." if cat == "prep" else "") + (f" {fmt_amt(x)}" if fmt_amt(x) else "") + (f" [{LEVELS.get(x.get('level'), '')}]" if x.get("level") != "ok" else "")
                 + (f" до {x['until'][8:10]}.{x['until'][5:7]}" if x.get("until") and x.get("level") != "out" else "") for x in its))
     exp = expiring(h, today)
     if exp:

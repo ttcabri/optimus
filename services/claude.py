@@ -65,7 +65,7 @@ def _where(state: dict) -> str:
 
 
 async def build_context_block(telegram_id: int, state: dict, day: dict) -> str:
-    from services import actions, brain, quest, theory
+    from services import actions, brain, money, quest, theory
     n = quest.now()
     notes = state.get("notes") or []
     goals = state.get("goals") or {}
@@ -73,13 +73,15 @@ async def build_context_block(telegram_id: int, state: dict, day: dict) -> str:
     return (
         "=== КОНТЕКСТ ===\n"
         f"Сейчас: {n.strftime('%H:%M, %A %d.%m.%Y')} (Нидерланды)"
-        f"{'. Встал в ' + quest.woke_at(day) if quest.woke_at(day) else '. Подъём сегодня не отмечен'}\n\n"
+        f"{'. Встал в ' + quest.woke_at(day) if quest.woke_at(day) else '. Подъём сегодня не отмечен'}"
+        f"{'. Спал ~' + str(quest.sleep_hours(state, quest.today_key())) + ' ч' if quest.sleep_hours(state, quest.today_key()) else ''}\n\n"
         f"СЕГОДНЯ В КВЕСТЕ:\n{re.sub(r'<[^>]+>', '', quest.day_summary(day))}\n\n"
         f"{actions.plan_context(state)}\n\n"
         f"КАНАЛ: подписчиков {goals.get('subs', 0)}, лучшее видео {goals.get('maxViews', 0)} просмотров\n"
         + (f"ВЕС: {body[-1]['kg']} кг ({body[-1]['d']})" + (f", цель {goals['goalKg']} кг" if goals.get("goalKg") else "") + "\n" if body else "")
         + f"\nТЕОРИЯ CBR:\n{theory.context(state)}\n\n"
         + brain.context(state) + "\n\n"
+        + money.summary(state) + "\n\n"
         + f"ОТВЕТЫ НА ГОЛОСОВЫЕ СЕЙЧАС: {MODE_NAMES[reply_mode(state)]}\n\n"
         + _where(state)
         + "ЧТО ТЫ ЗНАЕШЬ О НЁМ (постоянная память, номера для forget):\n" + ("\n".join(f"{i + 1}. {x}" for i, x in enumerate(notes)) or "пока ничего") + "\n"
@@ -314,10 +316,11 @@ PROOF_PROMPT = """Ты проверяешь пруф выполнения дел
 - "brain" — не пруф, а то, что человек хочет сохранить: документ (справка, анализы, письмо, договор), скрин поста, статьи или лайфхака, рецепт, вещь или место, которое хочется. В comment коротко, что это и о чём.
 - "none" — всё остальное, или пруф явно старый/фейковый/не относится к делу (например письмо, реклама).
 
-Для receipt и fridge: items = [{{"name": "по-русски, коротко: курица, рис, молоко", "cat": "meat|dairy|veg|grain|canned|bread|drinks|spice|other|home", "qty": "2 кг или 1 шт, если видно"}}]. meat = мясо и рыба, dairy = молочное и яйца, veg = овощи и фрукты, grain = крупы и макароны, canned = консервы и соусы, bread = хлеб и сладкое, drinks = напитки, spice = специи и масло, home = бытовое (мыло, порошок, бумага, губки). Не включай пакеты, депозит за бутылки, скидки. ok = true.
+Для receipt и fridge: items = [{{"name": "по-русски, коротко: курица, рис, молоко", "cat": "meat|dairy|veg|grain|canned|bread|drinks|spice|other|home", "amt": число, "unit": "г|кг|мл|л|шт" (вес или объём упаковки × количество, если видно; 2 пачки молока по 1 л = 2 л; иначе шт), "price": цена строки в € числом или null}}]. meat = мясо и рыба, dairy = молочное и яйца, veg = овощи и фрукты, grain = крупы и макароны, canned = консервы и соусы, bread = хлеб и сладкое, drinks = напитки, spice = специи и масло, home = бытовое (мыло, порошок, бумага, губки). Не включай пакеты, депозит за бутылки, скидки. ok = true.
+Для receipt ещё: shop = магазин, date = дата с чека YYYY-MM-DD или null, total = итог к оплате числом (с учётом скидок).
 {score}
 Ответь ТОЛЬКО JSON без markdown:
-{{"quest": "{ids}|receipt|fridge|brain|none", "ok": true/false, "score": null, "total": null, "weak": "", "items": [], "comment": "1-2 коротких предложения по-русски, по делу."}}"""
+{{"quest": "{ids}|receipt|fridge|brain|none", "ok": true/false, "shop": "", "date": null, "total": null, "score": null, "total": null, "weak": "", "items": [], "comment": "1-2 коротких предложения по-русски, по делу."}}"""
 
 LIC_KINDS = """- "question" — скрин ОДНОГО вопроса по теории на права (картинка ситуации, знак, варианты ответа), а не итог теста. Тогда в comment объясни по-русски простыми словами правильный ответ и правило (3-5 предложений), с английским термином в скобках. ok = true."""
 LIC_SCORE = """
@@ -388,6 +391,9 @@ async def check_proof(image_bytes: bytes, caption: str, P: dict, debt: bool = Fa
             "total": num(data.get("total")),
             "weak": str(data.get("weak") or ""),
             "items": [x for x in (data.get("items") or []) if isinstance(x, dict) and x.get("name")][:40],
+            "shop": str(data.get("shop") or "")[:40],
+            "date": str(data.get("date") or "")[:10],
+            "total": data.get("total") if isinstance(data.get("total"), (int, float)) else None,
         }
     except Exception:
         return {"quest": "none", "ok": False, "comment": "Не смог проверить фото. Скинь ещё раз."}

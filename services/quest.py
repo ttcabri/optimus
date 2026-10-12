@@ -465,13 +465,18 @@ def merge_incoming(server: dict, incoming: dict) -> dict:
     if server.get("house") or incoming.get("house"):
         from services import house as _house
         incoming["house"] = _house.merge(server.get("house"), incoming.get("house"))
+    if server.get("money") or incoming.get("money"):  # деньги: по операциям
+        from services import money as _money
+        incoming["money"] = _money.merge(server.get("money"), incoming.get("money"))
     if server.get("brain") or incoming.get("brain"):  # мозг: по записям, кто позже менял
         from services import brain as _brain
         incoming["brain"] = _brain.merge(server.get("brain"), incoming.get("brain"))
     # то, что ведёт только бот: приложение это не меняет, берём с сервера
-    for k in ("notes", "temp", "theory", "home", "loc", "insights"):
+    for k in ("notes", "temp", "theory", "home", "loc", "insights", "rcpt"):
         if server.get(k) is not None:
             incoming[k] = server[k]
+        elif k == "rcpt":
+            incoming.pop(k, None)
     ss, si = server.get("settings") or {}, incoming.get("settings") or {}
     if ss and not si.get("u", 0) > ss.get("u", 0):  # режим голоса: приложение меняет только поверх более старого
         incoming["settings"] = ss
@@ -524,6 +529,8 @@ def merge_incoming(server: dict, incoming: dict) -> dict:
                 iday[k2] = sday[k2]
         if sday.get("mSent"):  # утренняя сводка уже ушла: не слать повторно из-за старой копии в приложении
             iday["mSent"] = True
+        if sday.get("mealAsk"):  # уже спрашивали «что ел»
+            iday["mealAsk"] = sorted(set(sday["mealAsk"]) | set(iday.get("mealAsk") or []))
         # трава, отмеченная в боте
         if sday.get("smokes", 0) > iday.get("smokes", 0):
             iday["smokes"] = sday["smokes"]
@@ -841,3 +848,24 @@ def move_task(state: dict, qid: str, to_key: str, from_key: str | None = None) -
     d["moved"] = dict(d.get("moved") or {}, **{qid: {"to": to_key, "n": name}})
     log_ev(d, "move", qid)
     return f"перенесено на {to_key[8:10]}.{to_key[5:7]}: {name}"
+
+
+def sleep_hours(state: dict, key: str) -> float | None:
+    """Сон за ночь перед днём key: от последней отметки вчера вечером (после 18:00) до «Я встал». Ручная запись важнее."""
+    for e in (state.get("hlog") or {}).get("sleep") or []:
+        if e.get("d") == key:
+            return e.get("v")
+    d = (state.get("days") or {}).get(key) or {}
+    if not d.get("woke"):
+        return None
+    prev = (datetime.strptime(key, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
+    last = None
+    for e in ((state.get("days") or {}).get(prev) or {}).get("ev") or []:
+        if e and e[0]:
+            m = to_min(e[0])
+            if m >= 1080 and (last is None or m > last):
+                last = m
+    if last is None:
+        last = to_min(full_profile(state).get("bed") or "23:30")
+    v = to_min(d["woke"]) + 1440 - last
+    return round(v / 60, 1) if 120 <= v <= 900 else None

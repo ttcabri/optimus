@@ -84,6 +84,14 @@ CREATE TABLE IF NOT EXISTS household_members (
     joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- дни старше KEEP_DAYS: уходят из живого состояния, чтобы приложение не таскало всю историю
+CREATE TABLE IF NOT EXISTS quest_days_archive (
+    telegram_id INTEGER NOT NULL,
+    day TEXT NOT NULL,
+    data TEXT,
+    PRIMARY KEY (telegram_id, day)
+);
+
 CREATE TABLE IF NOT EXISTS weekly_commitments (
     id INTEGER PRIMARY KEY,
     telegram_id INTEGER,
@@ -464,17 +472,67 @@ async def get_log(telegram_id: int, since: str) -> list[tuple]:
         return await cur.fetchall()
 
 
+KEEP_DAYS = 90
+
+
+async def _archive_old(db, telegram_id: int, state: dict) -> None:
+    """Дни старше KEEP_DAYS переезжают в архив. Журнал событий (quest_log) уже записан навсегда."""
+    import json
+    from datetime import datetime, timedelta
+    from services import quest
+    edge = (datetime.strptime(quest.today_key(), "%Y-%m-%d") - timedelta(days=KEEP_DAYS)).strftime("%Y-%m-%d")
+    days = state.get("days") or {}
+    old = {k: v for k, v in days.items() if k < edge}
+    if not old:
+        return
+    await db.executemany("INSERT OR REPLACE INTO quest_days_archive (telegram_id, day, data) VALUES (?, ?, ?)",
+                         [(telegram_id, k, json.dumps(v, ensure_ascii=False)) for k, v in old.items()])
+    state["days"] = {k: v for k, v in days.items() if k >= edge}
+
+
+async def get_archived_day(telegram_id: int, day: str) -> dict | None:
+    import json
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        cur = await db.execute("SELECT data FROM quest_days_archive WHERE telegram_id = ? AND day = ?", (telegram_id, day))
+        row = await cur.fetchone()
+    return json.loads(row[0]) if row and row[0] else None
+
+
+async def backup_file() -> str:
+    """Копия базы для отправки владельцу (sqlite backup: целостная даже во время записи)."""
+    import gzip
+    import shutil
+    import sqlite3
+    import tempfile
+    tmp = tempfile.mktemp(suffix=".db")
+    def run():
+        src, dst = sqlite3.connect(DATABASE_PATH), sqlite3.connect(tmp)
+        with dst:
+            src.backup(dst)
+        src.close()
+        dst.close()
+        with open(tmp, "rb") as fi, gzip.open(tmp + ".gz", "wb") as fo:
+            shutil.copyfileobj(fi, fo)
+    import asyncio
+    await asyncio.to_thread(run)
+    return tmp + ".gz"
+
+
 async def save_quest_state(telegram_id: int, state: dict) -> None:
     """Личное пишем в quest_state, дом сливаем с сохранённым домом (его могли поменять другие жильцы)."""
     from services import house as house_svc
     state = dict(state)
     incoming_house = state.pop("house", None)
     async with aiosqlite.connect(DATABASE_PATH) as db:
-        await _write_personal(db, telegram_id, state)
         try:
             await _log_events(db, telegram_id, dict(state, house=incoming_house))
         except Exception as e:  # журнал не должен ломать сохранение
             logger.error(f"quest_log error: {e}")
+        try:
+            await _archive_old(db, telegram_id, state)
+        except Exception as e:
+            logger.error(f"archive error: {e}")
+        await _write_personal(db, telegram_id, state)
         if isinstance(incoming_house, dict):
             hid = await house_id_of(db, telegram_id)
             if not hid:

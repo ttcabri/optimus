@@ -47,6 +47,9 @@ def morning_text(state: dict, day: dict) -> str:
     n = quest.lnow()
     P = quest.prof(day)
     out = [f"☀️ <b>Доброе утро, {DAYS[n.weekday()]} {n.strftime('%d.%m')}</b>", _late(day)]
+    sl = quest.sleep_hours(state, quest.today_key())
+    if sl:
+        out.append(f"Спал ~{str(sl).replace('.', ',')} ч" + (". Мало: сегодня главное сделай с утра, вечером не засиживайся." if sl < 6 else "."))
     yk = (n.date() - __import__("datetime").timedelta(days=1)).strftime("%Y-%m-%d")
     yv = quest.day_view(state, yk)
     r = quest.reqs(yv, (n.weekday() - 1) % 7)

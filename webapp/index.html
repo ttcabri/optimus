@@ -257,6 +257,11 @@ button.hrow{width:100%;border:none;color:inherit;font:inherit;text-align:left}
 .bdrop .r{align-items:center}.bfile{width:44px;height:44px;border-radius:12px;border:1px solid var(--line2);display:grid;place-items:center;font-size:20px;flex-shrink:0;cursor:pointer}
 .btags{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}.btag{padding:2px 8px;border-radius:8px;font-size:11px;font-weight:800;background:var(--panel2);color:var(--dim)}.btag.ok{background:#1f2a20;color:var(--okl)}
 .bimg{width:100%;max-height:340px;object-fit:contain;border-radius:14px;background:var(--panel2)}
+.mhero{margin:0 16px;padding:14px;border-radius:20px;background:linear-gradient(135deg,#2c2412,var(--panel));border:1px solid var(--line2);display:flex;flex-direction:column;gap:4px}
+.mhero small{color:var(--muted);font-weight:700;font-size:12px}.mhero>b{font-family:var(--display);font-weight:400;font-size:32px;line-height:1.1}
+.macc{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.macc .chip b{margin-left:4px}.mfree{margin:6px 0 0;font-size:13px;font-weight:700;color:var(--okl)}
+.mrow2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 16px 0}.mc{border-radius:16px;background:var(--panel);padding:10px 12px}.mc small{color:var(--muted);font-weight:700;font-size:12px;display:block}.mc b{font-size:19px}
+.mi{width:34px;height:34px;border-radius:10px;background:var(--panel2);display:grid;place-items:center;font-size:17px;flex-shrink:0}
 .mehello{margin:2px 18px 12px;color:var(--muted);font-weight:700;font-size:14px}.mehello b{color:var(--fg)}
 .hsetup{margin:0 16px 12px;padding:16px;border-radius:20px;background:var(--paper);color:var(--ink);display:flex;flex-direction:column;gap:8px}
 .hsetup b{font-family:var(--display);font-weight:400;font-size:21px}.hsetup p{margin:0;color:#5a4436;font-size:14px}
@@ -1048,9 +1053,12 @@ function routineCard(){
   return `<div class="list">${ritems().map(it=>`<button type="button" class="hrow go" data-redit="${esc(it.id)}"><span class="nm"><b>${esc(it.name)}${it.main?' <span class="pin">ГЛАВНОЕ</span>':""}</b><small>${durTxt(it.dur||30)} · ${daysTxt(it)}${it.at?" · "+(it.at==="end"?"перед сном":"в "+it.at):""}${it.proof||(it.steps||[]).some(x=>x.proof)?" · пруф":""}${goalOfTask(it.id)?" · "+esc(goalOfTask(it.id).emoji||"🎯")+" "+esc(goalOfTask(it.id).name):""}</small></span></button>`).join("")}</div>
     <div class="segfoot"><button type="button" class="line" data-redit="+">+ Дело в распорядок</button></div>`}
 const lvlTxt=x=>x.level==="out"?`<small class="bad">кончилось</small>`:x.level==="low"?`<small style="color:var(--gold)">мало</small>`:"";
+function amtTxt(x){if(x.amt==null)return x.qty?esc(x.qty):"";const v=+x.amt,u=x.unit||"шт";return (u==="г"||u==="мл")&&v>=1000?(Math.round(v/100)/10).toString().replace(".",",")+(u==="г"?" кг":" л"):String(v).replace(".",",")+" "+u}
+const AMT_LOW={"г":150,"мл":200,"шт":2};
 function itemSub(x){const dl=x.until&&x.level!=="out"?daysLeft(x.until):null;
   if(x.cat==="prep")return `<small class="${dl!=null&&dl<=1?"bad":""}">${x.n} порц.${x.until?" · до "+ddmm(x.until):""}</small>`;
-  if(x.level!=="ok")return lvlTxt(x);
+  const q=amtTxt(x);if(x.level!=="ok")return q?`<small><span style="color:${x.level==="out"?"var(--red)":"var(--gold)"}">${x.level==="out"?"кончилось":"мало"}</span> · ${q}</small>`:lvlTxt(x);
+  if(q)return `<small class="${dl!=null&&dl<=1?"bad":""}">${q}${dl==null?"":dl<0?" · просрочено":dl===0?" · сегодня последний день":dl===1?" · до завтра":" · до "+ddmm(x.until)}</small>`;
   return dl==null?(x.qty?`<small>${esc(x.qty)}</small>`:`<small>без срока</small>`):`<small class="${dl<=1?"bad":""}">${dl<0?"просрочено "+ddmm(x.until):dl===0?"сегодня последний день":dl===1?"до завтра":"до "+ddmm(x.until)}</small>`}
 const itemRow=x=>x.cat==="prep"?`<div class="hrow"><button type="button" class="nm" data-hitem="${x.id}" style="background:none;border:none;color:inherit;font:inherit;text-align:left;padding:0"><b>${esc(x.name)}</b>${itemSub(x)}</button><button type="button" class="chip take" data-prepeat="${x.id}">−1</button></div>`
   :`<button type="button" class="hrow go" data-hitem="${x.id}"><span class="nm"><b>${esc(x.name)}</b>${itemSub(x)}</span></button>`;
@@ -1151,14 +1159,16 @@ function viewMe(){
   if(meSeg==="hist")return meHead("История")+viewHist();
   if(meSeg==="health"||meSeg.startsWith("h:"))return viewHealth();
   if(meSeg==="brain"||meSeg.startsWith("b:"))return viewBrain();
-  if(meSeg==="money")return viewMoney();
+  if(meSeg==="money"||meSeg.startsWith("money:"))return viewMoney();
   const P=prof(),H=healthGoal(),it=H&&gTask(H),cs=closedStreak(),kg=curKg();
   const hsub=H?[it?weekDone(it).join("/")+" трен. за неделю":"",kg!=null?kg+" кг":""].filter(Boolean).join(" · ")||esc(H.name):"настроить";
   return `<div class="mehello">Привет, <b>${esc(P.name||"друг")}</b>${cs?` · 🔥 закрыто ${cs} ${dayW(cs)} подряд`:""}</div>
-    <div class="btiles">${bTile('data-meseg="health"',"💪","#3a1d14","Здоровье",hsub)}${bTile('data-meseg="brain"',"🧠","#242030","Мозг",brSub(),bPins().length+bItems("inbox").length)}${bTile('data-meseg="money" style="opacity:.6"',"💰","#2c2412","Деньги","скоро")}${bTile('data-meseg="routine"',"📅","#1f2a20","Распорядок",ritems().length+" дел")}</div>
+    <div class="btiles">${bTile('data-meseg="health"',"💪","#3a1d14","Здоровье",hsub)}${bTile('data-meseg="brain"',"🧠","#242030","Мозг",brSub(),bPins().length+bItems("inbox").length)}${bTile('data-meseg="money"',"💰","#2c2412","Деньги",mHas()?eur(mTotal(MON()))+(Math.round(mFree(MON()))!==Math.round(mTotal(MON()))?" · свободно "+eur(mFree(MON())):""):"сколько на счёте?")}${bTile('data-meseg="routine"',"📅","#1f2a20","Распорядок",ritems().length+" дел")}</div>
     <button type="button" class="prow" data-meseg="hist"><span style="font-size:22px">📜</span><span style="flex:1"><b style="font-size:14px">История</b><small style="display:block;font-size:12px;font-weight:700;color:var(--muted)">${cs?cs+" "+dayW(cs)+" подряд всё закрыто":"по дням"}</small></span><span class="go"></span></button>`}
 /* ---------- мозг: всё, что сохранил; бот раскладывает и достаёт к месту ---------- */
 const BF={inbox:["📥","Разобрать"],ideas:["💡","Идеи"],apply:["🎯","Применить"],recipes:["🍳","Рецепты"],want:["🌍","Хочу"],docs:["📄","Документы"]};
+const DC={receipts:["🧾","Чеки"],health:["🏥","Здоровье"],work:["💼","Работа и WW"],home:["🏠","Жильё"],car:["🚗","Машина"],personal:["🪪","Личные"],other:["📁","Прочее"]};
+const docCat=x=>DC[x.c]?x.c:"other";
 const BR=()=>{if(!state.brain||typeof state.brain!=="object")state.brain={items:[],del:[]};state.brain.items=state.brain.items||[];state.brain.del=state.brain.del||[];return state.brain};
 const bAll=()=>((state.brain||{}).items||[]).filter(x=>x.fit!=="no");
 const bItems=f=>bAll().filter(x=>x.f===f).sort((a,b)=>(b.u||0)-(a.u||0));
@@ -1168,8 +1178,12 @@ const brSub=()=>{const n=bAll().length,p=bPins().length;return n?n+" "+(p?"· "+
 let brBusy=false;
 function bTags(x){const t=[];if(x.st==="done")t.push(`<span class="btag ok">✓ применил</span>`);else if(x.st==="used")t.push(`<span class="btag ok">в деле</span>`);else if(x.fit==="now")t.push(`<span class="btag ok">сейчас к месту</span>`);
   if(x.gift)t.push(`<span class="btag">подарок</span>`);if(x.file)t.push(`<span class="btag">${x.file.kind==="photo"?"фото":"файл"}</span>`);return t.join("")}
-const bRow=x=>`<button type="button" class="hrow go" data-bitem="${esc(x.id)}"><span class="nm"><b>${esc(x.t)}</b>${x.s?`<small>${esc(x.s)}</small>`:""}${bTags(x)?`<span class="btags">${bTags(x)}</span>`:""}</span></button>`;
+const bRow=x=>`<button type="button" class="hrow go" data-bitem="${esc(x.id)}"><span class="nm"><b>${esc(x.t)}</b>${x.sum!=null?`<small style="color:var(--fg);font-weight:800">€${fmtN(x.sum)}${x.shop?" · "+esc(x.shop):""}</small>`:""}${x.s?`<small>${esc(x.s)}</small>`:""}${bTags(x)?`<span class="btags">${bTags(x)}</span>`:""}</span></button>`;
 function viewBrain(){const seg=meSeg.startsWith("b:")?meSeg.slice(2):"";
+  if(seg.startsWith("docs:")){const c=seg.slice(5),its=bItems("docs").filter(x=>docCat(x)===c);
+    return meHead(DC[c][0]+" "+DC[c][1],"b:docs")+(its.length?`<div class="list">${its.map(bRow).join("")}</div>`:`<p class="empty" style="padding:4px 20px">Пусто. Перешли боту фото или файл документа.</p>`)}
+  if(seg==="docs"){const its=bItems("docs");
+    return meHead("📄 Документы","brain")+`<div class="list">${Object.keys(DC).map(c=>{const n=its.filter(x=>docCat(x)===c).length;return `<button type="button" class="hrow go" data-meseg="b:docs:${c}"><span class="nm"><b>${DC[c][0]} ${DC[c][1]}</b><small>${n||"пусто"}</small></span></button>`}).join("")}</div>`}
   if(seg&&BF[seg]){const its=bItems(seg);
     return meHead(BF[seg][0]+" "+BF[seg][1],"brain")+(its.length?`<div class="list">${its.map(bRow).join("")}</div>`:`<p class="empty" style="padding:4px 20px">Пусто.${seg==="inbox"?" Сюда попадает то, что бот не понял, например голое видео по ссылке.":""}</p>`)
       +(seg==="want"?`<p class="empty" style="padding:8px 20px 0">Отсюда берутся подарки за этапы и цели. Нажми на запись: «Сделать целью».</p>`:"")}
@@ -1180,7 +1194,42 @@ function viewBrain(){const seg=meSeg.startsWith("b:")?meSeg.slice(2):"";
     +(pins.length?`<div class="glabel">К месту сейчас</div>${pins.map(x=>`<section class="nextc"><span class="k">${BF[x.f][0]} ${BF[x.f][1].toUpperCase()}</span><b>${esc(x.t)}</b>${x.pin.why?`<small style="color:var(--muted);font-weight:600;font-size:13px">${esc(x.pin.why)}</small>`:""}<div class="btns"><button type="button" class="line" data-blater="${esc(x.id)}">Позже</button><button type="button" class="goldbtn" data-bitem="${esc(x.id)}">Внедрить</button></div></section>`).join("")}`:"")
     +`<div class="glabel">Папки</div><div class="htiles">${Object.keys(BF).map(f=>{const c=bItems(f).length;return `<button type="button" class="htile" data-meseg="b:${f}">${f==="inbox"&&c?`<i class="sb2">${c}</i>`:""}<span class="hi">${BF[f][0]}</span><span class="tb"><b>${BF[f][1]}</b><small>${c||"пусто"}</small></span></button>`}).join("")}</div>`
     +(n?"":`<p class="empty" style="padding:10px 20px 0">Сюда складывается всё полезное: лайфхаки, идеи, рецепты, места, куда хочешь, справки. Бот сам раскладывает по папкам и достаёт, когда это реально к месту.</p>`)}
-function viewMoney(){return meHead("Деньги")+`<section class="hbig" style="margin-top:6px"><span style="font-size:34px">💰</span><b style="font-size:22px;font-family:inherit;font-weight:800">Скоро</b><span style="text-align:center">Копилка, штрафы и накопления на цели будут здесь. Раздел ещё продумываем.</span></section>`}
+const MC={food:["🛒","Еда"],home:["🧴","Быт"],rent:["🏠","Жильё"],car:["🚗","Машина"],health:["💊","Здоровье"],subs:["📱","Связь и подписки"],fun:["🎮","Развлечения"],cloth:["👕","Одежда"],gift:["🎁","Подарок себе"],fine:["💸","Штрафы"],other:["📦","Прочее"]};
+const MI={ww:["🏛","WW"],work:["💼","Работа"],sale:["🏷","Продажа"],other:["💶","Другое"]};
+const MON=()=>{if(!state.money||typeof state.money!=="object")state.money={};const m=state.money;if(!Array.isArray(m.accts)||!m.accts.length)m.accts=[{id:"bank",n:"Банк",base:0,u:0}];for(const k of ["ops","reg","del"])if(!Array.isArray(m[k]))m[k]=[];if(!m.lim||typeof m.lim!=="object")m.lim={};return m};
+const eur=v=>"€"+(Math.round(v*100)/100).toLocaleString("ru-RU",{maximumFractionDigits:2});
+const ym=()=>key().slice(0,7);
+const mBal=(m,id)=>{const a=m.accts.find(x=>x.id===id);if(!a)return 0;let v=+a.base||0;for(const o of m.ops)if(o.acc===id)v+=o.k==="inc"?o.amt:-o.amt;return Math.round(v*100)/100};
+const mTotal=m=>m.accts.reduce((s,a)=>s+mBal(m,a.id),0);
+const mMonth=m=>m.ops.filter(o=>String(o.d||"").startsWith(ym()));
+const mSpent=m=>{const r={};for(const o of mMonth(m))if(o.k==="exp")r[o.cat]=(r[o.cat]||0)+o.amt;return r};
+const mPigs=()=>GOALS().filter(g=>g.kind!=="health"&&g.metric&&g.metric.unit==="€").map(g=>[g,+gVal(g)||0,gTarget(g)]);
+const mRegLeft=m=>{const d=+key().slice(8,10);return m.reg.filter(r=>r.paid!==ym()&&(+r.day||1)>=d)};
+const daysLeftM=()=>{const k=key(),y=+k.slice(0,4),mo=+k.slice(5,7);return new Date(y,mo,0).getDate()-(+k.slice(8,10))+1};
+const mFree=m=>mTotal(m)-mPigs().reduce((s,p)=>s+p[1],0)-mRegLeft(m).reduce((s,r)=>s+r.amt,0);
+const mEmpty=m=>!m.ops.length&&!m.accts.some(a=>a.base)&&!m.reg.length;
+const mHas=()=>!!(state.money&&((state.money.ops||[]).length||(state.money.accts||[]).some(a=>a.base)));
+function mAdd(k,amt,cat,acc,note,d,src){const m=MON(),o={id:hid("m"),k,amt:Math.round(Math.abs(amt)*100)/100,cat,acc:acc||m.accts[0].id,n:(note||"").slice(0,60),d:d||key(),u:Date.now()};if(src)o.src=src;m.ops.push(o);return o}
+function mWarn(m,cat){const lim=(m.lim||{})[cat];if(!lim)return "";const sp=mSpent(m)[cat]||0;return sp>=lim?`Лимит «${MC[cat][1]}» кончился: ${eur(sp)} из ${eur(lim)}`:sp>=.8*lim?`«${MC[cat][1]}»: осталось ${eur(lim-sp)} на ${daysLeftM()} дн.`:""}
+const opRow=o=>{const c=o.k==="inc"?(MI[o.cat]||MI.other):(MC[o.cat]||MC.other);return `<button type="button" class="hrow go" data-mop="${esc(o.id)}"><span class="mi">${c[0]}</span><span class="nm"><b>${esc(o.n||c[1])}</b><small>${ddmm(o.d)} · ${c[1]}${o.src&&o.src.startsWith("rcpt:")?" · 🧾 чек":""}</small></span><span class="val" style="color:${o.k==="inc"?"var(--okl)":"var(--fg)"}">${o.k==="inc"?"+":"−"}${eur(o.amt)}</span></button>`};
+function viewMoney(){const m=MON();
+  if(meSeg==="money:ops"){const ops=m.ops.slice().sort((a,b)=>(b.d||"").localeCompare(a.d||"")||(b.u||0)-(a.u||0));
+    return meHead("Все операции","money")+(ops.length?`<div class="list">${ops.slice(0,200).map(opRow).join("")}</div>`:'<p class="empty" style="padding:4px 20px">Пусто.</p>')}
+  const head=`<div class="subh"><button type="button" class="bk" data-meseg="" aria-label="Назад">${IC.back}</button><h2>Деньги</h2><button type="button" class="addb" data-mnew="1" aria-label="Добавить трату или доход">+</button></div>`;
+  if(mEmpty(m))return head+`<section class="hsetup"><b>💰 Деньги</b><p>Начни с того, сколько сейчас на счёте. Дальше пиши боту «заправка 60» или «пришло 1200 WW», чеки шли фото, всё посчитается само.</p><button type="button" class="goldbtn" data-macc="${esc(m.accts[0].id)}">Сколько на счёте</button></section>`;
+  const tot=mTotal(m),sp=mSpent(m),spT=Object.values(sp).reduce((a,b)=>a+b,0),inc=mMonth(m).filter(o=>o.k==="inc").reduce((s,o)=>s+o.amt,0),free=mFree(m),dl=daysLeftM(),pigs=mPigs(),rl=mRegLeft(m);
+  const cats=Object.keys(MC).filter(c=>sp[c]||(m.lim||{})[c]).sort((a,b)=>(sp[b]||0)-(sp[a]||0));
+  const ops=m.ops.slice().sort((a,b)=>(b.d||"").localeCompare(a.d||"")||(b.u||0)-(a.u||0)).slice(0,8);
+  return head+`<section class="mhero"><small>Всего сейчас</small><b>${eur(tot)}</b>
+      <div class="macc">${m.accts.map(a=>`<button type="button" class="chip" data-macc="${esc(a.id)}">${esc(a.n)} <b>${eur(mBal(m,a.id))}</b></button>`).join("")}<button type="button" class="chip" data-macc="+">+ счёт</button></div>
+      <p class="mfree">Свободно ${eur(free)}${free>0?` · ~${eur(free/dl)} в день до конца месяца`:""}</p></section>
+    <div class="mrow2"><div class="mc"><small>${new Date(key()+"T12:00:00").toLocaleDateString("ru-RU",{month:"long"})}: потратил</small><b>${eur(spT)}</b></div><div class="mc"><small>Пришло</small><b style="color:var(--okl)">${eur(inc)}</b></div></div>
+    ${cats.length?`<div class="glabel">По категориям <span style="font-weight:700;color:var(--dim);font-size:12px">нажми, чтобы задать лимит</span></div><div class="list">${cats.map(c=>{const lim=(m.lim||{})[c],v=sp[c]||0;return `<button type="button" class="hrow" data-mlim="${c}"><span class="mi">${MC[c][0]}</span><span class="nm"><b>${MC[c][1]}</b>${lim?`<span class="pbar" style="display:block"><i style="width:${Math.min(100,Math.round(v/lim*100))}%;${v>=lim?"background:var(--red)":v>=.8*lim?"background:var(--fire)":""}"></i></span><small>${v>=lim?"лимит кончился":"осталось "+eur(lim-v)+" · ~"+eur((lim-v)/dl)+"/день"}</small>`:"<small>без лимита</small>"}</span><span class="val">${eur(v)}${lim?`<small style="display:block;color:var(--dim);font-size:11px;text-align:right">из ${eur(lim)}</small>`:""}</span></button>`}).join("")}</div>`:`<div class="segfoot" style="padding-top:8px"><button type="button" class="line" data-mlim="food">Задать лимит на месяц</button></div>`}
+    ${pigs.length?`<div class="glabel">Копилки на цели</div><div class="list">${pigs.map(([g,v,t])=>`<button type="button" class="hrow go" data-gopen="${esc(g.id)}"><span class="mi">${esc(g.emoji||"🎯")}</span><span class="nm"><b>${esc(g.name)}</b>${t?`<span class="pbar" style="display:block"><i style="width:${Math.min(100,Math.round(v/t*100))}%;background:var(--fire)"></i></span>`:""}</span><span class="val">${eur(v)}${t?`<small style="display:block;color:var(--dim);font-size:11px;text-align:right">из ${eur(t)}</small>`:""}</span></button>`).join("")}</div>`:""}
+    <div class="glabel">Регулярные${rl.length?` <span style="font-weight:700;color:var(--dim);font-size:12px">впереди ${eur(rl.reduce((s,r)=>s+r.amt,0))}</span>`:""}</div>
+    ${m.reg.length?`<div class="list">${m.reg.slice().sort((a,b)=>(+a.day||1)-(+b.day||1)).map(r=>`<div class="hrow"><button type="button" class="nm" data-mreg="${esc(r.id)}" style="background:none;border:none;color:inherit;font:inherit;text-align:left;padding:0"><b>${esc(r.n)} · ${eur(r.amt)}</b><small>${r.day||1}-го${r.paid===ym()?" · оплачено":""}</small></button>${r.paid===ym()?`<span class="rs ok">${IC.check}</span>`:`<button type="button" class="chip take" data-mpaid="${esc(r.id)}">Оплачено</button>`}</div>`).join("")}</div>`:""}
+    <div class="segfoot" style="padding-top:8px"><button type="button" class="line" data-mreg="+">+ Регулярный платёж</button></div>
+    <div class="glabel">Последние</div>${ops.length?`<div class="list">${ops.map(opRow).join("")}</div>${m.ops.length>8?`<div class="segfoot" style="padding-top:8px"><button type="button" class="line" data-meseg="money:ops">Все операции (${m.ops.length})</button></div>`:""}`:'<p class="empty" style="padding:4px 20px">Пока пусто. Нажми «+» или напиши боту «заправка 60».</p>'}`}
 function bFileUrl(x){const tgw=window.Telegram&&Telegram.WebApp;return "api/brainfile?id="+encodeURIComponent(x.id)+"&init="+encodeURIComponent(tgw?tgw.initData:"")}
 function bOpen(url){const tgw=window.Telegram&&Telegram.WebApp;if(tgw&&tgw.openLink)tgw.openLink(url);else window.open(url,"_blank")}
 function bTask(x,day){const d=dayOf(day);mutate(()=>{d.custom.push({id:"c"+Date.now().toString(36),name:x.t.slice(0,60),dur:30,brain:x.id});x.st="used";delete x.pin;touch(x)})}
@@ -1199,6 +1248,10 @@ const HL={sleep:{t:"Сон",ic:"😴",u:"ч сна",ph:"Сколько спал,
 const hlog=k=>((state.hlog||{})[k]||[]);
 const hlToday=k=>{const e=hlog(k).find(x=>x.d===key());return e?e.v:null};
 function hlSet(k,v){mutate(()=>{state.hlog=Object.assign({},state.hlog||{});const a=hlog(k).filter(x=>x.d!==key());a.push({d:key(),v});state.hlog[k]=a.slice(-120)})}
+function sleepAuto(k){const d=(state.days||{})[k];if(!d||!d.woke)return null;const pd=(state.days||{})[shift(k,-1)];let last=null;
+  for(const e of (pd&&pd.ev)||[]){if(!e||!e[0])continue;const m=toMin(e[0]);if(m>=1080&&(last==null||m>last))last=m}
+  if(last==null)last=toMin(prof().bed||"23:30");const v=toMin(d.woke)+1440-last;return v>=120&&v<=900?Math.round(v/6)/10:null}
+const sleepOf=k=>{const e=hlog("sleep").find(x=>x.d===k);return e?e.v:sleepAuto(k)};
 const hlFmt=(k,v)=>v==null?"—":k==="steps"?Number(v).toLocaleString("ru-RU"):String(v).replace(".",",");
 function migHealth(){const P=prof();if(P.hv2||(BOT&&!window.QD_LOADED))return;
   const gs=Array.isArray(P.goals)?P.goals.filter(g=>!g.legacy&&!["body","chan","goal"].includes(g.id)):[];
@@ -1212,6 +1265,11 @@ function viewHealth(){const H=healthGoal(),seg=meSeg.startsWith("h:")?meSeg.slic
       :`<section class="hsetup" style="margin-top:6px"><b>Плана пока нет</b><p>Напиши, чего хочешь от тела, и я составлю тренировки.</p><button type="button" class="goldbtn" data-hsetup="1">Настроить</button></section>`)}
   if(seg==="weight")return meHead("Вес","health")+viewGym("hero")+viewGym("weight");
   if(seg==="lifts")return meHead("Рекорды","health")+viewGym("lifts");
+  if(seg==="sleep"){const v=sleepOf(key()),days=Array.from({length:7},(_,i)=>shift(key(),-i)).map(k=>[k,sleepOf(k)]).filter(x=>x[1]!=null);
+    return meHead("Сон","health")+`<section class="hbig"><span style="font-size:28px">😴</span><b>${v!=null?hlFmt("sleep",v):"—"}</b><span>${v!=null?"ч сна этой ночью":"нажми «Я встал» утром, посчитаю сам"}</span></section>
+      <p class="empty" style="padding:8px 20px 0">Считаю сам: от последней отметки вчера вечером до «Я встал». Ошибся, впиши сам.</p>
+      <form class="add" data-add="hlog:sleep"><div class="r"><input name="t" inputmode="decimal" placeholder="Сколько спал, часов" aria-label="Сколько спал, часов" autocomplete="off"><button type="submit" aria-label="Записать">+</button></div></form>
+      ${days.length?`<div class="glabel">Последние дни</div><div class="list">${days.map(([k,x])=>`<div class="hrow"><span class="nm"><b>${ddmm(k)}</b></span><span class="val" style="color:${x<6?"var(--red)":"var(--fg)"}">${hlFmt("sleep",x)} ч</span></div>`).join("")}</div>`:""}`}
   if(HL[seg]){const L=HL[seg],v=hlToday(seg),last=hlog(seg).slice(-7).reverse();
     return meHead(L.t,"health")+`<section class="hbig"><span style="font-size:28px">${L.ic}</span><b>${hlFmt(seg,v)}${L.goal?`<span style="font-size:22px;color:var(--dim)"> / ${L.goal}</span>`:""}</b><span>${L.u} сегодня</span>
       ${seg==="water"?`<div class="btns"><button type="button" class="hw" data-water="-1">− 1</button><button type="button" class="hw on" data-water="1">+ стакан</button></div>`:""}</section>
@@ -1222,7 +1280,7 @@ function viewHealth(){const H=healthGoal(),seg=meSeg.startsWith("h:")?meSeg.slic
   return meHead("Здоровье")
     +(H?`<section class="hfocus"><b>${esc(H.emoji||"💪")} ${esc(H.name)}</b>${it?`<small>🔥 ${esc(it.name)}: ${wd[0]} из ${wd[1]} за неделю</small>${gWins(it)}`:""}</section>`
       :`<section class="hsetup"><b>💪 Здоровье</b><p>Есть у каждого. Напиши, чего хочешь от тела: похудеть, набрать, подтягиваться, высыпаться. План тренировок предложу сам.</p><button type="button" class="goldbtn" data-hsetup="1">Настроить здоровье</button></section>`)
-    +`<div class="glabel">Разделы</div><div class="htiles">${tile("train","🏋️","Тренировки",it?daysTxt(it):"нет плана")}${tile("weight","⚖️","Вес",kg!=null?kg+" кг"+(gk?" · цель "+gk:""):"записать")}${tile("lifts","🏆","Рекорды",exs.length?exs.length+" упражн.":"записать")}${tile("sleep","😴","Сон",hlToday("sleep")!=null?hlFmt("sleep",hlToday("sleep"))+" ч":"записать")}${tile("water","💧","Вода",(hlToday("water")||0)+" из 8")}${tile("steps","👣","Шаги",hlToday("steps")!=null?hlFmt("steps",hlToday("steps")):"записать")}</div>`
+    +`<div class="glabel">Разделы</div><div class="htiles">${tile("train","🏋️","Тренировки",it?daysTxt(it):"нет плана")}${tile("weight","⚖️","Вес",kg!=null?kg+" кг"+(gk?" · цель "+gk:""):"записать")}${tile("lifts","🏆","Рекорды",exs.length?exs.length+" упражн.":"записать")}${tile("sleep","😴","Сон",sleepOf(key())!=null?hlFmt("sleep",sleepOf(key()))+" ч":"по «Я встал»")}${tile("water","💧","Вода",(hlToday("water")||0)+" из 8")}${tile("steps","👣","Шаги",hlToday("steps")!=null?hlFmt("steps",hlToday("steps")):"записать")}</div>`
     +(H?`<div class="segfoot"><button type="button" class="line" data-hsetup="1">Изменить план здоровья</button></div>`:"")}
 function rungState(r){const open=rungOpen(r),claimed=rungClaimed(r);
   return claimed?"got":open?"open":"locked"}
@@ -1277,9 +1335,11 @@ document.addEventListener("change",e=>{
   if(gg){const id=gg.dataset.ggift,v=gg.value.trim().slice(0,80);mutate(()=>{state.gifts=Object.assign({},state.gifts||{},{[id]:v})});return}
   const sf=e.target.closest("[data-shf]");
   if(sf&&W){const H=houseOf(),f=sf.dataset.shf,v=sf.value;
-    if(W.step==="hitem"){const x=H.items.find(i=>i.id===W.id);if(x)mutate(()=>{if(f==="until"){if(v)x.until=v;else delete x.until}if(f==="cat")x.cat=v;touch(x)})}
+    if(W.step==="hitem"){const x=H.items.find(i=>i.id===W.id);if(x)mutate(()=>{if(f==="until"){if(v)x.until=v;else delete x.until}if(f==="cat")x.cat=v;
+      if(f==="amt"){const n=parseFloat(String(v).replace(",","."));if(isNaN(n)||v===""){delete x.amt}else{x.amt=n;x.unit=x.unit||"шт";delete x.qty;x.level=n<=0?"out":n<(AMT_LOW[x.unit]||1)?"low":"ok"}}
+      if(f==="unit"){x.unit=v;if(x.amt!=null)x.level=x.amt<=0?"out":x.amt<(AMT_LOW[v]||1)?"low":"ok"}touch(x)})}
     if(W.step==="chorei"){const c=H.chores.find(i=>i.id===W.id);if(c)mutate(()=>{c[f]=+v;touch(c)})}
-    renderSheet();return}
+    setTimeout(()=>{if(W)renderSheet()});return}
   const pn=e.target.closest("[data-pen]");
   if(pn){const P=prof(),f=pn.dataset.pen,v=pn.value.trim();
     mutate(()=>{if(f==="task")setProf({penalty:v?Object.assign({fine:5,to:"копилку"},P.penalty||{},{task:v}):null});
@@ -1316,6 +1376,12 @@ document.addEventListener("click",e=>{
   if(t.dataset.gopen){tab="goals";goalSeg=t.dataset.gopen;render();window.scrollTo(0,0);return}
   if(t.dataset.gback){goalSeg="";render();window.scrollTo(0,0);return}
   if(t.dataset.hsetup){W={step:"gtext",text:"",health:1};renderSheet();return}
+  if(t.dataset.mnew){const m=MON();W={step:"mop",isNew:true,o:{id:hid("m"),k:"exp",amt:0,cat:"food",acc:m.accts[0].id,n:"",d:key()}};renderSheet();return}
+  if(t.dataset.mop){const o=MON().ops.find(x=>x.id===t.dataset.mop);if(o){W={step:"mop",isNew:false,o:clone(o)};renderSheet()}return}
+  if(t.dataset.macc){W={step:"macc",isNew:t.dataset.macc==="+",id:t.dataset.macc};renderSheet();return}
+  if(t.dataset.mlim){W={step:"mlim",cat:t.dataset.mlim};renderSheet();return}
+  if(t.dataset.mreg){W={step:"mreg",isNew:t.dataset.mreg==="+",id:t.dataset.mreg};renderSheet();return}
+  if(t.dataset.mpaid){const m=MON(),r=m.reg.find(x=>x.id===t.dataset.mpaid);if(r){let warn="";mutate(()=>{mAdd("exp",r.amt,r.cat||"other",r.acc,r.n,null,"reg:"+r.id);r.paid=ym();r.u=Date.now();warn=mWarn(m,r.cat||"other")});toast(warn||r.n+": оплачено, "+eur(r.amt)+" в тратах")}return}
   if(t.dataset.bitem){W={step:"bitem",id:t.dataset.bitem};renderSheet();return}
   if(t.dataset.blater){const x=bById(t.dataset.blater);if(x)mutate(()=>{x.pin=Object.assign({},x.pin,{off:1});touch(x)});toast("Ок, полежит. Достану, когда будет к месту");return}
   if(t.dataset.water){const v=Math.max(0,(hlToday("water")||0)+(+t.dataset.water));hlSet("water",v);return}
@@ -1454,6 +1520,29 @@ function renderSheet(){
     body=`<h2>${esc(W.name)}</h2><p class="q">${W.house?"Дело из Дома: перенос значит «не сегодня», завтра оно снова в плане.":"Перенести на"}</p>
       ${W.house?"":`<div class="sopts"><button type="button" class="opt" data-w="mvto:${t1}" aria-pressed="${W.to===t1}">Завтра</button><button type="button" class="opt" data-w="mvto:${t2}" aria-pressed="${W.to===t2}">Послезавтра</button><label class="opt" style="position:relative;overflow:hidden;display:grid;place-items:center" aria-pressed="${oth}">${oth?ddmm(W.to):"Дата…"}<input type="date" id="mvdate" min="${t1}" style="position:absolute;inset:0;opacity:0"></label></div>`}
       <button type="button" class="goldbtn" data-w="mvgo">${W.house?"Не сегодня, завтра":"Перенести"}</button>${dele("mvdel",W.house?"Убрать из моего плана":"Убрать совсем")}`}
+  if(W.step==="mop"){const m=MON(),o=W.o,cats=o.k==="inc"?MI:MC;
+    body=`<h2>${W.isNew?"Новая запись":"Операция"}</h2><div class="opts three" style="grid-template-columns:1fr 1fr"><button type="button" class="opt" data-w="mk:exp" aria-pressed="${o.k==="exp"}">Трата</button><button type="button" class="opt" data-w="mk:inc" aria-pressed="${o.k==="inc"}">Доход</button></div>
+      <form data-wf="mop" style="display:flex;flex-direction:column;gap:8px"><input name="amt" inputmode="decimal" value="${o.amt||""}" placeholder="Сумма, €" aria-label="Сумма" autocomplete="off"><input name="n" maxlength="60" value="${esc(o.n||"")}" placeholder="${o.k==="inc"?"Откуда, например WW":"На что, например заправка"}" aria-label="Заметка" autocomplete="off"></form>
+      <p class="rl">Категория</p><div class="perm">${Object.keys(cats).map(c=>`<button type="button" class="chip" data-w="mc:${c}" aria-pressed="${o.cat===c}">${cats[c][0]} ${cats[c][1]}</button>`).join("")}</div>
+      ${m.accts.length>1?`<p class="rl">Счёт</p><div class="perm">${m.accts.map(a=>`<button type="button" class="chip" data-w="ma:${esc(a.id)}" aria-pressed="${o.acc===a.id}">${esc(a.n)}</button>`).join("")}</div>`:""}
+      <div class="srow2">Дата<input type="date" id="mdate" value="${o.d||key()}" aria-label="Дата"></div>
+      <button type="button" class="goldbtn" data-w="msave">Сохранить</button>${W.isNew?"":`<button type="button" class="dellink" data-w="mdel">Удалить</button>`}`}
+  if(W.step==="macc"){const m=MON(),a=W.isNew?null:m.accts.find(x=>x.id===W.id);
+    body=`<h2>${a?esc(a.n):"Новый счёт"}</h2><p class="q">${a?"Сверка: впиши, сколько на счёте сейчас. Разницу учту сам.":"Например: Наличные, Trading 212, крипта."}</p>
+      <form data-wf="macc" style="display:flex;flex-direction:column;gap:8px">${a?"":`<input name="n" maxlength="30" placeholder="Название" aria-label="Название" autocomplete="off">`}<input name="v" inputmode="decimal" value="${a?mBal(m,a.id):""}" placeholder="Сейчас на счёте, €" aria-label="Сейчас на счёте" autocomplete="off"></form>
+      <button type="button" class="goldbtn" data-w="maccsave">Сохранить</button>${a&&m.accts.length>1&&!m.ops.some(o=>o.acc===a.id)?`<button type="button" class="dellink" data-w="maccdel">Удалить счёт</button>`:""}`}
+  if(W.step==="mlim"){const m=MON(),c=W.cat,v=(m.lim||{})[c]||"";
+    body=`<h2>Лимит на месяц</h2><div class="perm">${Object.keys(MC).filter(x=>x!=="fine").map(x=>`<button type="button" class="chip" data-w="ml:${x}" aria-pressed="${c===x}">${MC[x][0]} ${MC[x][1]}</button>`).join("")}</div>
+      <form data-wf="mlim"><input name="v" inputmode="decimal" value="${v}" placeholder="€ в месяц, пусто = без лимита" aria-label="Лимит" autocomplete="off"></form>
+      <p class="rhint">Бот предупредит на 80% и когда лимит кончится, и подскажет, сколько можно в день.</p><button type="button" class="goldbtn" data-w="mlsave">Сохранить</button>`}
+  if(W.step==="mreg"){const m=MON(),r0=W.isNew?{n:"",amt:"",day:1,cat:"rent"}:m.reg.find(x=>x.id===W.id);if(!r0){closeSheet();return}W.cat=W.cat||r0.cat;const r=Object.assign({},r0,W.f||{});
+    body=`<h2>${W.isNew?"Регулярный платёж":esc(r.n)}</h2><p class="q">Аренда, телефон, страховка, подписки. Напомню накануне.</p>
+      <form data-wf="mreg" style="display:flex;flex-direction:column;gap:8px"><input name="n" maxlength="40" value="${esc(r.n)}" placeholder="Название" aria-label="Название" autocomplete="off"><input name="amt" inputmode="decimal" value="${r.amt}" placeholder="Сумма, €" aria-label="Сумма" autocomplete="off"><input name="day" inputmode="numeric" value="${r.day||1}" placeholder="Какого числа" aria-label="Какого числа" autocomplete="off"></form>
+      <div class="perm">${["rent","subs","car","health","other"].map(x=>`<button type="button" class="chip" data-w="mrc:${x}" aria-pressed="${W.cat===x}">${MC[x][0]} ${MC[x][1]}</button>`).join("")}</div>
+      <button type="button" class="goldbtn" data-w="mrsave">Сохранить</button>${W.isNew?"":`<button type="button" class="dellink" data-w="mrdel">Удалить</button>`}`}
+  if(W.step==="mbuy"){const x=bById(W.id);if(!x){closeSheet();return}
+    body=`<h2>Купил: ${esc(x.t)}</h2><p class="q">Запишу трату и закрою запись в «Хочу».</p><form data-wf="mbuy"><input name="v" inputmode="decimal" placeholder="Сколько стоило, €" aria-label="Цена" autocomplete="off"></form>
+      <div class="perm">${["cloth","fun","home","health","car","gift","other"].map(c=>`<button type="button" class="chip" data-w="mbc:${c}" aria-pressed="${(W.cat||"other")===c}">${MC[c][0]} ${MC[c][1]}</button>`).join("")}</div><button type="button" class="goldbtn" data-w="mbsave">Записать</button>`}
   if(W.step==="bitem"){const x=bById(W.id);if(!x){closeSheet();return}const fo=BF[x.f]||BF.inbox;
     body=`<p class="rgoal" style="margin:0">${fo[0]} ${fo[1]}${x.d?" · "+ddmm(x.d):""}</p><h2 style="margin-top:2px">${esc(x.t)}</h2>${x.s?`<p class="q" style="margin:0">${esc(x.s)}</p>`:""}
       ${x.pin&&x.pin.why&&!x.pin.off?`<div class="gwarn" style="background:#2a2014;color:var(--gold)">🧠 ${esc(x.pin.why)}</div>`:""}
@@ -1461,8 +1550,10 @@ function renderSheet(){
       ${x.file&&x.file.kind==="photo"?`<img class="bimg" src="${bFileUrl(x)}" alt="${esc(x.t)}">`:""}
       <div class="perm">${x.url?`<button type="button" class="chip" data-w="bopen">🔗 Открыть ссылку</button>`:""}${x.file&&x.file.kind!=="photo"?`<button type="button" class="chip" data-w="bfile">📄 Открыть файл</button>`:""}</div>
       ${x.st==="done"?"":`${x.f!=="docs"?`<p class="rl">Сделать делом</p><div class="opts three"><button type="button" class="opt" data-w="bt:0">Сегодня</button><button type="button" class="opt" data-w="bt:1">Завтра</button><button type="button" class="opt" data-w="broutine">В распорядок</button></div>`:""}
+      ${x.f==="want"?`<button type="button" class="line" data-w="bbuy">🛍 Купил</button>`:""}
       ${x.f==="want"||x.f==="ideas"?`<button type="button" class="line" data-w="bgoal">🎯 Сделать целью</button>`:""}
       ${x.f==="apply"||x.f==="ideas"?`<button type="button" class="line" data-w="bdone">✓ Уже применил</button>`:""}`}
+      ${x.f==="docs"?`<p class="rl">Категория</p><div class="perm">${Object.keys(DC).map(c=>`<button type="button" class="chip" data-w="bdc:${c}" aria-pressed="${docCat(x)===c}">${DC[c][0]} ${DC[c][1]}</button>`).join("")}</div>`:""}
       <p class="rl">Папка</p><div class="perm">${Object.keys(BF).filter(f=>f!=="inbox").map(f=>`<button type="button" class="chip" data-w="bmv:${f}" aria-pressed="${x.f===f}">${BF[f][0]} ${BF[f][1]}</button>`).join("")}</div>
       <button type="button" class="dellink" data-w="bdel">Удалить из мозга</button>`}
   if(W.step==="prepnew")body=`<h2>Что приготовил?</h2><form data-wf="prep"><input name="v" maxlength="60" value="${esc(W.name)}" placeholder="Например: курица с рисом" autocomplete="off" aria-label="Блюдо"></form>
@@ -1471,7 +1562,9 @@ function renderSheet(){
   if(W.step==="hitem"){const x=H.items.find(i=>i.id===W.id);if(!x){closeSheet();return}
     body=`<h2>${esc(x.name)}</h2><p class="q">${HCATS[x.cat]}${x.until?" · до "+ddmm(x.until):""}</p>`
       +(x.cat==="prep"?`<div class="sopts"><button type="button" class="opt" data-w="pmin">−1</button><button type="button" class="opt" aria-pressed="true">${x.n} порц.</button><button type="button" class="opt" data-w="pplus">+1</button></div>`
-        :opt3([["ok","Есть"],["low","Мало"],["out","Кончилось"]],x.level,"lvl"))
+        :opt3([["ok","Есть"],["low","Мало"],["out","Кончилось"]],x.level,"lvl")
+          +`<div class="srow2">Сколько осталось<span style="display:flex;gap:6px"><input type="text" inputmode="decimal" data-shf="amt" value="${x.amt!=null?x.amt:""}" placeholder="—" aria-label="Сколько осталось" style="width:80px"><select data-shf="unit" aria-label="Единица">${["г","мл","шт"].map(u=>`<option${(x.unit||"шт")===u?" selected":""}>${u}</option>`).join("")}</select></span></div>
+          <p class="rhint">Бот списывает сам, когда пишешь, что ел. Меньше ${AMT_LOW[x.unit||"шт"]} ${x.unit||"шт"}: «мало» и в покупки.</p>`)
       +`<div class="srow2">Годно до<input type="date" data-shf="until" value="${x.until||""}" aria-label="Годно до"></div>
       ${x.cat==="prep"?"":`<div class="srow2">Категория<select data-shf="cat" aria-label="Категория">${Object.entries(HCATS).filter(([c])=>c!=="prep").map(([c,t])=>`<option value="${c}"${c===x.cat?" selected":""}>${t}</option>`).join("")}</select></div>`}
       ${dele("hidel","Удалить из списка")}`}
@@ -1590,7 +1683,7 @@ $("sheet").addEventListener("click",e=>{
       logEv(d,"skip",id)});toast("Убрал. План пересчитан");return}
   if(a.startsWith("pn:")){const v=nmV();W.name=v;W.n=+a.slice(3);return renderSheet()}
   if(a==="prepsave"){const v=nmV();if(!v){toast("Напиши, что приготовил");return}const n=W.n;closeSheet();mutate(()=>prepAdd(v,n));toast("Заготовка: "+v+", "+n+" порц.");return}
-  if(a.startsWith("lvl:")){const x=H.items.find(i=>i.id===W.id);if(x){const l=a.slice(4);mutate(()=>{x.level=l;if(l==="ok"){const u=untilFor(x.name,x.cat);if(u)x.until=u}else if(l==="out")delete x.until;touch(x)})}return renderSheet()}
+  if(a.startsWith("lvl:")){const x=H.items.find(i=>i.id===W.id);if(x){const l=a.slice(4);mutate(()=>{x.level=l;if(l==="out"&&x.amt!=null)x.amt=0;if(l==="ok"){const u=untilFor(x.name,x.cat);if(u)x.until=u}else if(l==="out")delete x.until;touch(x)})}return renderSheet()}
   if(a==="pmin"||a==="pplus"){const x=H.items.find(i=>i.id===W.id);if(!x)return;if(a==="pmin"){mutate(()=>prepEat(x));if(!x.n)return closeSheet()}else mutate(()=>{x.n=(x.n|0)+1;touch(x)});return renderSheet()}
   if(a==="hidel"){const id=W.id;closeSheet();mutate(()=>{H.items=H.items.filter(i=>i.id!==id);H.del.push(id)});toast("Удалил");return}
   if(a==="sbought"){const x=(W.kind==="item"?H.items:H.shop).find(i=>i.id===W.id),kind=W.kind;closeSheet();if(x)mutate(()=>markBought(kind,x));toast("Куплено");return}
@@ -1619,9 +1712,13 @@ $("sheet").addEventListener("click",e=>{
   if(a==="pnext"||a==="psave"){const v=$("sheet").querySelector("input[name=v]");if(v){if(W.step==="pcity")W.prefs.city=v.value.trim().slice(0,40);if(W.step==="pmore")W.prefs.more=v.value.trim().slice(0,120)}
     if(a==="psave"){const pr=W.prefs;closeSheet();mutate(()=>{state.prefs=pr});toast("Вкусы сохранены. Жми «Подобрать подарок».");return}
     W.step=PSTEPS[PSTEPS.indexOf(W.step)+1];return renderSheet()}
-  if(a==="gsave"){const v=$("sheet").querySelector("input[name=v]").value.trim(),id=W.rung;closeSheet();mutate(()=>{state.gifts=Object.assign({},state.gifts||{},{[id]:v.slice(0,80)})});toast(v?"Подарок записан":"Подарок убран");return}
+  if(a==="gsave"){const v=$("sheet").querySelector("input[name=v]").value.trim(),id=W.rung;closeSheet();mutate(()=>{state.gifts=Object.assign({},state.gifts||{},{[id]:v.slice(0,80)});
+      for(const x of bAll())if(x.gift===id&&x.t.slice(0,80)!==v.slice(0,80)){delete x.gift;touch(x)}
+      const w=bItems("want").find(x=>x.t.slice(0,80)===v.slice(0,80));if(w){w.gift=id;touch(w)}});toast(v?"Подарок записан":"Подарок убран");return}
   if(a==="gfind"){findGifts(W.rung);return}
-  if(a==="claim"){const r=findRung(W.rung);closeSheet();mutate(()=>{state.claims=Object.assign({},state.claims||{},{[claimKey(r)]:key()})});toast("Кайфуй. Ты это заработал.");return}
+  if(a==="claim"){const r=findRung(W.rung);closeSheet();mutate(()=>{state.claims=Object.assign({},state.claims||{},{[claimKey(r)]:key()});
+      if(r.budget>0)mAdd("exp",r.budget,"gift",null,(state.gifts||{})[r.id]||r.t,null,"gift:"+r.id);
+      const w=bAll().find(x=>x.gift===r.id);if(w){w.st="done";touch(w)}});toast("Кайфуй. Ты это заработал.");return}
   if(a==="flag"){const r=findRung(W.rung);closeSheet();mutate(()=>{state.goals=Object.assign({},goalsSt(),{[r.flag]:true})});return}
   if(a==="tochan"){W={step:"chan"};return renderSheet()}
   if(a==="take"){const d=dayOf(key());closeSheet();mutate(()=>{if(!d.smokes)d.firstSmoke=hhmm();d.smokes=(d.smokes||0)+1;logEv(d,"reward","")});return}
@@ -1651,9 +1748,31 @@ $("sheet").addEventListener("click",e=>{
   if(a==="broutine"){const x=bById(W.id);if(!x)return;mutate(()=>{x.st="used";delete x.pin;touch(x)});openRoutine("+");W.it.name=x.t.slice(0,60);renderSheet();return}
   if(a==="bgoal"){const x=bById(W.id);if(!x)return;W={step:"gtext",text:x.t+(x.s?". "+x.s:""),fromBrain:x.id};renderSheet();return}
   if(a==="bdone"){const x=bById(W.id);closeSheet();if(x)mutate(()=>{x.st="done";delete x.pin;touch(x)});toast("Отметил: применил. Больше не предложу");return}
+  if(a.startsWith("bdc:")){const x=bById(W.id),c=a.slice(4);if(x&&DC[c])mutate(()=>{x.c=c;touch(x)});return renderSheet()}
   if(a.startsWith("bmv:")){const x=bById(W.id),f=a.slice(4);if(x&&BF[f])mutate(()=>{x.f=f;delete x.ask;touch(x)});return renderSheet()}
   if(a==="bdel"){const id=W.id;closeSheet();mutate(()=>{const B=BR();B.items=B.items.filter(x=>x.id!==id);B.del=B.del.concat([id]).slice(-300)});toast("Удалил из мозга");return}
   if(a.startsWith("gwant:")){const x=bItems("want")[+a.slice(6)],i=$("sheet").querySelector("input[name=v]");if(x&&i)i.value=x.t.slice(0,80);return}
+  if(a.startsWith("mk:")){W.o.k=a.slice(3);W.o.cat=W.o.k==="inc"?"ww":"food";mKeep();return renderSheet()}
+  if(a.startsWith("mc:")){W.o.cat=a.slice(3);mKeep();return renderSheet()}
+  if(a.startsWith("ma:")){W.o.acc=a.slice(3);mKeep();return renderSheet()}
+  if(a==="msave"){mKeep();const o=W.o;if(!(o.amt>0)){toast("Впиши сумму");return}const m=MON();closeSheet();let warn="";
+    mutate(()=>{const ex=m.ops.find(x=>x.id===o.id);if(ex)Object.assign(ex,o,{u:Date.now()});else m.ops.push(Object.assign(o,{u:Date.now()}));if(o.k==="exp")warn=mWarn(m,o.cat)});toast(warn||"Записал");return}
+  if(a==="mdel"){const id=W.o.id,m=MON();closeSheet();mutate(()=>{m.ops=m.ops.filter(x=>x.id!==id);m.del=m.del.concat([id]).slice(-500)});toast("Удалил");return}
+  if(a==="maccsave"){const m=MON(),f=$("sheet").querySelector("form[data-wf=macc]"),v=parseFloat(String(f.v.value).replace(",","."));if(isNaN(v)){toast("Впиши сумму");return}
+    const isNew=W.isNew;let ac=isNew?null:m.accts.find(x=>x.id===W.id);if(isNew){const n=(f.n.value||"").trim();if(!n){toast("Назови счёт");return}ac={id:hid("a"),n:n.slice(0,30),base:0,u:0}}
+    closeSheet();mutate(()=>{if(isNew)m.accts.push(ac);ac.base=Math.round(((+ac.base||0)+v-mBal(m,ac.id))*100)/100;ac.u=Date.now()});toast(ac.n+": "+eur(v));return}
+  if(a==="maccdel"){const m=MON(),id=W.id;closeSheet();mutate(()=>{m.accts=m.accts.filter(x=>x.id!==id);m.del=m.del.concat([id])});return}
+  if(a.startsWith("ml:")){W.cat=a.slice(3);return renderSheet()}
+  if(a==="mlsave"){const m=MON(),v=parseFloat(String($("sheet").querySelector("input[name=v]").value).replace(",","."));const c=W.cat;closeSheet();mutate(()=>{m.lim=Object.assign({},m.lim,{[c]:v>0?v:0});m.lu=Date.now()});toast(v>0?"Лимит "+MC[c][1]+": "+eur(v)+" в месяц":"Лимит убран");return}
+  if(a.startsWith("mrc:")){mrKeep();W.cat=a.slice(4);return renderSheet()}
+  if(a==="mrsave"){const m=MON(),f=$("sheet").querySelector("form[data-wf=mreg]"),n=f.n.value.trim(),amt=parseFloat(String(f.amt.value).replace(",",".")),day=Math.min(31,Math.max(1,parseInt(f.day.value,10)||1));
+    if(!n||!(amt>0)){toast("Название и сумма");return}const isNew=W.isNew,id=W.id,cat=W.cat||"other";closeSheet();
+    mutate(()=>{let r=isNew?null:m.reg.find(x=>x.id===id);if(!r){r={id:hid("r")};m.reg.push(r)}Object.assign(r,{n:n.slice(0,40),amt,day,cat,u:Date.now()})});toast("Сохранил. Напомню накануне");return}
+  if(a==="mrdel"){const m=MON(),id=W.id;closeSheet();mutate(()=>{m.reg=m.reg.filter(x=>x.id!==id);m.del=m.del.concat([id])});return}
+  if(a.startsWith("mbc:")){const i=$("sheet").querySelector("input[name=v]");W.v=i?i.value:"";W.cat=a.slice(4);renderSheet();const j=$("sheet").querySelector("input[name=v]");if(j)j.value=W.v||"";return}
+  if(a==="mbsave"){const x=bById(W.id),v=parseFloat(String($("sheet").querySelector("input[name=v]").value).replace(",","."));if(!(v>0)){toast("Впиши цену");return}const cat=W.cat||"other";closeSheet();let warn="";
+    mutate(()=>{mAdd("exp",v,cat,null,x.t,null,"want:"+x.id);x.st="done";delete x.pin;touch(x);warn=mWarn(MON(),cat)});toast(warn||"Записал трату, «"+x.t+"» закрыта");return}
+  if(a==="bbuy"){W={step:"mbuy",id:W.id,cat:"other"};return renderSheet()}
   if(a==="gtnext"){const v=$("sheet").querySelector("textarea[name=v]").value.trim();if(v.length<3){toast("Напиши, чего хочешь");return}W.text=v;W.ans={};goalAsk();return}
   if(a.startsWith("ga:")){gqKeep();const [,qid,i]=a.split(":"),q=(W.qs.questions||[]).find(x=>x.id===qid);if(q){W.ans[qid]=W.ans[qid]===q.options[+i]?"":q.options[+i]}return renderSheet()}
   if(a==="gqnext"){gqKeep();goalPlan("");return}
@@ -1700,6 +1819,8 @@ $("sheet").addEventListener("click",e=>{
     mutate(()=>state.lifts.push({d:key(),ex:ex.slice(0,40),kg:Math.round(kg*10)/10,reps}));toast(L.length&&kg*(1+reps/30)>prev?"Новый рекорд в «"+ex+"»":"Подход записан");return}
 });
 // поля окошек распорядка и цели: запоминаем введённое до перерисовки
+function mKeep(){const f=$("sheet").querySelector("form[data-wf=mop]");if(!f)return;const v=parseFloat(String(f.amt.value).replace(",","."));W.o.amt=isNaN(v)?0:Math.round(v*100)/100;W.o.n=f.n.value.trim().slice(0,60);const d=$("mdate");if(d&&d.value)W.o.d=d.value}
+function mrKeep(){const f=$("sheet").querySelector("form[data-wf=mreg]");if(f)W.f={n:f.n.value,amt:f.amt.value,day:f.day.value}}
 function rKeep(){const n=$("sheet").querySelector("input[name=v]"),c=$("sheet").querySelector("input[name=check]"),tm=$("rtime");
   if(n)W.it.name=n.value.trim().slice(0,60);if(c)W.it.check=c.value.trim().slice(0,200)||undefined;if(tm&&tm.value)W.it.at=tm.value}
 function gqKeep(){const f=$("sheet").querySelector("form[data-wf=gq]");if(!f)return;for(const q of (W.qs&&W.qs.questions)||[]){const el=f.querySelector(`[name="${q.id}"]`);if(el&&el.value.trim())W.ans[q.id]=el.value.trim()}}

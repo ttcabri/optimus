@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 FOLDERS = {"inbox": "Разобрать", "ideas": "Идеи", "apply": "Применить", "recipes": "Рецепты", "want": "Хочу", "docs": "Документы"}
 ICON = {"inbox": "📥", "ideas": "💡", "apply": "🎯", "recipes": "🍳", "want": "🌍", "docs": "📄"}
+DOC_CATS = {"receipts": "Чеки", "health": "Здоровье", "work": "Работа и WW", "home": "Жильё", "car": "Машина", "personal": "Личные", "other": "Прочее"}
 URL_RE = re.compile(r"https?://\S+")
 
 
@@ -71,6 +72,8 @@ def merge(server: dict | None, incoming: dict | None) -> dict | None:
     out["ru"] = max(server.get("ru", 0), incoming.get("ru", 0))
     out["items"] = _merge_list(server.get("items") or [], incoming.get("items") or [], dead)
     out["del"] = sorted(dead)[-300:]
+    if server.get("ask"):
+        out["ask"] = server["ask"]
     return out
 
 
@@ -144,7 +147,8 @@ inbox (если по содержимому НЕЛЬЗЯ понять, о чём
 "offer": "одна короткая фраза-предложение, что с этим сделать сейчас, или пусто. Например: «Вставить это в Теорию на этой неделе?»",
 "act": "task если можно сделать делом, habit если привычкой в распорядок, goal если это может стать целью (для want), read если просто знать, или пусто",
 "memory": "факт о самом человеке, если вещь его раскрывает (например: хочет в Норвегию), иначе пусто",
-"ask": "если folder=inbox: короткий вопрос, о чём это, иначе пусто"}}"""
+"ask": "если folder=inbox: короткий вопрос, о чём это, иначе пусто",
+"doc": "если folder=docs: receipts (чеки), health (справки, анализы), work (работа, WW, UWV), home (жильё, аренда), car (машина), personal (паспорт, права, личное), other"}}"""
 
 
 async def classify(state: dict, content: str) -> dict:
@@ -195,6 +199,8 @@ async def ingest(state: dict, text: str = "", file: dict | None = None, src: str
         it["file"] = file
     if c.get("act") in ("task", "habit", "goal", "read"):
         it["act"] = c["act"]
+    if it["f"] == "docs":
+        it["c"] = c.get("doc") if c.get("doc") in DOC_CATS else "other"
     if c.get("ask") and it["f"] == "inbox":
         it["ask"] = str(c["ask"])[:120]
     get(state)["items"].append(touch(it))
@@ -213,6 +219,8 @@ async def redo(state: dict, it: dict, note: str) -> dict:
     it.update({"f": c["folder"], "t": str(c.get("title") or it["t"])[:60], "s": str(c.get("sum") or note)[:300],
                "ctx": str(c.get("ctx") or "")[:120], "fit": c["fit"]})
     it.pop("ask", None)
+    if it["f"] == "docs":
+        it["c"] = c.get("doc") if c.get("doc") in DOC_CATS else "other"
     if c.get("act") in ("task", "habit", "goal", "read"):
         it["act"] = c["act"]
     touch(it)
@@ -223,7 +231,8 @@ async def redo(state: dict, it: dict, note: str) -> dict:
 def reply_text(it: dict) -> str:
     if it["f"] == "inbox":
         return f"🧠 Сохранил в «Разобрать». {html.escape(it.get('ask') or 'О чём это?')}\nОтветь на это сообщение одной строкой или голосом, и я разложу."
-    head = f"🧠 {ICON[it['f']]} {FOLDERS[it['f']]}: <b>{html.escape(it['t'])}</b>"
+    where = FOLDERS[it['f']] + (f" → {DOC_CATS.get(it.get('c'), 'Прочее')}" if it["f"] == "docs" else "")
+    head = f"🧠 {ICON[it['f']]} {where}: <b>{html.escape(it['t'])}</b>"
     body = html.escape(it.get("s") or "")
     tail = {"now": "Подходит под то, что у тебя сейчас.", "later": "Пока на потом, достану, когда будет к месту.", "no": "Похоже, не про тебя сейчас, но сохранил."}[it["fit"]]
     offer = html.escape(it.get("_offer") or "")

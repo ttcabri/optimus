@@ -197,6 +197,45 @@ async def send_brain(bot: Bot) -> None:
         logger.error(f"Brain review error: {e}")
 
 
+async def send_money(bot: Bot) -> None:
+    """Регулярные платежи: напомнить накануне и в день, с кнопкой «Оплачено»."""
+    try:
+        from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+        from services import money
+        state = await database.get_quest_state(TELEGRAM_USER_ID)
+        m = money.get(state)
+        t = quest.lnow()
+        tomorrow = (t + timedelta(days=1)).day
+        for r in money.reg_left(m):
+            d = int(r.get("day") or 1)
+            if d not in (t.day, tomorrow) or r.get("rem") == f"{money.ym()}:{d == t.day}":
+                continue
+            r["rem"] = f"{money.ym()}:{d == t.day}"
+            when = "Сегодня" if d == t.day else "Завтра"
+            await bot.send_message(TELEGRAM_USER_ID, f"💳 {when} платёж: {html.escape(r['n'])} €{r['amt']:g}.",
+                                   reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="✅ Оплачено", callback_data=f"mn:paid:{r['id']}")]]))
+        await database.save_quest_state(TELEGRAM_USER_ID, state)
+    except Exception as e:
+        logger.error(f"Money reminder error: {e}")
+
+
+async def send_backup(bot: Bot) -> None:
+    """Каждую ночь копия базы владельцу в Телеграм: если диск на сервере умрёт, всё восстановится из чата."""
+    import os
+    from aiogram.types import FSInputFile
+    try:
+        path = await database.backup_file()
+        try:
+            await bot.send_document(TELEGRAM_USER_ID, FSInputFile(path, filename=f"backup-{quest.today_key()}.db.gz"),
+                                    caption="💾 Копия базы за сутки. Ничего делать не надо, просто пусть лежит.", disable_notification=True)
+        finally:
+            for p in (path, path[:-3]):
+                if os.path.exists(p):
+                    os.remove(p)
+    except Exception as e:
+        logger.error(f"Backup error: {e}")
+
+
 def setup_scheduler(bot: Bot) -> AsyncIOScheduler:
     tz = pytz.timezone(TIMEZONE)
     scheduler = AsyncIOScheduler(timezone=tz)
@@ -208,5 +247,7 @@ def setup_scheduler(bot: Bot) -> AsyncIOScheduler:
     scheduler.add_job(send_quest_week, "cron", day_of_week="sun", hour=21, minute=0, kwargs={"bot": bot})
     scheduler.add_job(send_review, "cron", day_of_week="sun", hour=20, minute=30, kwargs={"bot": bot})
     scheduler.add_job(send_brain, "cron", hour=12, minute=40, kwargs={"bot": bot})
+    scheduler.add_job(send_backup, "cron", hour=4, minute=30, kwargs={"bot": bot})
+    scheduler.add_job(send_money, "cron", hour=10, minute=5, kwargs={"bot": bot})
 
     return scheduler

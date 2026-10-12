@@ -81,12 +81,29 @@ async def post_state(request: web.Request) -> web.Response:
     if isinstance(merged.get("house"), dict):
         from services import house
         house.get(merged, uid)
+    sday = ((server.get("days") or {}).get(tk) or {})
     mday = (merged.get("days") or {}).get(tk) or {}
+    if BOT:  # отметил еду в приложении: спросить, что ел, чтобы списать из Дома
+        meals = {it["id"]: it["name"] for it in quest.items(quest.full_profile(merged)) if it.get("meal") == 1}
+        fresh = [q for q in mday.get("done") or [] if q in meals and q not in (sday.get("done") or []) and q not in (mday.get("mealAsk") or [])]
+        if fresh:
+            mday["mealAsk"] = (mday.get("mealAsk") or []) + fresh
+            asyncio.create_task(_meal_ask(uid, meals[fresh[0]]))
     if mday.get("woke") and not woke_before and not mday.get("mSent") and BOT:
         mday["mSent"] = True  # «Я встал» в приложении: утреннее сообщение в бот
         asyncio.create_task(_morning(uid))
     await database.save_quest_state(uid, merged)
     return web.json_response({**merged, "_me": uid})
+
+
+async def _meal_ask(uid: int, name: str) -> None:
+    try:
+        from handlers.brain import meal_kb
+        await asyncio.sleep(1)
+        state = await database.get_quest_state(uid)
+        await BOT.send_message(uid, f"🍽 {name}: что ел? Спишу из Дома, чтобы продукты считались сами.", reply_markup=meal_kb(state))
+    except Exception as e:
+        logger.error(f"meal ask error: {e}")
 
 
 async def _morning(uid: int) -> None:

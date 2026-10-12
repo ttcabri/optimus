@@ -32,8 +32,8 @@ async def handle_voice(message: Message, bot: Bot) -> None:
         await message.answer("Не разобрал голосовое. Скажи ещё раз или напиши текстом.")
         return
 
-    from handlers.brain import answer_ask
-    if await answer_ask(message, text):  # ответ голосом на «О чём это?» из мозга
+    from handlers.brain import answer_ask, receipt_fix
+    if await answer_ask(message, text) or await receipt_fix(message, text):  # ответ на «О чём это?» или правка чека
         return
     await bot.send_chat_action(message.chat.id, "record_voice")
     try:

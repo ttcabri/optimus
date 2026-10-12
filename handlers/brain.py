@@ -126,3 +126,116 @@ async def brain_cb(cb: CallbackQuery) -> None:
         pass
     if text:
         await cb.message.answer(text)
+
+
+# ---------- чек: проверка перед записью ----------
+EDIT_MS = 20 * 60 * 1000
+
+
+@router.callback_query(F.data.startswith("rc:"))
+async def receipt_cb(cb: CallbackQuery) -> None:
+    import time
+    from services import receipt
+    _, op, rid = (cb.data.split(":", 2) + ["", ""])[:3]
+    uid = cb.from_user.id
+    state = await database.get_quest_state(uid)
+    r = state.get("rcpt")
+    if not r or r.get("id") != rid:
+        await cb.answer("Этот чек уже записан или отменён")
+        return
+    await cb.answer()
+    try:
+        await cb.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    if op == "ok":
+        text = receipt.commit(state, uid)
+    elif op == "no":
+        state.pop("rcpt", None)
+        text = "Ок, чек не записываю."
+    else:
+        r["edit"] = int(time.time() * 1000)
+        text = "Напиши или скажи голосом, что поправить. Например: «яиц не было, молоко одно, итог 18,90»."
+    await database.save_quest_state(uid, state)
+    await cb.message.answer(text)
+
+
+async def receipt_fix(message: Message, text: str) -> bool:
+    """Если ждём правку чека: применить. True, если это была правка."""
+    import time
+    from services import receipt
+    uid = message.from_user.id
+    state = await database.get_quest_state(uid)
+    r = state.get("rcpt")
+    if not r or not r.get("edit") or int(time.time() * 1000) - r["edit"] > EDIT_MS:
+        return False
+    await message.bot.send_chat_action(message.chat.id, "typing")
+    new = await receipt.fix(state, text)
+    if not new:
+        await message.answer("Не получилось поправить. Напиши ещё раз, по пунктам.")
+        return True
+    await database.save_quest_state(uid, state)
+    await message.answer(receipt.text(new), reply_markup=receipt.kb(new))
+    return True
+
+
+@router.message(F.text & ~F.text.startswith("/"))
+async def maybe_receipt_fix(message: Message) -> None:
+    if not await receipt_fix(message, message.text):
+        raise SkipHandler()
+
+
+# ---------- деньги и еда: кнопки ----------
+@router.callback_query(F.data.startswith("mn:"))
+async def money_cb(cb: CallbackQuery) -> None:
+    from services import money
+    _, op, rid = (cb.data.split(":", 2) + ["", ""])[:3]
+    uid = cb.from_user.id
+    state = await database.get_quest_state(uid)
+    m = money.get(state)
+    r = next((x for x in m["reg"] if x.get("id") == rid), None)
+    await cb.answer()
+    try:
+        await cb.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    if not r or r.get("paid") == money.ym():
+        await cb.message.answer("Уже отмечено.")
+        return
+    _, warn = money.add(state, "exp", r["amt"], r.get("cat", "other"), r.get("acc"), r["n"], None, "reg:" + r["id"])
+    r["paid"] = money.ym()
+    r["u"] = brain._now_ms()
+    await database.save_quest_state(uid, state)
+    await cb.message.answer(f"✅ {html.escape(r['n'])} €{r['amt']:g} в тратах. На счетах €{money.total(m):g}." + (("\n" + warn) if warn else ""))
+
+
+def meal_kb(state: dict):
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+    from services import house
+    h = house.get(state)
+    rows = [[InlineKeyboardButton(text=f"🍱 {x['name']} −1 порц.", callback_data=f"fd:prep:{x['id']}")]
+            for x in h.get("items", []) if x.get("cat") == "prep" and int(x.get("n") or 0) > 0][:4]
+    rows.append([InlineKeyboardButton(text="✍️ Напишу, что ел", callback_data="fd:txt:"), InlineKeyboardButton(text="Не важно", callback_data="fd:skip:")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+@router.callback_query(F.data.startswith("fd:"))
+async def food_cb(cb: CallbackQuery) -> None:
+    from services import house
+    _, op, iid = (cb.data.split(":", 2) + ["", ""])[:3]
+    uid = cb.from_user.id
+    await cb.answer()
+    try:
+        await cb.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    if op == "txt":
+        await cb.message.answer("Напиши или скажи голосом: например «2 яйца, 150 г курицы, рис». Спишу из Дома.")
+        return
+    if op == "prep":
+        state = await database.get_quest_state(uid)
+        h = house.get(state, uid)
+        x = next((y for y in h.get("items", []) if y.get("id") == iid), None)
+        res = house.prep_eat(h, x["name"]) if x else "этой заготовки уже нет"
+        await database.save_quest_state(uid, state)
+        await cb.message.answer("🍱 " + html.escape(res))

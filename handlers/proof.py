@@ -179,6 +179,13 @@ async def proof_photo(message: Message, bot: Bot) -> None:
 
     kind = result.get("quest")
     comment = result.get("comment", "").strip()
+    if kind == "receipt" and result.get("items"):
+        from services import receipt
+        state = await database.get_quest_state(message.from_user.id)
+        r = receipt.pending(state, result, photo.file_id)
+        await database.save_quest_state(message.from_user.id, state)
+        await message.answer(receipt.text(r), reply_markup=receipt.kb(r))
+        return
     if kind in ("receipt", "fridge") and result.get("items"):
         from services import house
         state = await database.get_quest_state(message.from_user.id)
@@ -216,6 +223,14 @@ async def proof_photo(message: Message, bot: Bot) -> None:
 
     day = await quest.mark_done(message.from_user.id, ids)
     extra = ""
+    if kind == "fine":  # штраф уходит в Деньги
+        from services import money
+        st = await database.get_quest_state(message.from_user.id)
+        fine = float((P.get("penalty") or {}).get("fine") or 0)
+        if fine:
+            money.add(st, "exp", fine, "fine", None, "Штраф → " + str((P.get("penalty") or {}).get("to") or "копилка"), None, "fine")
+            await database.save_quest_state(message.from_user.id, st)
+            extra += f"\n💸 €{fine:g} записал в Деньги."
     if it and it.get("tutor") == "cbr" and result.get("score") is not None:
         st = await database.get_quest_state(message.from_user.id)
         line = theory.record(st, result.get("score"), result.get("total"), result.get("weak", ""), quest.today_key())

@@ -30,6 +30,15 @@ TOOLS = [
                     "task (сделать запись делом: id, day today|tomorrow|YYYY-MM-DD), done (применил, больше не предлагать: id), move (переложить: id, folder), delete (id), later (не сейчас: id).",
      "input_schema": {"type": "object", "properties": {"op": {"type": "string", "enum": ["save", "task", "done", "move", "delete", "later"]}, "id": {"type": "string"},
          "title": {"type": "string"}, "sum": {"type": "string"}, "folder": {"type": "string"}, "ctx": {"type": "string"}, "day": {"type": "string"}}, "required": ["op"]}},
+    {"name": "money",
+     "description": "ДЕНЬГИ. op: add (трата kind=exp или доход kind=inc: amt, cat, note коротко что, acc счёт если назван, day если не сегодня), "
+                    "balance (на счёте сейчас amt: acc или name нового счёта), limit (лимит на месяц: cat, amt; 0 = убрать), "
+                    "regular (регулярный платёж: name, amt, day число месяца, cat), paid (регулярный оплачен: name), delete (удалить операцию: id). "
+                    "Категории трат: food еда/продукты/кафе, home быт/хозтовары, rent жильё/аренда/коммуналка, car машина/бензин/ремонт, health здоровье/аптека/спорт, "
+                    "subs связь/подписки, fun развлечения/игры, cloth одежда, gift подарок себе, fine штраф, other. Доходы: ww, work, sale, other.",
+     "input_schema": {"type": "object", "properties": {"op": {"type": "string", "enum": ["add", "balance", "limit", "regular", "paid", "delete"]},
+         "kind": {"type": "string", "enum": ["exp", "inc"]}, "amt": {"type": "number"}, "cat": {"type": "string"}, "note": {"type": "string"},
+         "acc": {"type": "string"}, "name": {"type": "string"}, "day": {"type": "string"}, "id": {"type": "string"}}, "required": ["op"]}},
     {"name": "set_penalty",
      "description": "Штраф за пропуск: task = id главного дела, без которого день считается проваленным (завтра долг: повторить его и перевести fine евро в to). task пустой = штраф выключен.",
      "input_schema": {"type": "object", "properties": {"task": {"type": "string"}, "fine": {"type": "integer"}, "to": {"type": "string"}}}},
@@ -90,10 +99,18 @@ TOOLS = [
      "description": "Запомнить домашний адрес для расчёта дороги. Вызывай, когда он называет, где живёт, или переезжает. Если он говорит «я дома» и есть свежая геолокация, передай address=here.",
      "input_schema": {"type": "object", "properties": {"address": {"type": "string"}}, "required": ["address"]}},
     {"name": "house_add",
-     "description": "Купил или положил продукты/вещи домой. items: [{name, cat, days: сколько дней годно, если знаешь точнее, qty: «2 кг»}]. cat: meat мясо и рыба, dairy молочное и яйца, veg овощи и фрукты, grain крупы и макароны, canned консервы и соусы, bread хлеб и сладкое, drinks напитки, spice специи и масло, other другое, home хозтовары. Можно не указывать: определится по названию. Заготовки готовой еды: prep_add.",
+     "description": "Купил или положил продукты/вещи домой. items: [{name, cat, days: сколько дней годно, если знаешь точнее, amt и unit: количество, если известно (1 кг курицы = amt 1, unit кг)}]. cat: meat мясо и рыба, dairy молочное и яйца, veg овощи и фрукты, grain крупы и макароны, canned консервы и соусы, bread хлеб и сладкое, drinks напитки, spice специи и масло, other другое, home хозтовары. Можно не указывать: определится по названию. Заготовки готовой еды: prep_add.",
      "input_schema": {"type": "object", "properties": {"items": {"type": "array", "items": {"type": "object", "properties": {
-         "name": {"type": "string"}, "cat": {"type": "string", "enum": ["prep", "meat", "dairy", "veg", "grain", "canned", "bread", "drinks", "spice", "other", "home"]}, "days": {"type": "integer"}, "qty": {"type": "string"}}, "required": ["name"]}}},
+         "name": {"type": "string"}, "cat": {"type": "string", "enum": ["prep", "meat", "dairy", "veg", "grain", "canned", "bread", "drinks", "spice", "other", "home"]}, "days": {"type": "integer"}, "qty": {"type": "string"},
+         "amt": {"type": "number"}, "unit": {"type": "string", "enum": ["г", "кг", "мл", "л", "шт"]}}, "required": ["name"]}}},
          "required": ["items"]}},
+    {"name": "food_ate",
+     "description": "Съел или потратил продукты: списать из Дома. items: [{name как в Доме, amt, unit г|кг|мл|л|шт}] или all=true (доел всё). "
+                    "«Съел 2 яйца и 150 г курицы» = [{яйца 2 шт},{курица 150 г}]. Если он не назвал количество, оцени обычную порцию (яйцо 1 шт, курица 150 г, рис 80 г сухого, молоко 200 мл). Заготовку списывает prep_eat.",
+     "input_schema": {"type": "object", "properties": {"items": {"type": "array", "items": {"type": "object", "properties": {
+         "name": {"type": "string"}, "amt": {"type": "number"}, "unit": {"type": "string"}, "all": {"type": "boolean"}}, "required": ["name"]}}}, "required": ["items"]}},
+    {"name": "food_set", "description": "Сколько продукта осталось на самом деле (сверка): name, amt, unit.",
+     "input_schema": {"type": "object", "properties": {"name": {"type": "string"}, "amt": {"type": "number"}, "unit": {"type": "string"}}, "required": ["name", "amt", "unit"]}},
     {"name": "house_level",
      "description": "Изменить уровень запаса: ok = есть, low = мало, out = кончилось. «Молоко кончилось» = out, «риса мало» = low.",
      "input_schema": {"type": "object", "properties": {"name": {"type": "string"}, "level": {"type": "string", "enum": ["ok", "low", "out"]}}, "required": ["name", "level"]}},
@@ -383,6 +400,53 @@ def run(state: dict, name: str, a: dict) -> str | None:
                 return "отдых закончен"
         return "сейчас нет отдыха"
 
+    if name == "money":
+        from services import money
+        m = money.get(state)
+        op = a.get("op")
+        amt = a.get("amt")
+        if op == "add":
+            if not isinstance(amt, (int, float)) or amt <= 0:
+                return "нужна сумма"
+            day = _key(a.get("day")) if a.get("day") else None
+            o, warn = money.add(state, a.get("kind") or "exp", amt, str(a.get("cat") or "other"), a.get("acc"), str(a.get("note") or ""), day, "chat")
+            pdv = money.per_day(state)
+            return (f"записано: {'доход' if o['k'] == 'inc' else 'трата'} €{o['amt']:g} (id {o['id']}). На счетах €{money.total(m):g}, свободно €{money.free(state):g}."
+                    + (f" Свободных ~€{pdv[0]:g}/день до конца месяца." if pdv else "")
+                    + "".join(f" Лимит {money.CATS[k][1]}: осталось ~€{d:g}/день." for k, v, sp_, d in money.lim_left(m) if k == o["cat"]) + (" " + warn if warn else ""))
+        if op == "balance":
+            if not isinstance(amt, (int, float)):
+                return "нужна сумма"
+            ac = money.set_balance(state, a.get("acc"), amt, a.get("name"))
+            return f"счёт {ac['n']}: €{money.balance(m, ac['id']):g}. Всего €{money.total(m):g}"
+        if op == "limit":
+            cat = str(a.get("cat") or "")
+            if cat not in money.CATS:
+                return "нет такой категории"
+            m["lim"] = dict(m.get("lim") or {}, **{cat: float(amt or 0)})
+            m["lu"] = int(time.time() * 1000)
+            return f"лимит {money.CATS[cat][1]}: €{float(amt or 0):g} в месяц" if amt else "лимит убран"
+        if op == "regular":
+            nm = str(a.get("name") or "").strip()
+            if not nm or not isinstance(amt, (int, float)):
+                return "нужно название и сумма"
+            r = next((x for x in m["reg"] if x["n"].lower() == nm.lower()), None) or {"id": money._id("r"), "n": nm[:40]}
+            r.update({"amt": float(amt), "day": int(a.get("day") or 1) if str(a.get("day") or "1").isdigit() else 1, "cat": a.get("cat") if a.get("cat") in money.CATS else "other", "u": int(time.time() * 1000)})
+            if r not in m["reg"]:
+                m["reg"].append(r)
+            return f"регулярный платёж: {r['n']} €{r['amt']:g} каждое {r['day']}-е"
+        if op == "paid":
+            nm = str(a.get("name") or "").lower()
+            r = next((x for x in m["reg"] if nm and nm in x["n"].lower()), None)
+            if not r:
+                return "нет такого платежа"
+            money.add(state, "exp", r["amt"], r.get("cat", "other"), r.get("acc"), r["n"], None, "reg:" + r["id"])
+            r["paid"], r["u"] = money.ym(), int(time.time() * 1000)
+            return f"{r['n']} оплачен, €{r['amt']:g} в тратах"
+        if op == "delete":
+            return "удалено" if money.remove(state, str(a.get("id") or "")) else "нет такой операции"
+        return "неизвестная операция"
+
     if name == "brain":
         from services import brain
         op = a.get("op")
@@ -476,7 +540,7 @@ def run(state: dict, name: str, a: dict) -> str | None:
         return quest.move_task(state, str(a.get("id") or ""), _key(a.get("to") or "tomorrow"))
 
     if name in ("house_add", "house_level", "house_remove", "shop_add", "chore_set", "project_step", "house_note", "house_take",
-                "prep_add", "prep_eat", "project_new"):
+                "prep_add", "prep_eat", "project_new", "food_ate", "food_set"):
         from services import house
         h = house.get(state)
         if name == "prep_add":
@@ -501,6 +565,10 @@ def run(state: dict, name: str, a: dict) -> str | None:
         if name == "house_add":
             got = house.add_items(h, a.get("items") or [])
             return "записал: " + ", ".join(got) if got else "нечего добавлять"
+        if name == "food_ate":
+            return "; ".join(house.use(h, str(x.get("name", "")), x.get("amt"), x.get("unit"), bool(x.get("all"))) for x in a.get("items") or []) or "пусто"
+        if name == "food_set":
+            return house.set_amt(h, str(a.get("name", "")), a.get("amt"), a.get("unit"))
         if name == "house_level":
             return house.set_level(h, str(a.get("name", "")), a.get("level", "ok"))
         if name == "house_remove":

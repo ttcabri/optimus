@@ -23,6 +23,9 @@ def facts(state: dict, day: dict, uid) -> str:
     lines = [f"{DAYS[now.weekday()].capitalize()}, {now.strftime('%d.%m')}."]
     if day.get("woke"):
         lines.append(f"Встал в {day['woke']}, по плану {quest.prof(day)['wake']}.")
+        sl = quest.sleep_hours(state, quest.today_key())
+        if sl:
+            lines.append(f"Спал примерно {sl} ч.")
     P = quest.prof(day)
     pi, pen = quest.pen_item(P), P.get("penalty") or {}
     if day.get("_debt") and pi:
