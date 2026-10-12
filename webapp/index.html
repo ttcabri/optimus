@@ -1538,7 +1538,7 @@ function openGift(id){giftIdeas=null;W={step:"gift",rung:id};renderSheet()}
 function openChan(){W={step:"chan"};renderSheet()}
 function openPrefs(){const P=state.prefs||{};W={step:"pcity",prefs:{city:P.city||"",budget:P.budget||25,likes:(P.likes||[]).slice(),foods:(P.foods||[]).slice(),more:P.more||""}};renderSheet()}
 function openSheet(){W={step:"menu",name:"",date:key(),at:"",dur:30};renderSheet()}
-function closeSheet(){W=null;$("sheet").hidden=true;$("sheet").innerHTML=""}
+function closeSheet(){W=null;$("sheet").hidden=true;$("sheet").innerHTML="";delete $("sheet").dataset.step}
 function wDate(){return W.date===key()?"сегодня":W.date===shift(key(),1)?"завтра":new Date(W.date+"T12:00:00").toLocaleDateString("ru-RU",{weekday:"long",day:"numeric",month:"long"})}
 function renderSheet(){
   const el=$("sheet");el.hidden=false;const SS=PSTEPS.includes(W.step)?PSTEPS:STEPS,i=SS.indexOf(W.step);
@@ -1690,7 +1690,7 @@ function renderSheet(){
     body=`<h2>${isNew?"Новое дело":"Дело"}</h2>${og?`<p class="rgoal">${esc(og.emoji||"🎯")} Дело цели «${esc(og.name)}»</p>`:""}
       <form data-wf="ritem"><input name="v" maxlength="60" value="${esc(it.name||"")}" placeholder="Например: чтение" autocomplete="off" aria-label="Название"></form>
       <p class="rl">Сколько занимает</p><div class="opts four">${[10,15,20,30,45,60,90,120].map(m=>`<button type="button" class="opt" data-w="rdur:${m}" aria-pressed="${(it.dur||30)===m}">${durTxt(m)}</button>`).join("")}</div>
-      <p class="rl">Дни <span>${all?"каждый день":""}</span></p><div class="rdays">${WD_ORDER.map(x=>`<button type="button" class="chip" data-w="rday:${x}" aria-pressed="${all||it.days.includes(x)}">${WD[x]}</button>`).join("")}</div>
+      <p class="rl">Дни <span>${all?"каждый день · нажми, чтобы выбрать":it.days.length+" в неделю"}</span></p><div class="rdays">${WD_ORDER.map(x=>`<button type="button" class="chip" data-w="rday:${x}" aria-pressed="${all||it.days.includes(x)}">${WD[x]}</button>`).join("")}</div>
       <p class="rl">Время</p><div class="opts rtwo"><button type="button" class="opt" data-w="rat:" aria-pressed="${!it.at}">Время не важно</button><label class="opt rtpick" aria-pressed="${!!it.at&&it.at!=="pick"}">${it.at==="end"?"🌙 Перед сном":it.at&&it.at!=="pick"?"🕐 В "+esc(it.at):"🕐 Ко времени"}<input type="time" id="rtime" value="${it.at&&/^\d\d:\d\d$/.test(it.at)?esc(it.at):""}" aria-label="Выбрать время"></label></div>
       <p class="rhint">${!it.at?"Сдвигается по дню, если опоздал или залип.":it.at==="end"?"Последнее дело перед отбоем.":"Стоит на месте, остальное обтекает его."}</p>
       <div class="perm"><button type="button" class="chip" data-w="rflag:main" aria-pressed="${!!it.main}">★ Главное: нужно для награды дня</button>${it.steps?"":`<button type="button" class="chip" data-w="rflag:proof" aria-pressed="${!!it.proof}">📸 Закрывается скрином боту</button>`}</div>
@@ -1743,8 +1743,11 @@ function renderSheet(){
       <datalist id="exlist2">${[...new Set(EXERCISES.concat(state.lifts.map(l=>l.ex).filter(Boolean)))].map(e=>`<option value="${esc(e)}">`).join("")}</datalist>
       <div style="display:flex;gap:8px"><input name="kg" inputmode="decimal" placeholder="Вес, кг" aria-label="Вес, кг"><input name="reps" inputmode="numeric" placeholder="Повторы" aria-label="Повторы"></div></form>
       <button type="button" class="goldbtn" data-w="savelift">Записать</button>`;
-  el.innerHTML=`<div class="pnl" role="dialog" aria-modal="true" aria-label="Добавить">${top}${body}</div>`;
-  const inp=el.querySelector("input[name=v]");if(inp)setTimeout(()=>inp.focus(),50);
+  // перерисовка того же окна (нажал день, длительность): не прыгать наверх и не открывать клавиатуру заново
+  const old=el.querySelector(".pnl"),same=old&&el.dataset.step===W.step,st=same?old.scrollTop:0,wst=window.scrollY;
+  el.innerHTML=`<div class="pnl" role="dialog" aria-modal="true" aria-label="Добавить">${top}${body}</div>`;el.dataset.step=W.step;
+  if(same){el.querySelector(".pnl").scrollTop=st;window.scrollTo(0,wst)}
+  else{const inp=el.querySelector("input[name=v]");if(inp&&!inp.value)setTimeout(()=>inp.focus(),50)}
 }
 function wNext(){
   if(W.step==="name"){const v=$("sheet").querySelector("input[name=v]").value.trim();if(!v){toast("Напиши, что за дело");return}W.name=v.slice(0,80);W.step="when"}
@@ -1814,8 +1817,8 @@ $("sheet").addEventListener("click",e=>{
     mutate(()=>{if(a==="hbuy")hAdd(v);else{const h=houseOf(),x=h.items.find(i=>i.name.toLowerCase()===v.toLowerCase());if(x){x.level="out";touch(x)}else if(!h.shop.some(i=>!i.done&&i.name.toLowerCase()===v.toLowerCase()))h.shop.push(touch({id:hid("s"),name:v,done:false}))}});
     toast(a==="hbuy"?"Записал в запасы":"Добавил в покупки");return}
   if(a.startsWith("rdur:")){rKeep();W.it.dur=+a.slice(5);return renderSheet()}
-  if(a.startsWith("rday:")){rKeep();const x=+a.slice(5),cur=W.it.days&&W.it.days.length?W.it.days.slice():[0,1,2,3,4,5,6],i=cur.indexOf(x);if(i>=0)cur.splice(i,1);else cur.push(x);
-    if(!cur.length){toast("Хотя бы один день");return}W.it.days=cur.length===7?undefined:cur.sort();return renderSheet()}
+  if(a.startsWith("rday:")){rKeep();const x=+a.slice(5),all=!(W.it.days&&W.it.days.length&&W.it.days.length<7),cur=all?[]:W.it.days.slice(),i=cur.indexOf(x);if(i>=0)cur.splice(i,1);else cur.push(x);
+    W.it.days=!cur.length||cur.length===7?undefined:cur.sort((p,q)=>p-q);return renderSheet()}
   if(a.startsWith("rat:")){rKeep();const v=a.slice(4);W.it.at=v||undefined;return renderSheet()}
   if(a.startsWith("rflag:")){rKeep();const f=a.slice(6),it=W.it;if(f==="body"){if(it.goal==="body")delete it.goal;else it.goal="body"}else{if(it[f])delete it[f];else it[f]=1;if(f==="minor"&&it.minor)delete it.main;if(f==="main"&&it.main)delete it.minor}return renderSheet()}
   if(a==="rsave"){rKeep();const it=W.it;if(!it.name){toast("Напиши название");return}if(it.at==="pick"){toast("Выбери время");return}
