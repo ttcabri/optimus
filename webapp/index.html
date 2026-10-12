@@ -96,7 +96,7 @@ button{cursor:pointer}
 .sec{display:flex;justify-content:space-between;align-items:baseline;padding:14px 20px 6px}
 .sec h3{margin:0;font-size:15px;font-weight:800}
 .sec.spo{width:calc(100% - 32px);margin:8px 16px 0;padding:14px;border-radius:14px;background:var(--panel);border:none;color:var(--fg);font:inherit;text-align:left}
-.sec.spo span{font-size:13px;font-weight:700;color:var(--muted)}
+.sec.spo h3{white-space:nowrap}.sec.spo span{white-space:nowrap;font-size:13px;font-weight:700;color:var(--muted)}
 .spol{margin-top:6px}
 .sec span,.sec button{font-size:13px;font-weight:700;color:var(--muted);background:none;border:none;padding:0}
 .sec button{color:var(--gold);padding:6px 0 6px 12px;margin:-6px 0}
@@ -771,7 +771,7 @@ function planRow(d,it,opts={}){
   const chk=q.steps?`<span class="chk" aria-hidden="true"></span>`:`<button type="button" class="chk" data-t="${esc(q.id)}" aria-label="Отметить «${esc(q.name)}» сделанным"></button>`;
   const extra=!q.penalty&&!(pi&&pi.id===q.id)?`<button type="button" class="x" data-mv="${esc(q.id)}" aria-label="Перенести или убрать «${esc(q.name)}»">${IC.x}</button>`:"";
   const main=it.started?`<span class="rowmain"><span class="nm"><b>${esc(q.name)}</b><small>Идёт сейчас · ${esc(sub)}</small></span>${right}</span>`
-    :`<button type="button" class="rowmain" ${startAttr} aria-label="Делать «${esc(q.name)}» сейчас"><span class="nm"><b>${esc(q.name)}${it.anchor?'<span class="pin">ЯКОРЬ</span>':""}</b><small>${esc(sub)}</small></span>${right}</button>`;
+    :`<button type="button" class="rowmain" ${startAttr} aria-label="Делать «${esc(q.name)}» сейчас"><span class="nm"><b>${esc(q.name)}</b><small>${esc(sub)}</small></span>${right}</button>`;
   return `<div class="row${q.steps?" boss":""}${it.anchor?" anchor":""}${it.started?" cur":""}"><span class="tm" style="${it.late?"color:var(--red)":""}">${hm(it.start)}<small>${hm(it.end)}</small></span>${chk}${main}${extra}</div>`;
 }
 function doneRow(d,q){
@@ -854,15 +854,6 @@ function viewGym(){
       <datalist id="exlist">${[...new Set(EXERCISES.concat(exs))].map(e=>`<option value="${esc(e)}">`).join("")}</datalist></form>
     ${exRows?`<div class="list" style="margin-top:8px">${exRows}</div>`:""}`;
 }
-function timeCard(it){
-  if(!it||!it.steps)return "";const L=learned(),v=L[it.id],steps=it.steps.filter(x=>L[x.id]),st=stepIds(it);
-  let n=0;for(const k of Object.keys(state.days)){const sp=state.days[k].span||{};if(st.every(b=>sp[b]))n++}
-  if(!v&&!steps.length)return `<div class="card" style="margin-top:10px"><b>Время: ${esc(it.name.toLowerCase())}</b><p class="empty">${n?`Замеров: ${n} из 3.`:"Пока нет замеров."} Жми «Начать фокус» и отмечай шаги.</p></div>`;
-  return `<div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><b>Время: ${esc(it.name.toLowerCase())}</b>${v?`<span style="font-size:13px;font-weight:700;color:var(--muted)">обычно ${durTxt(v.min)}</span>`:""}</div>
-    <div class="mini">${steps.map(x=>`<div><span>${esc(x.name)}</span><b>${durTxt(L[x.id].min)}</b></div>`).join("")}</div>
-    <p class="empty">Медиана последних замеров.</p></div>`;
-}
-let goalEdit=false;
 function goalHero(gid,icon,sub){const T=TPL[gid],v=T.val(),steps=goalOf(gid).steps.slice().sort((a,b)=>tdir(gid)*(a.at-b.at));
   const nx=steps.find(st=>!reached(gid,st.at)),prev=steps.filter(st=>reached(gid,st.at)).pop();
   let ringH="";
@@ -874,16 +865,19 @@ function goalHero(gid,icon,sub){const T=TPL[gid],v=T.val(),steps=goalOf(gid).ste
   return `<button type="button" class="hero" ${act} style="width:calc(100% - 32px);color:inherit;font:inherit;text-align:left"><div class="hl2"><span class="flame${gid==="chan"?" yt":""}">${icon}</span><div><b>${v==null?"—":gid==="body"?v:fmtN(v)}</b><small>${esc(sub)}</small></div></div>${ringH}</button>`}
 
 const dayW=n=>n===1?"день":n>1&&n<5?"дня":"дней";
+let goalEdit=false;
 const ladOpen=new Set();
-function ladder(store,title){
+function ladder(store,title,extra){
   const g=goalOf(store),hab=store.startsWith("h_"),gid=hab?store.slice(2):store,all=g.steps.slice().sort((a,b)=>tdir(store)*(a.at-b.at)),pre=hab?"h_"+gid+"_":"t_"+gid+"_";
   // свёрнуто: открытые (забрать) и ближайшая закрытая ступень; остальное по нажатию
   const stOf=st=>{const r=findRung(pre+st.id);return r?rungState(r):"locked"},nx=all.find(st=>stOf(st)==="locked");
   const steps=ladOpen.has(store)||goalEdit===store?all:all.filter(st=>stOf(st)==="open"||st===nx),more=all.length-steps.length;
   const lbl=st=>hab?`${st.at} <small>${dayW(st.at)}</small>`:gid==="body"?`${st.at} <small>кг</small>`:`${fmtN(st.at)} <small>${esc(TPL[gid].unit())}</small>`;
-  if(goalEdit!==store)return `<div class="sec"><h3>${title}</h3>${ladOpen.has(store)?`<button type="button" data-gedit="${store}">изменить</button>`:`<button type="button" data-ladopen="${store}">все ${all.length} ›</button>`}</div>
-    <div class="lad">${steps.map(st=>{const r=findRung(pre+st.id);if(!r)return "";const s=rungState(r),gf=(state.gifts||{})[r.id];
-      return `<button type="button" class="ls ${s}" data-gift="${r.id}"><span class="nd">${s==="got"?IC.check:s==="open"?IC.star:""}</span><span class="tx"><b>${lbl(st)}</b><span class="${gf?"":"no"}">${gf?esc(gf):s==="open"?"открыто, забирай":"подарок не выбран"}</span></span><span class="eur">€${st.budget}</span></button>`}).join("")||'<p class="empty">Пусто. Нажми «изменить».</p>'}</div>`;
+  if(goalEdit!==store){const op=ladOpen.has(store),openN=all.filter(st=>stOf(st)==="open").length;
+    const sum=openN?`<b style="color:var(--gold)">★ забирай</b>`:nx?`${hab?nx.at+" дн":gid==="body"?nx.at+" кг":fmtN(nx.at)} · €${nx.budget}`:all.length?"все взяты":"пусто";
+    return `<button type="button" class="sec spo" data-ladopen="${store}" aria-expanded="${op}"><h3>${title}</h3><span>${sum} ${op?"▴":"▾"}</span></button>`
+    +(op?`<div class="lad spol">${all.map(st=>{const r=findRung(pre+st.id);if(!r)return "";const s=rungState(r),gf=(state.gifts||{})[r.id];
+      return `<button type="button" class="ls ${s}" data-gift="${r.id}"><span class="nd">${s==="got"?IC.check:s==="open"?IC.star:""}</span><span class="tx"><b>${lbl(st)}</b><span class="${gf?"":"no"}">${gf?esc(gf):s==="open"?"открыто, забирай":"подарок не выбран"}</span></span><span class="eur">€${st.budget}</span></button>`}).join("")}${extra||""}</div><div class="segfoot"><button type="button" class="line" data-gedit="${store}">Изменить подарки</button></div>`:"")}
   return `<div class="sec"><h3>${title}</h3><button type="button" data-gedit="">готово</button></div>
     ${steps.map(st=>`<div class="lse"><input data-gat="${store}:${st.id}" inputmode="decimal" value="${st.at}" aria-label="Порог"><input data-ggift="${pre+st.id}" maxlength="80" value="${esc((state.gifts||{})[pre+st.id]||"")}" placeholder="подарок" aria-label="Подарок"><input data-gbud="${store}:${st.id}" inputmode="numeric" value="${st.budget}" aria-label="Бюджет, €"><button type="button" class="x" data-gdel="${store}:${st.id}" aria-label="Удалить">${IC.x}</button></div>`).join("")}
     <div class="segfoot" style="display:flex;gap:8px"><button type="button" class="line" data-gadd="${store}">+ ступень</button><button type="button" class="line" data-gsug="${store}">Заново</button></div>`}
@@ -897,10 +891,7 @@ function viewGoal(){
   const icon=gid==="chan"?'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>':'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/></svg>';
   return goalHero(gid,icon,TPL[gid].unit()+(dS?` · ${dS>0?"+":""}${dS} за неделю`:"")+(gid==="chan"&&!log.length?" · цифры не внесены":""))
     +`    ${hb?habitCard(gid,hb):`<p class="empty" style="padding:12px 20px 0">Привычка не выбрана.</p>`}
-    ${ladder(gid,"Подарки за цифру")}
-    ${FLAGS().length?`<div class="lad">${FLAGS().map(r=>{const s=rungState(r),gf=(state.gifts||{})[r.id];return `<button type="button" class="ls ${s}" data-gift="${r.id}"><span class="nd">${s==="got"?IC.check:IC.star}</span><span class="tx"><b>${esc(r.t)}</b><span class="${gf?"":"no"}">${gf?esc(gf):"подарок не выбран"}</span></span><span class="eur">€${r.budget}</span></button>`}).join("")}</div>`:""}
-    ${timeCard(hb)}
-    ${hb?`<div class="tiles"><div class="tile"><b>${doneIn(7)}/7</b><span>${esc(hb.name.toLowerCase())} за неделю</span></div><div class="tile"><b>${doneIn(30)}</b><span>за 30 дней</span></div></div>`:""}`;
+    ${ladder(gid,"Подарки за цифру",FLAGS().map(r=>{const s=rungState(r),gf=(state.gifts||{})[r.id];return `<button type="button" class="ls ${s}" data-gift="${r.id}"><span class="nd">${s==="got"?IC.check:IC.star}</span><span class="tx"><b>${esc(r.t)}</b><span class="${gf?"":"no"}">${gf?esc(gf):"подарок не выбран"}</span></span><span class="eur">€${r.budget}</span></button>`}).join(""))}`;
 }
 // История: каждый день, что и во сколько сделано, сколько заняло, что убрал, отдых и награда
 function nameOf(id,d){if(id==="house")return "Жильё";if(id.startsWith("pr_")){const st=stepOf(id);return st?st.t:"Шаг проекта"}if(id==="vid2")return (penItem()||{}).bonus||"Повтор";if(id==="fine")return "Штраф";if(id==="buy")return "Покупки";
@@ -1104,7 +1095,7 @@ document.addEventListener("click",e=>{
   if(t.dataset.goalnew){const g=GOAL()||{};W={step:"goalnew",g:{name:g.name||"",unit:g.unit||"",habit:g.habit||""}};renderSheet();return}
   if(t.dataset.gval){W={step:"gval"};renderSheet();return}
   if(t.dataset.hgone){const x=houseOf().items.find(i=>i.id===t.dataset.hgone);if(x)mutate(()=>{x.level="out";delete x.until;touch(x)});toast("Записал: кончилось. Если нужно, оно уже в покупках");return}
-  if(t.dataset.ladopen){ladOpen.add(t.dataset.ladopen);render();return}
+  if(t.dataset.ladopen){const s=t.dataset.ladopen;if(ladOpen.has(s))ladOpen.delete(s);else ladOpen.add(s);render();return}
   if(t.dataset.wOpen){W={step:t.dataset.wOpen};renderSheet();return}
   if(t.dataset.game){askGame();return}
   if(t.dataset.restend){endRest();return}
