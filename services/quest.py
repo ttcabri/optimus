@@ -516,8 +516,6 @@ def merge_incoming(server: dict, incoming: dict) -> dict:
             iday["span"] = {**sday["span"], **(iday.get("span") or {})}
         if sday.get("woke") and (not iday.get("woke") or _ev_min(sday["woke"]) < _ev_min(iday["woke"])):
             iday["woke"] = sday["woke"]  # «Я встал» из бота
-        if sday.get("back"):
-            iday["back"] = sorted(set(iday.get("back") or []) | set(sday["back"]))
         for k2 in ("ok", "drift"):
             if sday.get(k2) and not iday.get(k2):
                 iday[k2] = sday[k2]
@@ -662,7 +660,7 @@ def build_plan(day: dict, now_min: int | None = None, wd: int | None = None) -> 
             continue
         if it.get("main") and debt and (P.get("penalty") or {}).get("fine") and not any(q["id"] == "fine" for q in queue):
             queue.append({"id": "fine", "name": f"Штраф: €{P['penalty']['fine']} в {P['penalty'].get('to') or 'копилку'}", "dur": 5, "fixed": None, "minor": False})
-        if it.get("until") and now_m > to_min(it["until"]) and not is_done(qid) and qid not in (day.get("back") or []):
+        if it.get("until") and now_m > to_min(it["until"]) and not is_done(qid):
             continue  # утро прошло: завтрак в вечер не тащим
         fixed = day_end(P) if it.get("at") == "end" else it.get("at")
         queue.append({"id": qid, "name": it["name"], "dur": it.get("dur", 30), "fixed": fixed, "minor": bool(it.get("minor"))})
