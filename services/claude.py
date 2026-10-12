@@ -10,7 +10,7 @@ from anthropic import AsyncAnthropic
 
 import database
 from config import ANTHROPIC_API_KEY
-from prompts.system import SYSTEM_PROMPT
+from prompts.system import OWNER_BIO, SYSTEM_PROMPT
 
 client = AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
 logger = logging.getLogger(__name__)
@@ -22,13 +22,13 @@ CHAT_SINCE = "2026-10-11 08:58:00"
 
 TOOLS = [
     {"name": "remember",
-     "description": "Сохранить факт об Андрее. Постоянный (адрес, машина, привычки, цели, решения): без days. Временный (нужен пару дней, пока дело не сделано): days = через сколько дней забыть (1–14). Разовые дела не сюда, а в план.",
+     "description": "Сохранить факт о человеке. Постоянный (адрес, машина, привычки, цели, решения): без days. Временный (нужен пару дней, пока дело не сделано): days = через сколько дней забыть (1–14). Разовые дела не сюда, а в план.",
      "input_schema": {"type": "object", "properties": {"fact": {"type": "string"}, "days": {"type": "integer"}}, "required": ["fact"]}},
     {"name": "forget",
-     "description": "Удалить сохранённый факт, если он устарел или Андрей просит забыть. Передай номер факта из списка.",
+     "description": "Удалить сохранённый факт, если он устарел или человек просит забыть. Передай номер факта из списка.",
      "input_schema": {"type": "object", "properties": {"n": {"type": "integer"}}, "required": ["n"]}},
     {"name": "set_reply_mode",
-     "description": "Как отвечать на голосовые Андрея: text = только текстом, voice = только голосом, both = голосом и текстом. Вызывай ВСЕГДА, когда он просит включить, выключить или поменять голосовые ответы, в любой формулировке. Не говори, что поменял, если не вызвал.",
+     "description": "Как отвечать на голосовые: text = только текстом, voice = только голосом, both = голосом и текстом. Вызывай ВСЕГДА, когда он просит включить, выключить или поменять голосовые ответы, в любой формулировке. Не говори, что поменял, если не вызвал.",
      "input_schema": {"type": "object", "properties": {"mode": {"type": "string", "enum": ["text", "voice", "both"]}}, "required": ["mode"]}},
     {"name": "set_theory_topic",
      "description": "Перейти на тему теории CBR по номеру из плана (1–8 темы, 9 = полные пробные экзамены).",
@@ -72,7 +72,8 @@ async def build_context_block(telegram_id: int, state: dict, day: dict) -> str:
     body = state.get("body") or []
     return (
         "=== КОНТЕКСТ ===\n"
-        f"Сейчас: {n.strftime('%H:%M, %A %d.%m.%Y')} (Нидерланды)"
+        + (f"Человек: {' '.join(x for x in ((state.get('profile') or {}).get('name'), (state.get('profile') or {}).get('surname')) if x)}\n" if (state.get("profile") or {}).get("name") else "")
+        + f"Сейчас: {n.strftime('%H:%M, %A %d.%m.%Y')} (Нидерланды)"
         f"{'. Встал в ' + quest.woke_at(day) if quest.woke_at(day) else '. Подъём сегодня не отмечен'}"
         f"{'. Спал ~' + str(quest.sleep_hours(state, quest.today_key())) + ' ч' if quest.sleep_hours(state, quest.today_key()) else ''}\n\n"
         f"СЕГОДНЯ В КВЕСТЕ:\n{re.sub(r'<[^>]+>', '', quest.day_summary(day))}\n\n"
@@ -153,7 +154,9 @@ async def get_ai_response(telegram_id: int, user_message: str, voice: bool = Fal
     day = await quest.get_day(telegram_id)
     state = await database.get_quest_state(telegram_id)
     # постоянная часть кэшируется (дешевле), контекст дня идёт после неё
-    system = [{"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}},
+    from config import TELEGRAM_USER_ID
+    base = SYSTEM_PROMPT + ("\n\n" + OWNER_BIO if telegram_id == TELEGRAM_USER_ID else "")
+    system = [{"type": "text", "text": base, "cache_control": {"type": "ephemeral"}},
               {"type": "text", "text": await build_context_block(telegram_id, state, day)}]
     tools = TOOLS + _actions_tools()
     tools = tools[:-1] + [dict(tools[-1], cache_control={"type": "ephemeral"})]
@@ -250,20 +253,20 @@ async def get_ai_response(telegram_id: int, user_message: str, voice: bool = Fal
     return reply
 
 
-FACTS_PROMPT = """Ты ведёшь долгую память о человеке (Андрей). Уже записано:
+FACTS_PROMPT = """Ты ведёшь долгую память о человеке. Уже записано:
 {notes}
 
 Новый обмен:
-Андрей: {user}
+Человек: {user}
 Помощник: {reply}
 
-Задача: найти НОВЫЕ ДОЛГИЕ факты, которые АНДРЕЙ САМ СКАЗАЛ в своём сообщении.
+Задача: найти НОВЫЕ ДОЛГИЕ факты, которые ЧЕЛОВЕК САМ СКАЗАЛ в своём сообщении.
 Строго:
-- Только из слов Андрея. Ответ помощника не источник фактов (он может ошибаться).
+- Только из его слов. Ответ помощника не источник фактов (он может ошибаться).
 - Только то, что будет правдой недели и месяцы: адрес, машина, сколько ему реально ехать до мест (если он сам назвал), привычки, предпочтения, люди, решения, цели.
 - НЕ записывай разовые дела, планы на сегодня, покупки, напоминания, часы работы магазинов: это хранится в плане, не в памяти.
 - Названия и адреса пиши как на карте (латиницей для нидерландских улиц, например De Oxer), а не как в расшифровке голоса.
-- Не дублируй записанное. replace только если Андрей прямо поменял старый факт (переехал, сменил машину).
+- Не дублируй записанное. replace только если он прямо поменял старый факт (переехал, сменил машину).
 Ответь ТОЛЬКО JSON: {{"add": ["факт"], "replace": {{"номер": "новая версия"}}}}. Если нечего, {{"add": [], "replace": {{}}}}."""
 
 

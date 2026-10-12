@@ -21,8 +21,15 @@ async def main() -> None:
     # разово: бот записал себе неверный вывод из ночных отметок (12.10), убираем
     try:
         st = await database.get_quest_state(TELEGRAM_USER_ID)
+        changed = False
         if any("Проснулся в ночное время" in n for n in st.get("notes") or []):
             st["notes"] = [n for n in st["notes"] if "Проснулся в ночное время" not in n]
+            changed = True
+        prof = st.get("profile") or {}
+        if prof and "reward" not in prof:  # у владельца награда была по умолчанию; для новых людей умолчания больше нет
+            st["profile"] = dict(prof, reward="Трава")
+            changed = True
+        if changed:
             await database.save_quest_state(TELEGRAM_USER_ID, st)
     except Exception as e:
         logging.error(f"notes cleanup error: {e}")
@@ -52,10 +59,8 @@ async def main() -> None:
     await start_web()
     if WEBAPP_URL:
         try:
-            await bot.set_chat_menu_button(
-                chat_id=TELEGRAM_USER_ID,
-                menu_button=MenuButtonWebApp(text="Квест", web_app=WebAppInfo(url=WEBAPP_URL)),
-            )
+            # кнопка «Квест» у всех, кому открыт бот (у каждого свой профиль и данные)
+            await bot.set_chat_menu_button(menu_button=MenuButtonWebApp(text="Квест", web_app=WebAppInfo(url=WEBAPP_URL)))
         except Exception as e:
             logging.error(f"Menu button error: {e}")
 

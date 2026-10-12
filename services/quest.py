@@ -52,7 +52,7 @@ def hhmm() -> str:
     return now().strftime("%H:%M")
 
 
-DEF_PROFILE = {"reward": "Трава", "name": "", "wake": "08:00", "bed": "23:30"}
+DEF_PROFILE = {"reward": "", "name": "", "wake": "08:00", "bed": "23:30"}
 
 
 def full_profile(state: dict | None) -> dict:

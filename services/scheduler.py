@@ -74,28 +74,28 @@ def quest_messages(day: dict, now_min: int, today: str, wd: int) -> list[str]:
     return out
 
 
-async def send_quest_tick(bot: Bot) -> None:
+async def send_quest_tick(bot: Bot, uid: int = TELEGRAM_USER_ID) -> None:
     """Каждые 5 минут: сверка с живым планом."""
     try:
         from services import dayflow, morning
-        day = await quest.get_day(TELEGRAM_USER_ID)
+        day = await quest.get_day(uid)
         if not quest.woke_at(day):
             return  # пока не нажал «Я встал», бот молчит
-        await dayflow.check_drift(bot, TELEGRAM_USER_ID)
-        day["_notify"] = morning.notify(await database.get_quest_state(TELEGRAM_USER_ID))
+        await dayflow.check_drift(bot, uid)
+        day["_notify"] = morning.notify(await database.get_quest_state(uid))
         msgs = quest_messages(day, quest.now_min(), quest.today_key(), quest.js_weekday())
         if msgs:
             from handlers.proof import quest_keyboard
             for m in msgs:
-                await bot.send_message(TELEGRAM_USER_ID, m, reply_markup=quest_keyboard())
+                await bot.send_message(uid, m, reply_markup=quest_keyboard())
     except Exception as e:
         logger.error(f"Quest tick error: {e}")
 
 
-async def send_reminders(bot: Bot) -> None:
+async def send_reminders(bot: Bot, uid: int = TELEGRAM_USER_ID) -> None:
     """Каждую минуту: напоминания, которые поставил помощник."""
     try:
-        state = await database.get_quest_state(TELEGRAM_USER_ID)
+        state = await database.get_quest_state(uid)
         rem = state.get("reminders") or []
         today, now_m = quest.today_key(), quest.now_min()
         due = [r for r in rem if not r.get("sent") and (r.get("d", "") < today or (r.get("d") == today and quest._ev_min(r.get("at") or "04:59") <= now_m))]
@@ -103,23 +103,23 @@ async def send_reminders(bot: Bot) -> None:
             return
         for r in due:
             r["sent"] = True
-        fresh = await database.get_quest_state(TELEGRAM_USER_ID)
+        fresh = await database.get_quest_state(uid)
         fresh["reminders"] = rem
-        await database.save_quest_state(TELEGRAM_USER_ID, fresh)
+        await database.save_quest_state(uid, fresh)
         from handlers.proof import quest_keyboard
         for r in due:
-            await bot.send_message(TELEGRAM_USER_ID, f"⏰ <b>Напоминание</b>\n{html.escape(r.get('text', ''))}", reply_markup=quest_keyboard())
+            await bot.send_message(uid, f"⏰ <b>Напоминание</b>\n{html.escape(r.get('text', ''))}", reply_markup=quest_keyboard())
     except Exception as e:
         logger.error(f"Reminders error: {e}")
 
 
-async def send_quest_night(bot: Bot) -> None:
+async def send_quest_night(bot: Bot, uid: int = TELEGRAM_USER_ID) -> None:
     """22:30 — итог дня и экран выкл."""
     try:
         from services import morning
-        if not morning.notify(await database.get_quest_state(TELEGRAM_USER_ID))["evening"]:
+        if not morning.notify(await database.get_quest_state(uid))["evening"]:
             return
-        day = await quest.get_day(TELEGRAM_USER_ID)
+        day = await quest.get_day(uid)
         P = quest.prof(day)
         pi = quest.pen_item(P)
         pen = P.get("penalty") or {}
@@ -130,18 +130,18 @@ async def send_quest_night(bot: Bot) -> None:
             + "\n\nЧто завтра, кроме распорядка? Напиши так:\n<code>завтра: отвезти Audi; письмо в UWV</code>"
             + f"\n\nЭкран выкл и спать в {P['bed']}."
         )
-        await bot.send_message(TELEGRAM_USER_ID, text)
+        await bot.send_message(uid, text)
     except Exception as e:
         logger.error(f"Quest night error: {e}")
 
 
-async def send_quest_week(bot: Bot) -> None:
+async def send_quest_week(bot: Bot, uid: int = TELEGRAM_USER_ID) -> None:
     """Воскресенье 21:00 — итог недели по квесту."""
     try:
         from services import morning
-        if not morning.notify(await database.get_quest_state(TELEGRAM_USER_ID))["week"]:
+        if not morning.notify(await database.get_quest_state(uid))["week"]:
             return
-        state = await database.get_quest_state(TELEGRAM_USER_ID)
+        state = await database.get_quest_state(uid)
         P = quest.full_profile(state)
         today = quest.lnow().date()
         ks = [today - timedelta(days=i) for i in range(7)]
@@ -159,32 +159,32 @@ async def send_quest_week(bot: Bot) -> None:
                    "Слабая неделя. Начни завтра с главного дела.")
         text = (f"📊 <b>Неделя в квесте</b>\n\nДней закрыто полностью: {closed}/7\n" + "\n".join(rows)
                 + f"\nПодряд сейчас: {quest.closed_streak(state)} дн.\n\n{verdict}")
-        await bot.send_message(TELEGRAM_USER_ID, text)
+        await bot.send_message(uid, text)
     except Exception as e:
         logger.error(f"Quest week error: {e}")
 
 
-async def send_review(bot: Bot) -> None:
+async def send_review(bot: Bot, uid: int = TELEGRAM_USER_ID) -> None:
     """Воскресенье 20:30: разбор недели, бот записывает, что понял."""
     try:
         from services import review
-        await review.send(bot, TELEGRAM_USER_ID)
+        await review.send(bot, uid)
     except Exception as e:
         logger.error(f"Review error: {e}")
 
 
-async def send_brain(bot: Bot) -> None:
+async def send_brain(bot: Bot, uid: int = TELEGRAM_USER_ID) -> None:
     """Мозг: раз в неделю или при новом этапе (поменялись цели) перечитать всё и поднять 0–2 вещи к месту."""
     try:
         import html
         from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
         from services import brain
-        state = await database.get_quest_state(TELEGRAM_USER_ID)
+        state = await database.get_quest_state(uid)
         why = brain.due(state)
         if not why:
             return
         pins = await brain.review(state, changed=why == "stage")
-        await database.save_quest_state(TELEGRAM_USER_ID, state)
+        await database.save_quest_state(uid, state)
         if not pins:
             return
         head = "🧠 У тебя новый этап, перечитал мозг. Вот что теперь к месту:" if why == "stage" else "🧠 Перечитал мозг под то, что у тебя сейчас:"
@@ -192,54 +192,54 @@ async def send_brain(bot: Bot) -> None:
             text = (head + "\n\n" if i == 0 else "") + f"<b>{html.escape(x['t'])}</b>\n{html.escape(x['pin'].get('why') or x.get('s') or '')}"
             row = [InlineKeyboardButton(text="Сделать делом на завтра", callback_data=f"br:task:{x['id']}")] if x["pin"].get("act") in ("task", "habit") else []
             row.append(InlineKeyboardButton(text="Не сейчас", callback_data=f"br:later:{x['id']}"))
-            await bot.send_message(TELEGRAM_USER_ID, text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[row]))
+            await bot.send_message(uid, text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[row]))
     except Exception as e:
         logger.error(f"Brain review error: {e}")
 
 
-async def send_money(bot: Bot) -> None:
+async def send_money(bot: Bot, uid: int = TELEGRAM_USER_ID) -> None:
     """Регулярные платежи: накануне напомнить, в день списать самим. Долги: напомнить в срок."""
     try:
         from services import money
-        state = await database.get_quest_state(TELEGRAM_USER_ID)
+        state = await database.get_quest_state(uid)
         m = money.get(state)
         t = quest.lnow()
         for r, o, warn in money.auto_pay(state):  # в свой день платёж списывается сам
             acc = money.acct(m, o["acc"])
-            await bot.send_message(TELEGRAM_USER_ID, f"💳 Списал регулярный платёж: {html.escape(r['n'])} €{r['amt']:g} ({acc['n'].lower()}). "
+            await bot.send_message(uid, f"💳 Списал регулярный платёж: {html.escape(r['n'])} €{r['amt']:g} ({acc['n'].lower()}). "
                                    f"На жизнь осталось €{money.free(state):g}." + (f"\n{warn}" if warn else ""))
         tm = (t + timedelta(days=1)).strftime("%Y-%m-%d")
         for r in m["reg"]:  # накануне: напомнить, чтобы на счёте хватило
             if r.get("paid") == tm[:7] or money.reg_due(r, tm[:7]) != int(tm[8:10]) or r.get("rem") == tm:
                 continue
             r["rem"] = tm
-            await bot.send_message(TELEGRAM_USER_ID, f"💳 Завтра спишется {html.escape(r['n'])} €{r['amt']:g} ({money.acct(m, r.get('acc'))['n'].lower()}).")
+            await bot.send_message(uid, f"💳 Завтра спишется {html.escape(r['n'])} €{r['amt']:g} ({money.acct(m, r.get('acc'))['n'].lower()}).")
         for dbt in money.debts_open(m):  # долги: напомнить в день «вернуть до»
             if dbt.get("due") == quest.today_key() and dbt.get("rem") != dbt["due"]:
                 dbt["rem"] = dbt["due"]
-                await bot.send_message(TELEGRAM_USER_ID, f"🤝 Сегодня срок долга: {html.escape(dbt['who'])} " + ("должен тебе" if dbt.get("dir") == "owe_me" else "— ты должен") + f" €{dbt['amt']:g}. Вернули — напиши «{html.escape(dbt['who'])} вернул».")
-        await database.save_quest_state(TELEGRAM_USER_ID, state)
+                await bot.send_message(uid, f"🤝 Сегодня срок долга: {html.escape(dbt['who'])} " + ("должен тебе" if dbt.get("dir") == "owe_me" else "— ты должен") + f" €{dbt['amt']:g}. Вернули — напиши «{html.escape(dbt['who'])} вернул».")
+        await database.save_quest_state(uid, state)
     except Exception as e:
         logger.error(f"Money reminder error: {e}")
 
 
-async def money_snapshot(bot: Bot) -> None:
+async def money_snapshot(bot: Bot, uid: int = TELEGRAM_USER_ID) -> None:
     """Каждый вечер: остатки счетов в историю (график на странице счёта)."""
     try:
         from services import money
-        state = await database.get_quest_state(TELEGRAM_USER_ID)
+        state = await database.get_quest_state(uid)
         if state.get("money"):
             money.snapshot(state)
-            await database.save_quest_state(TELEGRAM_USER_ID, state)
+            await database.save_quest_state(uid, state)
     except Exception as e:
         logger.error(f"Money snapshot error: {e}")
 
 
-async def money_month(bot: Bot) -> None:
+async def money_month(bot: Bot, uid: int = TELEGRAM_USER_ID) -> None:
     """1-го числа: итог прошлого месяца с одним советом."""
     try:
         from services import claude, money
-        state = await database.get_quest_state(TELEGRAM_USER_ID)
+        state = await database.get_quest_state(uid)
         m = money.get(state)
         prev = (quest.lnow().replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
         if not money.month_ops(m, prev):
@@ -252,22 +252,22 @@ async def money_month(bot: Bot) -> None:
             text = "".join(b.text for b in r.content if b.type == "text").strip() or facts
         except Exception:
             text = facts
-        await bot.send_message(TELEGRAM_USER_ID, "💰 <b>Итог месяца</b>\n" + html.escape(text))
+        await bot.send_message(uid, "💰 <b>Итог месяца</b>\n" + html.escape(text))
     except Exception as e:
         logger.error(f"Money month error: {e}")
 
 
-async def money_savings_ask(bot: Bot) -> None:
+async def money_savings_ask(bot: Bot, uid: int = TELEGRAM_USER_ID) -> None:
     """Воскресенье: сверить сбережения (акции и крипта меняются сами), чтобы был график роста."""
     try:
         from services import money
-        state = await database.get_quest_state(TELEGRAM_USER_ID)
+        state = await database.get_quest_state(uid)
         m = money.get(state)
         accs = [a for a in money.visible(m) if a.get("t") in ("stocks", "crypto") and money.balance(m, a["id"])]
         if not accs:
             return
         now = ", ".join(f"{money.TYPES[a['t']][1].lower()} €{money.balance(m, a['id']):g}" for a in accs)
-        await bot.send_message(TELEGRAM_USER_ID, f"📈 Сверка сбережений. Сейчас записано: {now}.\nСколько там на самом деле? Напиши, например: «акции 900, крипта 23500».")
+        await bot.send_message(uid, f"📈 Сверка сбережений. Сейчас записано: {now}.\nСколько там на самом деле? Напиши, например: «акции 900, крипта 23500».")
     except Exception as e:
         logger.error(f"Savings ask error: {e}")
 
@@ -289,21 +289,43 @@ async def send_backup(bot: Bot) -> None:
         logger.error(f"Backup error: {e}")
 
 
+async def users() -> list[int]:
+    """Все, кому открыт бот: владелец и одобренные им. У каждого свой профиль и свои данные."""
+    ids = [TELEGRAM_USER_ID]
+    try:
+        ids += [int(uid) for uid, _n, st in await database.access_list() if st == "ok" and int(uid) != TELEGRAM_USER_ID]
+    except Exception as e:
+        logger.error(f"users list error: {e}")
+    return ids
+
+
+def each(fn):
+    """Задача по расписанию для каждого человека отдельно: ошибка у одного не мешает остальным."""
+    async def run(bot: Bot) -> None:
+        for uid in await users():
+            try:
+                await fn(bot, uid)
+            except Exception as e:
+                logger.error(f"{fn.__name__} for {uid}: {e}")
+    run.__name__ = fn.__name__
+    return run
+
+
 def setup_scheduler(bot: Bot) -> AsyncIOScheduler:
     tz = pytz.timezone(TIMEZONE)
     scheduler = AsyncIOScheduler(timezone=tz)
 
     # Квест дня: живой план, проверка каждые 5 минут
-    scheduler.add_job(send_quest_tick, "cron", minute="*/5", kwargs={"bot": bot})
-    scheduler.add_job(send_reminders, "cron", minute="*", kwargs={"bot": bot})
-    scheduler.add_job(send_quest_night, "cron", hour=22, minute=30, kwargs={"bot": bot})
-    scheduler.add_job(send_quest_week, "cron", day_of_week="sun", hour=21, minute=0, kwargs={"bot": bot})
-    scheduler.add_job(send_review, "cron", day_of_week="sun", hour=20, minute=30, kwargs={"bot": bot})
-    scheduler.add_job(send_brain, "cron", hour=12, minute=40, kwargs={"bot": bot})
+    scheduler.add_job(each(send_quest_tick), "cron", minute="*/5", kwargs={"bot": bot})
+    scheduler.add_job(each(send_reminders), "cron", minute="*", kwargs={"bot": bot})
+    scheduler.add_job(each(send_quest_night), "cron", hour=22, minute=30, kwargs={"bot": bot})
+    scheduler.add_job(each(send_quest_week), "cron", day_of_week="sun", hour=21, minute=0, kwargs={"bot": bot})
+    scheduler.add_job(each(send_review), "cron", day_of_week="sun", hour=20, minute=30, kwargs={"bot": bot})
+    scheduler.add_job(each(send_brain), "cron", hour=12, minute=40, kwargs={"bot": bot})
     scheduler.add_job(send_backup, "cron", hour=4, minute=30, kwargs={"bot": bot})
-    scheduler.add_job(send_money, "cron", hour=9, minute=5, kwargs={"bot": bot})
-    scheduler.add_job(money_snapshot, "cron", hour=23, minute=55, kwargs={"bot": bot})
-    scheduler.add_job(money_month, "cron", day=1, hour=10, minute=20, kwargs={"bot": bot})
-    scheduler.add_job(money_savings_ask, "cron", day_of_week="sun", hour=19, minute=0, kwargs={"bot": bot})
+    scheduler.add_job(each(send_money), "cron", hour=9, minute=5, kwargs={"bot": bot})
+    scheduler.add_job(each(money_snapshot), "cron", hour=23, minute=55, kwargs={"bot": bot})
+    scheduler.add_job(each(money_month), "cron", day=1, hour=10, minute=20, kwargs={"bot": bot})
+    scheduler.add_job(each(money_savings_ask), "cron", day_of_week="sun", hour=19, minute=0, kwargs={"bot": bot})
 
     return scheduler
