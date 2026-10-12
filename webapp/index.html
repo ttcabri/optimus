@@ -435,7 +435,7 @@ function queue(k){
     if(it.id==="_custom"){hasC=true;customs();continue}
     if(!it.id||!onDay(it,wd)||(d.skip.includes(it.id)&&it!==pi))continue;
     if(it.main&&debt&&pen.fine&&!out.some(q=>q.id==="fine"))out.push({id:"fine",name:`Штраф: €${pen.fine} в ${pen.to||"копилку"}`,sub:"За вчерашний провал. Скрин перевода в бот",dur:5,proof:1,penalty:1});
-    if(it.until&&k===key()&&nowMin()>toMin(it.until)&&!itemDone(d,it))continue; // утро прошло: завтрак в вечер не тащим
+    if(it.until&&k===key()&&nowMin()>toMin(it.until)&&!itemDone(d,it)&&!(d.back||[]).includes(it.id))continue; // утро прошло: завтрак в вечер не тащим
     const q=Object.assign({},it,{fixed:it.at==="end"?DAY_END_():(it.at||null)});
     if(it.at==="end")q.sub=(it.sub?it.sub+". ":"")+"Отбой в "+BED_();
     if(it.steps)q.kind="multi";
@@ -1079,7 +1079,9 @@ document.addEventListener("click",e=>{
     if(it&&(it.meal==="prep"||id==="prep")&&!was&&has(dayOf(key()),id)){W={step:"prepnew",name:"",n:4};renderSheet()}return}
   if(t.dataset.wake){const d=dayOf(key());if(!d.woke){mutate(()=>{d.woke=hhmm();logEv(d,"woke")});haptic("success");toast("Встал в "+d.woke+". План пришлёт бот")}return}
   if(t.dataset.unskip){const id=t.dataset.unskip,d=dayOf(key()),m=(d.moved||{})[id];
-    mutate(()=>{d.skip=d.skip.filter(x=>x!==id);if(m){const td=dayOf(m.to||m);td.custom=td.custom.filter(c=>c.from!==id);const mv=Object.assign({},d.moved);delete mv[id];d.moved=mv}logEv(d,"back",id)});toast("Вернул в план");return}
+    mutate(()=>{d.skip=d.skip.filter(x=>x!==id);d.back=[...new Set([...(d.back||[]),id])];
+      if(id.startsWith("ch_")){const c=houseOf().chores.find(x=>"ch_"+x.id===id);if(c&&!isMe(c.who)){c.who=ME();touch(c)}}
+      if(id.startsWith("pr_")){const st=stepOf(id);if(st&&!isMe(st.who)){st.who=ME();touch(st)}}if(m){const td=dayOf(m.to||m);td.custom=td.custom.filter(c=>c.from!==id);const mv=Object.assign({},d.moved);delete mv[id];d.moved=mv}logEv(d,"back",id)});toast("Вернул в план");return}
   if(t.dataset.hitem){W={step:"hitem",id:t.dataset.hitem};renderSheet();return}
   if(t.dataset.prepeat){const x=houseOf().items.find(i=>i.id===t.dataset.prepeat);if(x){const nm=x.name;mutate(()=>prepEat(x));toast(x.n?nm+": осталось "+x.n+" порц.":nm+": съедено всё")}return}
   if(t.dataset.hnew){W={step:"hnew",what:t.dataset.hnew,name:"",cat:t.dataset.hnew.startsWith("cat:")?t.dataset.hnew.slice(4):(HCATS[t.dataset.hnew]?t.dataset.hnew:""),n:4,every:7,due:""};renderSheet();return}
