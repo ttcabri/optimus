@@ -753,7 +753,7 @@ function nowCard(k,d,p){
   const done=locked(q)?`<button type="button" class="bigbtn" data-proof="1">Кинуть пруф боту</button>`:`<button type="button" class="bigbtn" data-t="${esc(q.id)}">Готово</button>`;
   const ri=ritem(q.id),meal=ri&&(ri.meal||["bfast","lunch","dinner","prep"].includes(ri.id)),isPrepTask=ri&&(ri.meal==="prep"||ri.id==="prep"),pr=meal&&!isPrepTask?prepsH(houseOf())[0]:null;
   const food=meal?(pr?`<div class="prepbox"><span style="flex:1;min-width:0"><b>${esc(pr.name)}</b><small>есть заготовка · ${pr.n} порц.</small></span><button type="button" data-prepeat="${pr.id}">Съел порцию</button></div>`:"")+`<button type="button" class="ghost" data-cookgo="1">🍳 ${pr?"Другое: что приготовить":"Что приготовить"}</button>`:"";
-  const startB=it.started?`<button type="button" class="ghost" data-stop="1">Остановить</button>`:`<button type="button" class="ghost" data-start="${esc(q.id)}">Начать, засечь время</button>`;
+  const startB=it.started?"":`<button type="button" class="ghost" data-start="${esc(q.id)}">Начать, засечь время</button>`;
   const tok=isMain(q)?" Нужно для награды.":"";
   return `<section class="now${late?" late":""}">${kline}<div><h2>${esc(q.name)}</h2><p>${esc(subOf(q))}${tok&&subOf(q)&&!/[.!?]$/.test(subOf(q))?".":""}${tok}</p></div>${clock}${food}${done}${startB}</section>`;
 }
@@ -764,7 +764,7 @@ function planRow(d,it,opts={}){
   const inReward=isMain(q),pi=penItem();
   const right=inReward?`<span class="tok" title="Нужно для награды">${IC.leaf}</span>`:`<span class="dur">${durTxt(durOf(d,q))}</span>`;
   const sub=q.steps?`${q.steps.filter(x=>has(d,x.id)).length} из ${q.steps.length} шагов · ${durTxt(durOf(d,q))}`:(it.late&&it.started?`Сверх плана ${it.late} мин`:subOf(q));
-  const startAttr=q.steps?`data-focus="${esc(q.id)}"`:`tabindex="-1"`;
+  const startAttr=q.steps?`data-focus="${esc(q.id)}"`:`data-start="${esc(q.id)}"`;
   const chk=q.steps?`<span class="chk" aria-hidden="true"></span>`:`<button type="button" class="chk" data-t="${esc(q.id)}" aria-label="Отметить «${esc(q.name)}» сделанным"></button>`;
   const extra=!q.penalty&&!(pi&&pi.id===q.id)?`<button type="button" class="x" data-mv="${esc(q.id)}" aria-label="Перенести или убрать «${esc(q.name)}»">${IC.x}</button>`:"";
   const main=it.started?`<span class="rowmain"><span class="nm"><b>${esc(q.name)}</b><small>Идёт сейчас · ${esc(sub)}</small></span>${right}</span>`
@@ -1090,7 +1090,6 @@ document.addEventListener("click",e=>{
   if(t.dataset.stepi){const [pid,sid]=t.dataset.stepi.split(":");W={step:"stepi",pid,sid};renderSheet();return}
   if(t.dataset.cookgo){tab="home";homeSeg="cook";render();window.scrollTo(0,0);return}
   if(t.dataset.start){startTask(t.dataset.start);return}
-  if(t.dataset.stop){const d=dayOf(key());if(d.cur){const id=d.cur.id;mutate(()=>{delete d.cur;logEv(d,"stop",id)});toast("Остановил")}return}
   if(t.dataset.focus){openFocus(t.dataset.focus);return}
   if(t.dataset.redit){openRoutine(t.dataset.redit);return}
   if(t.dataset.hday){const x=t.dataset.hday,ks=Object.keys(state.days).sort().reverse();histOpen=histOpen===x||(histOpen===null&&x===ks.find(y=>y<=key()&&dayLog(y).length))?"":x;render();return}
