@@ -95,6 +95,8 @@ button{cursor:pointer}
 
 .sec{display:flex;justify-content:space-between;align-items:baseline;padding:14px 20px 6px}
 .sec h3{margin:0;font-size:15px;font-weight:800}
+.sec.spo{width:calc(100% - 32px);margin:8px 16px 0;padding:14px;border-radius:14px;background:var(--panel);border:none;color:var(--fg);font:inherit;text-align:left}
+.sec.spo span{font-size:13px;font-weight:700;color:var(--muted)}
 .sec span,.sec button{font-size:13px;font-weight:700;color:var(--muted);background:none;border:none;padding:0}
 .sec button{color:var(--gold);padding:6px 0 6px 12px;margin:-6px 0}
 .list{display:flex;flex-direction:column;gap:6px;padding:0 16px}
@@ -795,6 +797,18 @@ function wakeCard(k){const yk=shift(k,-1),R=peek(yk)?reqs(yk):[],got=R.filter(r=
     ${pi&&P.penalty&&P.penalty.fine?`<div class="hrow"><span class="nm"><b>Штраф</b></span><span class="val"${debtOf(k)?' style="color:var(--red)"':""}>${debtOf(k)?"сегодня штрафной день":"нет"}</span></div>`:""}</div>`:"";
   return `<section class="now"><span class="k"><span>Подъём по плану ${esc(P.wake)}</span></span><h2>Доброе утро</h2><p>Нажми, когда встал. От этого времени соберу день, план пришлёт бот.</p>
     <button type="button" class="bigbtn" data-wake="1">☀️ Я встал</button></section>${y}`}
+let spo={};
+function spoilers(k,d,done,up,dname){
+  const mv=d.moved||{},skipped=(d.skip||[]).filter(id=>!mv[id]),moved=(d.skip||[]).filter(id=>mv[id]);
+  const fromToday=new Set(moved.map(id=>(mv[id].to||mv[id])+"|"+(mv[id].n||nameOf(id,d))));
+  const later=up.filter(({kk,c})=>!c.from||!moved.includes(c.from)).filter(({kk,c})=>!fromToday.has(kk+"|"+c.name));
+  const box=(id,title,n,body)=>`<button type="button" class="sec spo" data-spo="${id}" aria-expanded="${!!spo[id]}"><h3>${title}</h3><span>${n} ${spo[id]?"▴":"▾"}</span></button>${spo[id]?`<div class="list">${body}</div>`:""}`;
+  const back=id=>`<button type="button" class="chip" data-unskip="${esc(id)}">Вернуть</button>`;
+  return (done.length?box("done","Сделано",done.length,done.map(q=>doneRow(d,q)).join("")):"")
+    +(skipped.length?box("skip","Убрано",skipped.length,skipped.map(id=>`<div class="hrow"><span class="nm"><b style="font-weight:600;color:var(--muted)">${esc(nameOf(id,d))}</b><small>убрано на сегодня</small></span>${back(id)}</div>`).join("")):"")
+    +(moved.length||later.length?box("mv","Перенесено",moved.length+later.length,
+        moved.map(id=>`<div class="hrow"><span class="nm"><b style="font-weight:600;color:var(--muted)">${esc(mv[id].n||nameOf(id,d))}</b><small>на ${ddmm(mv[id].to||mv[id])}</small></span>${back(id)}</div>`).join("")
+        +later.map(({kk,c})=>`<div class="row"><span class="tm">${esc(dname(kk))}<small>${esc(c.at||"")}</small></span><span class="nm"><b>${esc(c.name)}</b><small>${durTxt(c.dur||30)}</small></span><button type="button" class="x" data-delon="${esc(kk)}|${esc(c.id)}" aria-label="Удалить">${IC.x}</button></div>`).join("")):"")}
 function viewToday(){
   const k=key(),d=dayOf(k);
   if(!wokeAt(d))return wakeCard(k);
@@ -810,10 +824,7 @@ function viewToday(){
   return nowCard(k,d,p)+overCard(p)+
     `<div class="sec"><h3>Дальше</h3><span>до ${DAY_END_()}</span></div>
      <div class="list">${shown.map(it=>planRow(d,it,{edit:dayOpen})).join("")||'<p class="empty">Больше ничего.</p>'}</div>
-     ${dayOpen?`${done.length?`<div class="sec"><h3>Сделано</h3><span>${done.length}</span></div><div class="list">${done.map(q=>doneRow(d,q)).join("")}</div>`:""}
-       ${(d.skip||[]).length?`<div class="sec"><h3>Убрано и перенесено</h3><span>${d.skip.length}</span></div><div class="list">${d.skip.map(id=>{const m=(d.moved||{})[id];return `<div class="hrow"><span class="nm"><b style="font-weight:600;color:var(--muted)">${esc(m&&m.n||nameOf(id,d))}</b><small>${m?"перенесено на "+ddmm(m.to||m):"убрано на сегодня"}</small></span><button type="button" class="chip" data-unskip="${esc(id)}">Вернуть</button></div>`}).join("")}</div>`:""}
-       <div class="sec"><h3>Запланировано вперёд</h3><span>${up.length} дел</span></div>
-       <div class="list">${tl||'<p class="empty">Пусто.</p>'}</div>`:""}
+     ${dayOpen?spoilers(k,d,done,up,dname):""}
      <div class="segfoot">${more}</div>`;
 }
 // Серия привычки: огонь, 7 дней, ступени-подарки за 7/14/30 дней подряд
@@ -1121,6 +1132,7 @@ document.addEventListener("click",e=>{
   if(t.dataset.gsug){const gid=t.dataset.gsug;mutate(()=>{state.tgoals[gid]={steps:sugOf(gid).map(x=>({id:hid("t"),...x}))}});toast("Ступени заново");return}
   if(t.dataset.notify){const k=t.dataset.notify;mutate(()=>{state.notify=Object.assign({},state.notify,{[k]:!notifyOn(k)})});return}
   if(t.dataset.cook){cook();return}
+  if(t.dataset.spo){spo[t.dataset.spo]=!spo[t.dataset.spo];render();return}
   if(t.dataset.dayopen){dayOpen=t.dataset.dayopen==="1";render();if(!dayOpen)window.scrollTo(0,0);return}
   if(t.id==="rewardpill"){W={step:"reward"};renderSheet();return}
   if(t.dataset.gift){openGift(t.dataset.gift);return}
