@@ -262,8 +262,7 @@ button.hrow{width:100%;border:none;color:inherit;font:inherit;text-align:left}
 .msave{margin-top:8px;background:var(--panel);border-color:var(--line)}.msave>b{font-size:24px}.macc .chip.dim{opacity:.55}
 .macc{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.macc .chip b{margin-left:4px}.mfree{margin:6px 0 0;font-size:13px;font-weight:700;color:var(--okl)}
 .mrow2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 16px 0}.mc{border-radius:16px;background:var(--panel);padding:10px 12px}.mc small{color:var(--muted);font-weight:700;font-size:12px;display:block}.mc b{font-size:19px}
-.mlims{display:flex;flex-direction:column;gap:6px}.mlims label{display:flex;align-items:center;justify-content:space-between;gap:10px;font-weight:700;font-size:14px}
-.mlims label small{display:block;color:var(--dim);font-size:11px;font-weight:700}.mlims input{width:96px;text-align:right}
+.mcats .htile{min-height:92px}.mcats .htile.zero .hi{opacity:.6}
 .mi{width:34px;height:34px;border-radius:10px;background:var(--panel2);display:grid;place-items:center;font-size:17px;flex-shrink:0}
 .mehello{margin:2px 18px 12px;color:var(--muted);font-weight:700;font-size:14px}.mehello b{color:var(--fg)}
 .hsetup{margin:0 16px 12px;padding:16px;border-radius:20px;background:var(--paper);color:var(--ink);display:flex;flex-direction:column;gap:8px}
@@ -1252,8 +1251,8 @@ function viewMoney(){const m=MON();
       <div class="macc">${m.accts.filter(a=>!mSpend(a)).map(acc).join("")}</div>
       <p class="mfree" style="color:var(--muted)">Всего денег ${eur(tot)}</p></section>
     <div class="mrow2"><div class="mc"><small>${new Date(key()+"T12:00:00").toLocaleDateString("ru-RU",{month:"long"})}: потратил</small><b>${eur(spT)}</b></div><div class="mc"><small>Пришло</small><b style="color:var(--okl)">${eur(inc)}</b></div></div>
-    <div class="glabel" style="display:flex;justify-content:space-between;align-items:center">По категориям<button type="button" class="chip" data-mlims="1">${Object.values(m.lim||{}).some(v=>v)?"Лимиты":"+ Лимиты"}</button></div>
-    ${cats.length?`<div class="list">${cats.map(c=>{const lim=(m.lim||{})[c],v=sp[c]||0;return `<button type="button" class="hrow go" data-meseg="money:c:${c}"><span class="mi">${MC[c][0]}</span><span class="nm"><b>${MC[c][1]}</b>${lim?`<span class="pbar" style="display:block"><i style="width:${Math.min(100,Math.round(v/lim*100))}%;${v>=lim?"background:var(--red)":v>=.8*lim?"background:var(--fire)":""}"></i></span><small>${v>=lim?"лимит кончился":"осталось "+eur(lim-v)+" · ~"+eur((lim-v)/dl)+"/день"}</small>`:"<small>без лимита</small>"}</span><span class="val">${eur(v)}${lim?`<small style="display:block;color:var(--dim);font-size:11px;text-align:right">из ${eur(lim)}</small>`:""}</span></button>`}).join("")}</div>`:`<p class="empty" style="padding:0 20px">Трат в этом месяце ещё нет.</p>`}
+    <div class="glabel">По категориям</div><div class="htiles mcats">${Object.keys(MC).filter(c=>!["gift","fine"].includes(c)||sp[c]).map(c=>{const lim=(m.lim||{})[c],v=sp[c]||0;
+      return `<button type="button" class="htile${v?"":" zero"}" data-meseg="money:c:${c}"><span class="hi">${MC[c][0]}</span><span class="tb"><b>${MC[c][1]}</b><small class="${lim&&v>=lim?"bad":""}">${v?eur(v):"—"}${lim?" из "+eur(lim):""}</small>${lim?`<span class="pbar" style="display:block;margin-top:4px"><i style="width:${Math.min(100,Math.round(v/lim*100))}%;${v>=lim?"background:var(--red)":v>=.8*lim?"background:var(--fire)":""}"></i></span>`:""}</span></button>`}).join("")}</div>
     ${pigs.length?`<div class="glabel">Копилки на цели</div><div class="list">${pigs.map(([g,v,t])=>`<button type="button" class="hrow go" data-gopen="${esc(g.id)}"><span class="mi">${esc(g.emoji||"🎯")}</span><span class="nm"><b>${esc(g.name)}</b>${t?`<span class="pbar" style="display:block"><i style="width:${Math.min(100,Math.round(v/t*100))}%;background:var(--fire)"></i></span>`:""}</span><span class="val">${eur(v)}${t?`<small style="display:block;color:var(--dim);font-size:11px;text-align:right">из ${eur(t)}</small>`:""}</span></button>`).join("")}</div>`:""}
     <div class="glabel">Регулярные${rl.length?` <span style="font-weight:700;color:var(--dim);font-size:12px">впереди ${eur(rl.reduce((s,r)=>s+r.amt,0))}</span>`:""}</div>
     ${m.reg.length?`<div class="list">${m.reg.slice().sort((a,b)=>(+a.day||1)-(+b.day||1)).map(r=>`<div class="hrow"><button type="button" class="nm" data-mreg="${esc(r.id)}" style="background:none;border:none;color:inherit;font:inherit;text-align:left;padding:0"><b>${esc(r.n)} · ${eur(r.amt)}</b><small>${r.day||1}-го${r.paid===ym()?" · оплачено":""}</small></button>${r.paid===ym()?`<span class="rs ok">${IC.check}</span>`:`<button type="button" class="chip take" data-mpaid="${esc(r.id)}">Оплачено</button>`}</div>`).join("")}</div>`:""}
@@ -1408,7 +1407,6 @@ document.addEventListener("click",e=>{
   if(t.dataset.mnew){const m=MON();W={step:"mop",isNew:true,o:{id:hid("m"),k:"exp",amt:0,cat:MC[t.dataset.mnew]?t.dataset.mnew:"food",acc:mDefAcc(m),n:"",d:key()}};renderSheet();return}
   if(t.dataset.mop){const o=MON().ops.find(x=>x.id===t.dataset.mop);if(o){W={step:"mop",isNew:false,o:clone(o)};renderSheet()}return}
   if(t.dataset.macc){W={step:"macc",id:t.dataset.macc};renderSheet();return}
-  if(t.dataset.mlims){W={step:"mlims"};renderSheet();return}
   if(t.dataset.mlim){W={step:"mlim",cat:t.dataset.mlim};renderSheet();return}
   if(t.dataset.mreg){W={step:"mreg",isNew:t.dataset.mreg==="+",id:t.dataset.mreg};renderSheet();return}
   if(t.dataset.mpaid){const m=MON(),r=m.reg.find(x=>x.id===t.dataset.mpaid);if(r){let warn="";mutate(()=>{mAdd("exp",r.amt,r.cat||"other",r.acc,r.n,null,"reg:"+r.id);r.paid=ym();r.u=Date.now();warn=mWarn(m,r.cat||"other")});toast(warn||r.n+": оплачено, "+eur(r.amt)+" в тратах")}return}
@@ -1561,10 +1559,6 @@ function renderSheet(){
     body=`<h2>${AT[t][0]} ${AT[t][1]}</h2><p class="q">${AT[t][2]?"Деньги на жизнь: из них траты по умолчанию"+(t==="card"?" (карта)":"")+".":"Сбережения: во «Всего», но не в «на месяц»."} Впиши, сколько сейчас, разницу учту сам.</p>
       <form data-wf="macc"><input name="v" inputmode="decimal" value="${mBal(m,a.id)||""}" placeholder="Сейчас, €" aria-label="Сейчас" autocomplete="off"></form>
       <button type="button" class="goldbtn" data-w="maccsave">Сохранить</button>`}
-  if(W.step==="mlims"){const m=MON(),sp=mSpent(m);
-    body=`<h2>Лимиты на месяц</h2><p class="q">Пусто = без лимита. Бот предупредит на 80% и когда лимит кончится.</p>
-      <form data-wf="mlims" class="mlims">${Object.keys(MC).filter(x=>x!=="fine").map(c=>`<label><span>${MC[c][0]} ${MC[c][1]}${sp[c]?`<small>сейчас ${eur(sp[c])}</small>`:""}</span><input name="${c}" inputmode="decimal" value="${(m.lim||{})[c]||""}" placeholder="—" aria-label="${MC[c][1]}" autocomplete="off"></label>`).join("")}</form>
-      <button type="button" class="goldbtn" data-w="mlimsave">Сохранить</button>`}
   if(W.step==="mlim"){const m=MON(),c=W.cat,v=(m.lim||{})[c]||"";
     body=`<h2>Лимит на месяц</h2><div class="perm">${Object.keys(MC).filter(x=>x!=="fine").map(x=>`<button type="button" class="chip" data-w="ml:${x}" aria-pressed="${c===x}">${MC[x][0]} ${MC[x][1]}</button>`).join("")}</div>
       <form data-wf="mlim"><input name="v" inputmode="decimal" value="${v}" placeholder="€ в месяц, пусто = без лимита" aria-label="Лимит" autocomplete="off"></form>
@@ -1795,8 +1789,6 @@ $("sheet").addEventListener("click",e=>{
   if(a==="maccsave"){const m=MON(),v=parseFloat(String($("sheet").querySelector("form[data-wf=macc] input[name=v]").value).replace(",","."));if(isNaN(v)){toast("Впиши сумму");return}
     const ac=m.accts.find(x=>x.id===W.id);closeSheet();if(!ac)return;mutate(()=>{ac.base=Math.round(((+ac.base||0)+v-mBal(m,ac.id))*100)/100;ac.u=Date.now()});toast(AT[aType(ac)][1]+": "+eur(v));return}
   if(a.startsWith("ml:")){W.cat=a.slice(3);return renderSheet()}
-  if(a==="mlimsave"){const m=MON(),f=$("sheet").querySelector("form[data-wf=mlims]"),lim={};for(const c of Object.keys(MC)){const i=f.querySelector(`[name="${c}"]`);const v=i?parseFloat(String(i.value).replace(",",".")):0;if(v>0)lim[c]=v}
-    closeSheet();mutate(()=>{m.lim=lim;m.lu=Date.now()});toast(Object.keys(lim).length?"Лимиты сохранены":"Лимиты убраны");return}
   if(a==="mlsave"){const m=MON(),v=parseFloat(String($("sheet").querySelector("input[name=v]").value).replace(",","."));const c=W.cat;closeSheet();mutate(()=>{m.lim=Object.assign({},m.lim,{[c]:v>0?v:0});m.lu=Date.now()});toast(v>0?"Лимит "+MC[c][1]+": "+eur(v)+" в месяц":"Лимит убран");return}
   if(a.startsWith("mrc:")){mrKeep();W.cat=a.slice(4);return renderSheet()}
   if(a==="mrsave"){const m=MON(),f=$("sheet").querySelector("form[data-wf=mreg]"),n=f.n.value.trim(),amt=parseFloat(String(f.amt.value).replace(",",".")),day=Math.min(31,Math.max(1,parseInt(f.day.value,10)||1));
