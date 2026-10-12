@@ -122,7 +122,6 @@ def commit(state: dict, uid: int) -> str:
         _, w = money.add(state, "exp", amt, cat, None, r["shop"] or "чек", r["date"] if r["date"] <= quest.today_key() else None, "rcpt:" + it["id"])
         if w:
             warns.append(w)
-    pdv = money.per_day(state)
     return ("✅ Записал.\n🏠 Дом: " + (html.escape(", ".join(got)) if got else "ничего") +
             (f"\n💰 Траты: €{r['total']:g}" if r.get("total") else "") + "\n🧾 Чек в Документы → Чеки."
-            + ("\n" + "\n".join(warns) if warns else "") + (f"\nПо лимитам до конца месяца можно ~€{pdv[0]:g} в день." if pdv else ""))
+            + ("\n" + "\n".join(warns) if warns else ""))

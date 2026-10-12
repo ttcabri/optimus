@@ -411,10 +411,8 @@ def run(state: dict, name: str, a: dict) -> str | None:
                 return "нужна сумма"
             day = _key(a.get("day")) if a.get("day") else None
             o, warn = money.add(state, a.get("kind") or "exp", amt, str(a.get("cat") or "other"), a.get("acc"), str(a.get("note") or ""), day, "chat")
-            pdv = money.per_day(state)
             return (f"записано: {'доход' if o['k'] == 'inc' else 'трата'} €{o['amt']:g} (id {o['id']}). На жизнь €{money.free(state):g}, всего €{money.total(m):g}."
-                    + (f" По лимитам ~€{pdv[0]:g}/день до конца месяца." if pdv else "")
-                    + "".join(f" Лимит {money.CATS[k][1]}: осталось ~€{d:g}/день." for k, v, sp_, d in money.lim_left(m) if k == o["cat"]) + (" " + warn if warn else ""))
+                     + (" " + warn if warn else ""))
         if op == "balance":
             if not isinstance(amt, (int, float)):
                 return "нужна сумма"
