@@ -33,10 +33,10 @@ TOOLS = [
     {"name": "money",
      "description": "ДЕНЬГИ. op: add (трата kind=exp или доход kind=inc: amt, cat, note коротко что, acc счёт если назван, day если не сегодня), "
                     "balance (сколько сейчас: acc = cash наличные | card карта | bank банк | stocks акции | crypto крипта, amt), limit (лимит на месяц: cat, amt; 0 = убрать), "
-                    "regular (регулярный платёж: name, amt, day число месяца, cat), paid (регулярный оплачен: name), delete (удалить операцию: id). "
+                    "transfer (перевод между своими счетами: acc откуда, name куда, amt; «перевёл 200 с карты на акции»), regular (регулярный платёж: name, amt, day число месяца, cat), paid (регулярный оплачен: name), delete (удалить операцию: id). "
                     "Категории трат: food еда/продукты/кафе, home быт/хозтовары, rent жильё/аренда/коммуналка, car машина/бензин/ремонт, health здоровье/аптека/спорт, "
                     "subs связь/подписки, fun развлечения/игры, cloth одежда, gift подарок себе, fine штраф, other. Доходы: ww, work, sale, other.",
-     "input_schema": {"type": "object", "properties": {"op": {"type": "string", "enum": ["add", "balance", "limit", "regular", "paid", "delete"]},
+     "input_schema": {"type": "object", "properties": {"op": {"type": "string", "enum": ["add", "balance", "transfer", "limit", "regular", "paid", "delete"]},
          "kind": {"type": "string", "enum": ["exp", "inc"]}, "amt": {"type": "number"}, "cat": {"type": "string"}, "note": {"type": "string"},
          "acc": {"type": "string"}, "name": {"type": "string"}, "day": {"type": "string"}, "id": {"type": "string"}}, "required": ["op"]}},
     {"name": "set_penalty",
@@ -419,6 +419,13 @@ def run(state: dict, name: str, a: dict) -> str | None:
                 return "нужна сумма"
             ac = money.set_balance(state, a.get("acc"), amt, a.get("name"))
             return f"счёт {ac['n']}: €{money.balance(m, ac['id']):g}. Всего €{money.total(m):g}"
+        if op == "transfer":
+            if not isinstance(amt, (int, float)) or amt <= 0:
+                return "нужна сумма"
+            o = money.transfer(state, a.get("acc"), a.get("name"), amt, str(a.get("note") or ""), _key(a.get("day")) if a.get("day") else None)
+            if not o:
+                return "откуда и куда одинаковые"
+            return f"перевод €{o['amt']:g}: {money.acct(m, o['acc'])['n']} → {money.acct(m, o['to'])['n']} (id {o['id']}). На жизнь €{money.free(state):g}, всего €{money.total(m):g}"
         if op == "limit":
             cat = str(a.get("cat") or "")
             if cat not in money.CATS:

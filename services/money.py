@@ -95,6 +95,8 @@ def balance(m: dict, aid: str) -> float:
         return 0.0
     v = float(a.get("base") or 0)
     for o in m["ops"]:
+        if o.get("k") == "tr" and o.get("to") == aid:
+            v += o["amt"]
         if o.get("acc") != aid:
             continue
         v += o["amt"] if o.get("k") == "inc" else -o["amt"]
@@ -217,6 +219,17 @@ def add(state: dict, kind: str, amt: float, cat: str = "other", acc: str | None 
     return o, (limit_warn(m, o["cat"]) if kind == "exp" else "")
 
 
+def transfer(state: dict, frm: str | None, to: str | None, amt: float, note: str = "", day: str | None = None) -> dict | None:
+    """Перевод между своими счетами: не трата и не доход."""
+    m = get(state)
+    a, b = acct(m, frm), acct(m, to)
+    if a["id"] == b["id"]:
+        return None
+    o = {"id": _id(), "k": "tr", "amt": round(abs(float(amt)), 2), "acc": a["id"], "to": b["id"], "n": (note or "")[:60], "d": day or quest.today_key(), "u": _ms()}
+    m["ops"].append(o)
+    return o
+
+
 def remove(state: dict, oid: str) -> bool:
     m = get(state)
     n = len(m["ops"])
@@ -246,8 +259,10 @@ def summary(state: dict) -> str:
     pdv = per_day(state)
     rl = reg_left(m)
     def lab(o):
+        if o["k"] == "tr":
+            return f"перевод {acct(m, o.get('acc'))['n']} → {acct(m, o.get('to'))['n']}"
         return o.get("n") or (CATS.get(o.get("cat"), ("", "трата"))[1] if o["k"] == "exp" else INC.get(o.get("cat"), "доход"))
-    last = "; ".join(f"{o['d'][5:]} {'+' if o['k'] == 'inc' else '−'}€{o['amt']:g} {lab(o)}" for o in m["ops"][-6:])
+    last = "; ".join(f"{o['d'][5:]} {'+' if o['k'] == 'inc' else '' if o['k'] == 'tr' else '−'}€{o['amt']:g} {lab(o)}" for o in m["ops"][-6:])
     return ("ДЕНЬГИ (инструмент money; советуй по делу, когда видишь риск: лимит, крупная трата, мало свободных):\n"
             f"На жизнь (наличные+карта, минус платежи впереди): €{free(state):g}. Сбережения €{saved(m):g} (на цели из них €{reserved(state):g}). Всего €{total(m):g}.\n"
             f"Счета: {', '.join(a['n'] + ' €' + format(balance(m, a['id']), 'g') for a in m['accts'])}.\n"

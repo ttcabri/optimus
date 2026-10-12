@@ -259,6 +259,11 @@ button.hrow{width:100%;border:none;color:inherit;font:inherit;text-align:left}
 .bimg{width:100%;max-height:340px;object-fit:contain;border-radius:14px;background:var(--panel2)}
 .mhero{margin:0 16px;padding:14px;border-radius:20px;background:linear-gradient(135deg,#2c2412,var(--panel));border:1px solid var(--line2);display:flex;flex-direction:column;gap:4px}
 .mhero small{color:var(--muted);font-weight:700;font-size:12px}.mhero>b{font-family:var(--display);font-weight:400;font-size:32px;line-height:1.1}
+.mseg{display:flex;height:12px;border-radius:6px;overflow:hidden;margin:10px 0 6px;gap:2px}.mseg i{display:block;border-radius:3px}
+.mleg{display:grid;grid-template-columns:1fr 1fr;gap:2px 12px}.mleg button{display:flex;align-items:center;gap:6px;background:none;border:none;color:var(--muted);font:inherit;font-size:13px;font-weight:700;padding:5px 0;text-align:left}
+.mleg button.dim{opacity:.5}.mleg em{width:10px;height:10px;border-radius:3px;flex-shrink:0}.mleg b{margin-left:auto;color:var(--fg)}
+.mtot{display:flex;justify-content:space-between;align-items:baseline;margin-top:8px;padding-top:8px;border-top:1px solid var(--line2);font-size:13px;font-weight:700;color:var(--muted)}.mtot b{color:var(--fg);font-size:15px}
+.mrec{height:52px;font-size:16px;border-radius:16px}
 .msave{margin-top:8px;background:var(--panel);border-color:var(--line)}.msave>b{font-size:24px}.macc .chip.dim{opacity:.55}
 .macc{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.macc .chip b{margin-left:4px}.mfree{margin:6px 0 0;font-size:13px;font-weight:700;color:var(--okl)}
 .mrow2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 16px 0}.mc{border-radius:16px;background:var(--panel);padding:10px 12px}.mc small{color:var(--muted);font-weight:700;font-size:12px;display:block}.mc b{font-size:19px}
@@ -1208,7 +1213,9 @@ const MON=()=>{if(!state.money||typeof state.money!=="object")state.money={};con
 const mDefAcc=m=>(m.accts.find(a=>a.t==="card")||m.accts[0]).id;
 const eur=v=>"€"+(Math.round(v*100)/100).toLocaleString("ru-RU",{maximumFractionDigits:2});
 const ym=()=>key().slice(0,7);
-const mBal=(m,id)=>{const a=m.accts.find(x=>x.id===id);if(!a)return 0;let v=+a.base||0;for(const o of m.ops)if(o.acc===id)v+=o.k==="inc"?o.amt:-o.amt;return Math.round(v*100)/100};
+const mBal=(m,id)=>{const a=m.accts.find(x=>x.id===id);if(!a)return 0;let v=+a.base||0;for(const o of m.ops){if(o.acc===id)v+=o.k==="inc"?o.amt:-o.amt;if(o.k==="tr"&&o.to===id)v+=o.amt}return Math.round(v*100)/100};
+const ACOL={cash:"#7fc79c",card:"#e0a456",bank:"#7fb0e0",stocks:"#6fc6b8",crypto:"#a58be0"};
+const accLab=(m,id)=>{const a=m.accts.find(x=>x.id===id);return a?AT[aType(a)][0]+" "+AT[aType(a)][1]:"?"};
 const mTotal=m=>m.accts.reduce((s,a)=>s+mBal(m,a.id),0);
 const mMonth=m=>m.ops.filter(o=>String(o.d||"").startsWith(ym()));
 const mSpent=m=>{const r={};for(const o of mMonth(m))if(o.k==="exp")r[o.cat]=(r[o.cat]||0)+o.amt;return r};
@@ -1223,7 +1230,8 @@ const mEmpty=m=>!m.ops.length&&!m.accts.some(a=>a.base)&&!m.reg.length;
 const mHas=()=>!!(state.money&&((state.money.ops||[]).length||(state.money.accts||[]).some(a=>a.base)));
 function mAdd(k,amt,cat,acc,note,d,src){const m=MON(),o={id:hid("m"),k,amt:Math.round(Math.abs(amt)*100)/100,cat,acc:acc||mDefAcc(m),n:(note||"").slice(0,60),d:d||key(),u:Date.now()};if(src)o.src=src;m.ops.push(o);return o}
 function mWarn(m,cat){const lim=(m.lim||{})[cat];if(!lim)return "";const sp=mSpent(m)[cat]||0;return sp>=lim?`Лимит «${MC[cat][1]}» кончился: ${eur(sp)} из ${eur(lim)}`:sp>=.8*lim?`«${MC[cat][1]}»: осталось ${eur(lim-sp)} на ${daysLeftM()} дн.`:""}
-const opRow=o=>{const c=o.k==="inc"?(MI[o.cat]||MI.other):(MC[o.cat]||MC.other);return `<button type="button" class="hrow go" data-mop="${esc(o.id)}"><span class="mi">${c[0]}</span><span class="nm"><b>${esc(o.n||c[1])}</b><small>${ddmm(o.d)} · ${c[1]}${o.src&&o.src.startsWith("rcpt:")?" · 🧾 чек":""}</small></span><span class="val" style="color:${o.k==="inc"?"var(--okl)":"var(--fg)"}">${o.k==="inc"?"+":"−"}${eur(o.amt)}</span></button>`};
+const opRow=o=>{if(o.k==="tr"){const m=MON();return `<button type="button" class="hrow go" data-mop="${esc(o.id)}"><span class="mi">⇄</span><span class="nm"><b>${accLab(m,o.acc).slice(2)} → ${accLab(m,o.to).slice(2)}</b><small>${ddmm(o.d)} · перевод${o.n?" · "+esc(o.n):""}</small></span><span class="val" style="color:var(--muted)">${eur(o.amt)}</span></button>`}
+  const c=o.k==="inc"?(MI[o.cat]||MI.other):(MC[o.cat]||MC.other);return `<button type="button" class="hrow go" data-mop="${esc(o.id)}"><span class="mi">${c[0]}</span><span class="nm"><b>${esc(o.n||c[1])}</b><small>${ddmm(o.d)} · ${c[1]}${o.src&&o.src.startsWith("rcpt:")?" · 🧾 чек":""}</small></span><span class="val" style="color:${o.k==="inc"?"var(--okl)":"var(--fg)"}">${o.k==="inc"?"+":"−"}${eur(o.amt)}</span></button>`};
 function limDay(m){const L=Object.entries(m.lim||{}).filter(([,v])=>v);if(!L.length)return null;const sp=mSpent(m);return L.reduce((s,[k,v])=>s+Math.max(0,v-(sp[k]||0)),0)/daysLeftM()}
 const opRowFull=o=>{const b=o.src&&o.src.startsWith("rcpt:")?bById(o.src.slice(5)):null;return opRow(o).replace("</small></span>",`</small>${b&&b.s?`<small style="display:block;color:var(--dim)">${esc(b.s)}</small>`:""}</span>`)};
 function viewMoney(){const m=MON();
@@ -1238,18 +1246,19 @@ function viewMoney(){const m=MON();
       ${old.length?`<div class="glabel">Раньше</div><div class="list">${old.map(opRowFull).join("")}</div>`:""}`}
   if(meSeg==="money:ops"){const ops=m.ops.slice().sort((a,b)=>(b.d||"").localeCompare(a.d||"")||(b.u||0)-(a.u||0));
     return meHead("Все операции","money")+(ops.length?`<div class="list">${ops.slice(0,200).map(opRow).join("")}</div>`:'<p class="empty" style="padding:4px 20px">Пусто.</p>')}
-  const head=`<div class="subh"><button type="button" class="bk" data-meseg="" aria-label="Назад">${IC.back}</button><h2>Деньги</h2><button type="button" class="addb" data-mnew="1" aria-label="Добавить трату или доход">+</button></div>`;
+  const head=`<div class="subh"><button type="button" class="bk" data-meseg="" aria-label="Назад">${IC.back}</button><h2>Деньги</h2></div>`;
   if(mEmpty(m))return head+`<section class="hsetup"><b>💰 Деньги</b><p>Начни с того, сколько сейчас на карте и наличными. Сбережения (банк, акции, крипта) отдельно, в «на месяц» они не входят. Дальше пиши боту «заправка 60» или «пришло 1200 WW», чеки шли фото, всё посчитается само.</p><button type="button" class="goldbtn" data-macc="${esc(mDefAcc(m))}">Сколько на карте</button></section>`;
   const tot=mTotal(m),sp=mSpent(m),spT=Object.values(sp).reduce((a,b)=>a+b,0),inc=mMonth(m).filter(o=>o.k==="inc").reduce((s,o)=>s+o.amt,0),free=mFree(m),dl=daysLeftM(),pigs=mPigs(),rl=mRegLeft(m);
   const cats=Object.keys(MC).filter(c=>sp[c]||(m.lim||{})[c]).sort((a,b)=>(sp[b]||0)-(sp[a]||0));
   const ops=m.ops.slice().sort((a,b)=>(b.d||"").localeCompare(a.d||"")||(b.u||0)-(a.u||0)).slice(0,8);
   const acc=a=>`<button type="button" class="chip${mBal(m,a.id)?"":" dim"}" data-macc="${esc(a.id)}">${AT[aType(a)][0]} ${AT[aType(a)][1]} <b>${eur(mBal(m,a.id))}</b></button>`,sv=mSaved(m),res=pigs.reduce((s,p)=>s+p[1],0);
-  return head+`<section class="mhero"><small>На месяц: наличные и карта${rl.length?", минус платежи впереди":""}</small><b>${eur(free)}</b>
-      <div class="macc">${m.accts.filter(mSpend).map(acc).join("")}</div>
-      ${limDay(m)!=null?`<p class="mfree" style="color:var(--gold)">По лимитам можно ~${eur(limDay(m))} в день до конца месяца</p>`:""}</section>
-    <section class="mhero msave"><small>Сбережения${res?` · из них на цели ${eur(res)}`:""}</small><b>${eur(sv)}</b>
-      <div class="macc">${m.accts.filter(a=>!mSpend(a)).map(acc).join("")}</div>
-      <p class="mfree" style="color:var(--muted)">Всего денег ${eur(tot)}</p></section>
+  const live=m.accts.filter(a=>mBal(m,a.id)>0),pos=live.reduce((s,a)=>s+mBal(m,a.id),0)||1;
+  return head+`<section class="mhero"><small>На жизнь в ${new Date(key()+"T12:00:00").toLocaleDateString("ru-RU",{month:"long"}).replace(/ь$/,"е").replace(/т$/,"те").replace(/й$/,"е")}${rl.length?" · минус платежи впереди":""}</small><b>${eur(free)}</b>
+      ${live.length?`<div class="mseg">${live.map(a=>`<i style="width:${Math.max(1.5,mBal(m,a.id)/pos*100)}%;background:${ACOL[aType(a)]}"></i>`).join("")}</div>`:""}
+      <div class="mleg">${m.accts.map(a=>`<button type="button" data-macc="${esc(a.id)}"${mBal(m,a.id)?"":' class="dim"'}><em style="background:${ACOL[aType(a)]}"></em>${AT[aType(a)][1]}<b>${eur(mBal(m,a.id))}</b></button>`).join("")}</div>
+      ${limDay(m)!=null?`<p class="mfree" style="color:var(--gold)">По лимитам можно ~${eur(limDay(m))} в день до конца месяца</p>`:""}
+      <div class="mtot"><span>Всего денег${res?` · на цели ${eur(res)}`:""}</span><b>${eur(tot)}</b></div></section>
+    <div class="segfoot" style="padding:10px 16px 0"><button type="button" class="goldbtn mrec" data-mnew="1">＋ Записать</button></div>
     <div class="mrow2"><div class="mc"><small>${new Date(key()+"T12:00:00").toLocaleDateString("ru-RU",{month:"long"})}: потратил</small><b>${eur(spT)}</b></div><div class="mc"><small>Пришло</small><b style="color:var(--okl)">${eur(inc)}</b></div></div>
     <div class="glabel">По категориям</div><div class="htiles mcats">${Object.keys(MC).filter(c=>!["gift","fine"].includes(c)||sp[c]).map(c=>{const lim=(m.lim||{})[c],v=sp[c]||0;
       return `<button type="button" class="htile${v?"":" zero"}" data-meseg="money:c:${c}"><span class="hi">${MC[c][0]}</span><span class="tb"><b>${MC[c][1]}</b><small class="${lim&&v>=lim?"bad":""}">${v?eur(v):"—"}${lim?" из "+eur(lim):""}</small>${lim?`<span class="pbar" style="display:block;margin-top:4px"><i style="width:${Math.min(100,Math.round(v/lim*100))}%;${v>=lim?"background:var(--red)":v>=.8*lim?"background:var(--fire)":""}"></i></span>`:""}</span></button>`}).join("")}</div>
@@ -1548,13 +1557,14 @@ function renderSheet(){
     body=`<h2>${esc(W.name)}</h2><p class="q">${W.house?"Дело из Дома: перенос значит «не сегодня», завтра оно снова в плане.":"Перенести на"}</p>
       ${W.house?"":`<div class="sopts"><button type="button" class="opt" data-w="mvto:${t1}" aria-pressed="${W.to===t1}">Завтра</button><button type="button" class="opt" data-w="mvto:${t2}" aria-pressed="${W.to===t2}">Послезавтра</button><label class="opt" style="position:relative;overflow:hidden;display:grid;place-items:center" aria-pressed="${oth}">${oth?ddmm(W.to):"Дата…"}<input type="date" id="mvdate" min="${t1}" style="position:absolute;inset:0;opacity:0"></label></div>`}
       <button type="button" class="goldbtn" data-w="mvgo">${W.house?"Не сегодня, завтра":"Перенести"}</button>${dele("mvdel",W.house?"Убрать из моего плана":"Убрать совсем")}`}
-  if(W.step==="mop"){const m=MON(),o=W.o,cats=o.k==="inc"?MI:MC;
-    body=`<h2>${W.isNew?"Новая запись":"Операция"}</h2><div class="opts three" style="grid-template-columns:1fr 1fr"><button type="button" class="opt" data-w="mk:exp" aria-pressed="${o.k==="exp"}">Трата</button><button type="button" class="opt" data-w="mk:inc" aria-pressed="${o.k==="inc"}">Доход</button></div>
-      <form data-wf="mop" style="display:flex;flex-direction:column;gap:8px"><input name="amt" inputmode="decimal" value="${o.amt||""}" placeholder="Сумма, €" aria-label="Сумма" autocomplete="off"><input name="n" maxlength="60" value="${esc(o.n||"")}" placeholder="${o.k==="inc"?"Откуда, например WW":"На что, например заправка"}" aria-label="Заметка" autocomplete="off"></form>
-      <p class="rl">Категория</p><div class="perm">${Object.keys(cats).map(c=>`<button type="button" class="chip" data-w="mc:${c}" aria-pressed="${o.cat===c}">${cats[c][0]} ${cats[c][1]}</button>`).join("")}</div>
-      <p class="rl">${o.k==="inc"?"Куда":"Чем платил"}</p><div class="perm">${m.accts.filter(a=>mSpend(a)||o.acc===a.id||o.k==="inc").map(a=>`<button type="button" class="chip" data-w="ma:${esc(a.id)}" aria-pressed="${o.acc===a.id}">${AT[aType(a)][0]} ${AT[aType(a)][1]}</button>`).join("")}</div>
+  if(W.step==="mop"){const m=MON(),o=W.o,cats=o.k==="inc"?MI:MC,chipA=(w,cur,skip)=>m.accts.filter(a=>a.id!==skip).map(a=>`<button type="button" class="chip" data-w="${w}:${esc(a.id)}" aria-pressed="${cur===a.id}">${AT[aType(a)][0]} ${AT[aType(a)][1]}</button>`).join("");
+    body=`<h2>${W.isNew?"Записать":"Операция"}</h2><div class="opts three">${[["exp","− Трата"],["inc","+ Доход"],["tr","⇄ Перевод"]].map(([k,t])=>`<button type="button" class="opt" data-w="mk:${k}" aria-pressed="${o.k===k}">${t}</button>`).join("")}</div>
+      <form data-wf="mop" style="display:flex;flex-direction:column;gap:8px"><input name="amt" inputmode="decimal" value="${o.amt||""}" placeholder="Сумма, €" aria-label="Сумма" autocomplete="off"><input name="n" maxlength="60" value="${esc(o.n||"")}" placeholder="${o.k==="inc"?"Откуда, например зарплата":o.k==="tr"?"Заметка, можно пусто":"На что, например заправка"}" aria-label="Заметка" autocomplete="off"></form>
+      ${o.k==="tr"?`<p class="rl">Откуда</p><div class="perm">${chipA("ma",o.acc)}</div><p class="rl">Куда</p><div class="perm">${chipA("mt",o.to,o.acc)}</div>`
+        :`<p class="rl">Категория</p><div class="perm">${Object.keys(cats).map(c=>`<button type="button" class="chip" data-w="mc:${c}" aria-pressed="${o.cat===c}">${cats[c][0]} ${cats[c][1]}</button>`).join("")}</div>
+      <p class="rl">${o.k==="inc"?"Куда пришло":"Чем платил"}</p><div class="perm">${m.accts.filter(a=>mSpend(a)||o.acc===a.id||o.k==="inc").map(a=>`<button type="button" class="chip" data-w="ma:${esc(a.id)}" aria-pressed="${o.acc===a.id}">${AT[aType(a)][0]} ${AT[aType(a)][1]}</button>`).join("")}</div>`}
       <div class="srow2">Дата<input type="date" id="mdate" value="${o.d||key()}" aria-label="Дата"></div>
-      <button type="button" class="goldbtn" data-w="msave">Сохранить</button>${W.isNew?"":`<button type="button" class="dellink" data-w="mdel">Удалить</button>`}`}
+      <button type="button" class="goldbtn" data-w="msave">${o.k==="tr"?"Перевести":"Сохранить"}</button>${W.isNew?"":`<button type="button" class="dellink" data-w="mdel">Удалить</button>`}`}
   if(W.step==="macc"){const m=MON(),a=m.accts.find(x=>x.id===W.id);if(!a){closeSheet();return}const t=aType(a);
     body=`<h2>${AT[t][0]} ${AT[t][1]}</h2><p class="q">${AT[t][2]?"Деньги на жизнь: из них траты по умолчанию"+(t==="card"?" (карта)":"")+".":"Сбережения: во «Всего», но не в «на месяц»."} Впиши, сколько сейчас, разницу учту сам.</p>
       <form data-wf="macc"><input name="v" inputmode="decimal" value="${mBal(m,a.id)||""}" placeholder="Сейчас, €" aria-label="Сейчас" autocomplete="off"></form>
@@ -1780,11 +1790,12 @@ $("sheet").addEventListener("click",e=>{
   if(a.startsWith("bmv:")){const x=bById(W.id),f=a.slice(4);if(x&&BF[f])mutate(()=>{x.f=f;delete x.ask;touch(x)});return renderSheet()}
   if(a==="bdel"){const id=W.id;closeSheet();mutate(()=>{const B=BR();B.items=B.items.filter(x=>x.id!==id);B.del=B.del.concat([id]).slice(-300)});toast("Удалил из мозга");return}
   if(a.startsWith("gwant:")){const x=bItems("want")[+a.slice(6)],i=$("sheet").querySelector("input[name=v]");if(x&&i)i.value=x.t.slice(0,80);return}
-  if(a.startsWith("mk:")){W.o.k=a.slice(3);W.o.cat=W.o.k==="inc"?"ww":"food";mKeep();return renderSheet()}
+  if(a.startsWith("mk:")){mKeep();const m=MON(),k=a.slice(3);W.o.k=k;if(k==="tr"){delete W.o.cat;W.o.acc=mDefAcc(m);W.o.to=(m.accts.find(x=>x.id!==W.o.acc&&!mSpend(x))||{}).id}else{delete W.o.to;W.o.cat=k==="inc"?"ww":"food"}return renderSheet()}
+  if(a.startsWith("mt:")){mKeep();W.o.to=a.slice(3);return renderSheet()}
   if(a.startsWith("mc:")){W.o.cat=a.slice(3);mKeep();return renderSheet()}
-  if(a.startsWith("ma:")){W.o.acc=a.slice(3);mKeep();return renderSheet()}
-  if(a==="msave"){mKeep();const o=W.o;if(!(o.amt>0)){toast("Впиши сумму");return}const m=MON();closeSheet();let warn="";
-    mutate(()=>{const ex=m.ops.find(x=>x.id===o.id);if(ex)Object.assign(ex,o,{u:Date.now()});else m.ops.push(Object.assign(o,{u:Date.now()}));if(o.k==="exp")warn=mWarn(m,o.cat)});toast(warn||"Записал");return}
+  if(a.startsWith("ma:")){mKeep();W.o.acc=a.slice(3);if(W.o.to===W.o.acc)W.o.to=(MON().accts.find(x=>x.id!==W.o.acc)||{}).id;return renderSheet()}
+  if(a==="msave"){mKeep();const o=W.o;if(!(o.amt>0)){toast("Впиши сумму");return}if(o.k==="tr"&&(!o.to||o.to===o.acc)){toast("Выбери, куда");return}const m=MON();closeSheet();let warn="";
+    mutate(()=>{const ex=m.ops.find(x=>x.id===o.id);if(ex)Object.assign(ex,o,{u:Date.now()});else m.ops.push(Object.assign(o,{u:Date.now()}));if(o.k==="exp")warn=mWarn(m,o.cat)});toast(warn||(o.k==="tr"?"Перевёл "+eur(o.amt)+": "+accLab(m,o.acc).slice(2)+" → "+accLab(m,o.to).slice(2):"Записал"));return}
   if(a==="mdel"){const id=W.o.id,m=MON();closeSheet();mutate(()=>{m.ops=m.ops.filter(x=>x.id!==id);m.del=m.del.concat([id]).slice(-500)});toast("Удалил");return}
   if(a==="maccsave"){const m=MON(),v=parseFloat(String($("sheet").querySelector("form[data-wf=macc] input[name=v]").value).replace(",","."));if(isNaN(v)){toast("Впиши сумму");return}
     const ac=m.accts.find(x=>x.id===W.id);closeSheet();if(!ac)return;mutate(()=>{ac.base=Math.round(((+ac.base||0)+v-mBal(m,ac.id))*100)/100;ac.u=Date.now()});toast(AT[aType(ac)][1]+": "+eur(v));return}
