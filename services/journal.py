@@ -123,6 +123,12 @@ def _days(old: dict, new: dict, names: dict) -> list[str]:
                 out.append(f"{dd} убрал дело «{c.get('name')}»")
         for q in sorted(set(b.get("skip") or []) - set(a.get("skip") or [])):
             out.append(f"{dd} убрал на сегодня «{nm(q)}»")
+        for q, o in (b.get("ovr") or {}).items():
+            if (a.get("ovr") or {}).get(q) != o:
+                out.append(f"{dd} поменял на сегодня «{nm(q)}»: " + ", ".join(f"{k}={v or 'без времени'}" for k, v in o.items()))
+        for q, v in (b.get("dur") or {}).items():
+            if (a.get("dur") or {}).get(q) != v:
+                out.append(f"{dd} длительность на сегодня «{nm(q)}»: {v} мин")
         if b.get("woke") and not a.get("woke"):
             out.append(f"{dd} встал в {b['woke']}")
         if (b.get("ord") or []) != (a.get("ord") or []) and b.get("ord"):

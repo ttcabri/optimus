@@ -529,6 +529,8 @@ function queue(k){
     out.push(q);
   }
   if(!hasC)customs();
+  const ov=d.ovr||{};
+  for(const q of out){const o=ov[q.id];if(!o)continue;if(o.name)q.name=o.name;if("at" in o){q.fixed=o.at||null;if(!o.at)delete q.sub}}
   return out;
 }
 const isDone=(d,q)=>q.steps?itemDone(d,q):has(d,q.id);
@@ -1557,9 +1559,9 @@ document.addEventListener("click",e=>{
   const d=dayOf(key());
   if(t.dataset.cut){const q=findQ(t.dataset.cut);mutate(()=>{d.dur[t.dataset.cut]=Math.max(15,Math.round(durOf(d,q)/2))});toast("Сократил вдвое");return}
   if(t.dataset.dedit){const id=t.dataset.dedit,d=dayOf(key()),c=d.custom.find(x=>x.id===id);
-    if(ritem(id)&&!c){openRoutine(id);return}
-    if(c){W={step:"cedit",id,c:clone(c)};renderSheet();return}
-    const q=findQ(id);if(!q)return;W={step:"mv",id,name:q.name,to:shift(key(),1),house:/^(ch_|pr_)|^buy$/.test(id)};renderSheet();return}
+    if(c){W={step:"cedit",id,c:clone(c),custom:1};renderSheet();return}
+    const q=queue(key()).find(x=>x.id===id);if(!q)return;
+    W={step:"cedit",id,c:{id,name:q.name,dur:durOf(d,q),at:q.fixed||""},base:{name:q.name,dur:durOf(d,q),at:q.fixed||""},rt:!!ritem(id),house:/^(ch_|pr_)|^buy$/.test(id),multi:!!q.steps};renderSheet();return}
   if(t.dataset.mv){const q=findQ(t.dataset.mv);if(!q)return;W={step:"mv",id:t.dataset.mv,name:q.name,to:shift(key(),1),house:/^(ch_|pr_)|^buy$/.test(t.dataset.mv)};renderSheet();return}
   if(t.dataset.delon){const[kk,id]=t.dataset.delon.split("|"),dt=dayOf(kk);mutate(()=>{dt.custom=dt.custom.filter(c=>c.id!==id);(dt.del=dt.del||[]).push(id)});return}
 });
@@ -1648,10 +1650,11 @@ function renderSheet(){
   const H=houseOf(),opt3=(list,cur,attr)=>`<div class="sopts">${list.map(([v,tx])=>`<button type="button" class="opt" data-w="${attr}:${v}" aria-pressed="${cur===v}">${tx}</button>`).join("")}</div>`;
   const dele=(a,tx)=>`<button type="button" class="dellink" data-w="${a}">${tx}</button>`;
   if(W.step==="cedit"){const c=W.c;
-    body=`<h2>Дело на сегодня</h2><form data-wf="cedit" style="display:flex;flex-direction:column;gap:8px"><input name="v" maxlength="60" value="${esc(c.name||"")}" placeholder="Название" aria-label="Название" autocomplete="off"></form>
-      <p class="rl">Сколько займёт</p><div class="perm">${[15,30,45,60,90,120].map(m=>`<button type="button" class="chip" data-w="cdur:${m}" aria-pressed="${(c.dur||30)===m}">${durTxt(m)}</button>`).join("")}</div>
+    const durs=[...new Set([15,30,45,60,90,120].concat(c.dur&&!W.multi?[c.dur]:[]))].sort((a,b)=>a-b);
+    body=`<h2>Дело на сегодня</h2>${W.custom?"":`<p class="rhint" style="margin-top:-8px">Правки только на сегодня. Завтра дело будет как в распорядке.</p>`}<form data-wf="cedit" style="display:flex;flex-direction:column;gap:8px"><input name="v" maxlength="60" value="${esc(c.name||"")}" placeholder="Название" aria-label="Название" autocomplete="off"></form>
+      ${W.multi?"":`<p class="rl">Сколько займёт</p><div class="perm">${durs.map(m=>`<button type="button" class="chip" data-w="cdur:${m}" aria-pressed="${(c.dur||30)===m}">${durTxt(m)}</button>`).join("")}</div>`}
       <p class="rl">Время</p><div class="opts rtwo"><button type="button" class="opt" data-w="ctm:" aria-pressed="${!c.at}">Время не важно</button><label class="opt rtpick" aria-pressed="${!!c.at}">${c.at?"🕐 В "+esc(c.at):"🕐 Ко времени"}<input type="time" id="ctime" value="${c.at?esc(c.at):""}" aria-label="Выбрать время"></label></div>
-      <button type="button" class="goldbtn" data-w="cesave">Сохранить</button><button type="button" class="dellink" data-w="cemv">Перенести или убрать</button>`}
+      <button type="button" class="goldbtn" data-w="cesave">Сохранить</button><button type="button" class="dellink" data-w="cemv">Перенести или убрать</button>${W.rt?`<button type="button" class="dellink" style="color:var(--muted)" data-w="cert">Изменить в распорядке (все дни) ›</button>`:""}`}
   if(W.step==="mv"){const t1=shift(key(),1),t2=shift(key(),2),oth=![t1,t2].includes(W.to);
     body=`<h2>${esc(W.name)}</h2><p class="q">${W.house?"Дело из Дома: перенос значит «не сегодня», завтра оно снова в плане.":"Перенести на"}</p>
       ${W.house?"":`<div class="sopts"><button type="button" class="opt" data-w="mvto:${t1}" aria-pressed="${W.to===t1}">Завтра</button><button type="button" class="opt" data-w="mvto:${t2}" aria-pressed="${W.to===t2}">Послезавтра</button><label class="opt" style="position:relative;overflow:hidden;display:grid;place-items:center" aria-pressed="${oth}">${oth?ddmm(W.to):"Дата…"}<input type="date" id="mvdate" min="${t1}" style="position:absolute;inset:0;opacity:0"></label></div>`}
@@ -1828,9 +1831,13 @@ $("sheet").addEventListener("click",e=>{
     let nm="";mutate(()=>{nm=moveTask(id,to)});toast(nm?"Перенёс на "+ddmm(to)+". План пересчитан":"Это дело не переносится");return}
   if(a.startsWith("cdur:")){cKeep();W.c.dur=+a.slice(5);return renderSheet()}
   if(a==="ctm:"){cKeep();delete W.c.at;return renderSheet()}
-  if(a==="cemv"){const c=W.c;W={step:"mv",id:c.id,name:c.name,to:shift(key(),1),house:false};return renderSheet()}
-  if(a==="cesave"){cKeep();const c=W.c;if(!c.name){toast("Впиши название");return}const d=dayOf(key()),x=d.custom.find(y=>y.id===c.id);closeSheet();
-    if(x){x.name=c.name;x.dur=c.dur||30;if(c.at)x.at=c.at;else delete x.at;save();render();toast("Сохранил")}return}
+  if(a==="cemv"){const c=W.c;W={step:"mv",id:c.id,name:c.name,to:shift(key(),1),house:!!W.house};return renderSheet()}
+  if(a==="cert"){const id=W.id;closeSheet();openRoutine(id);return}
+  if(a==="cesave"){cKeep();const c=W.c,B=W.base,cu=W.custom;if(!c.name){toast("Впиши название");return}const d=dayOf(key());closeSheet();
+    if(cu){const x=d.custom.find(y=>y.id===c.id);if(x){x.name=c.name;x.dur=c.dur||30;if(c.at)x.at=c.at;else delete x.at}}
+    else{const o=Object.assign({},(d.ovr||{})[c.id]);if(c.name!==B.name)o.name=c.name;if((c.at||"")!==(B.at||""))o.at=c.at||"";
+      d.ovr=Object.assign({},d.ovr||{});if(Object.keys(o).length)d.ovr[c.id]=o;if(c.dur&&c.dur!==B.dur)d.dur[c.id]=c.dur}
+    save();render();toast("Сохранил на сегодня");return}
   if(a==="mvdel"){const id=W.id,d=dayOf(key());closeSheet();
     mutate(()=>{const c=d.custom.find(x=>x.id===id);
       if(c){d.custom=d.custom.filter(x=>x!==c);d.done=d.done.filter(x=>x!==id);(d.del=d.del||[]).push(id)}

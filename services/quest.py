@@ -500,6 +500,8 @@ def merge_incoming(server: dict, incoming: dict) -> dict:
         iday.setdefault("done", [])
         iday.setdefault("at", {})
         iday.setdefault("custom", [])
+        if sday.get("ovr") and not iday.get("ovr"):
+            iday["ovr"] = sday["ovr"]
         if sday.get("ord") and not iday.get("ord"):  # бот сохраняет свою копию: порядок, перетащенный в приложении, не терять
             iday["ord"] = sday["ord"]
         # пруфы, засчитанные ботом
@@ -688,6 +690,13 @@ def build_plan(day: dict, now_min: int | None = None, wd: int | None = None) -> 
             out.append({"game": True, "start": s, "end": s + mins})
             cur = max(cur, s + mins)
 
+    for q in queue:  # правки «только на сегодня» из приложения
+        o = (day.get("ovr") or {}).get(q["id"])
+        if isinstance(o, dict):
+            if o.get("name"):
+                q["name"] = o["name"]
+            if "at" in o:
+                q["fixed"] = o["at"] or None
     pending = [q for q in queue if not is_done(q["id"])]
     ordl = day.get("ord") or []
     if ordl:  # порядок, который человек перетащил пальцем на сегодня
