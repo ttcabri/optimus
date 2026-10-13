@@ -75,8 +75,8 @@ async def build_context_block(telegram_id: int, state: dict, day: dict) -> str:
         from datetime import timedelta as _td
         rows = await database.journal_recent(telegram_id, 40, (quest.now() - _td(hours=48)).strftime("%Y-%m-%d %H:%M"))
         if rows:
-            jr = ("ЖУРНАЛ ИЗМЕНЕНИЙ за 2 суток (кто что уже сделал: «приложение» = человек руками, «бот» = ты сам). "
-                  "Это уже сделано: не записывай второй раз, удалённое не возвращай, на вопрос «что я менял» отвечай по журналу:\n"
+            jr = ("ЖУРНАЛ ИЗМЕНЕНИЙ за 2 суток (кто что сделал: «приложение» = человек руками, «бот» = ты сам). "
+                  "Ориентируйся по нему, чтобы не было путаницы: видишь, что уже записано и что он удалил или поменял. Старше 2 суток или поиск: read_changes:\n"
                   + "\n".join(f"{t[5:]} [{src}] {x}" for t, src, x in rows) + "\n\n")
     except Exception as e:
         logger.error(f"journal ctx: {e}")
@@ -224,6 +224,15 @@ async def get_ai_response(telegram_id: int, user_message: str, voice: bool = Fal
                         lines.append(d + ":")
                     lines.append(f"  {t} {EV_RU.get(ev, ev)} {name}" + (f" ({m} мин)" if m else ""))
                 res = "\n".join(lines) or "в журнале пусто за этот период"
+            elif b.name == "read_changes":
+                from datetime import timedelta
+                i = b.input or {}
+                n = max(1, min(int(i.get("days") or 7), 60))
+                rows = await database.journal_recent(telegram_id, 400, (quest.now() - timedelta(days=n)).strftime("%Y-%m-%d %H:%M"))
+                f = str(i.get("find") or "").strip().lower()
+                if f:
+                    rows = [r for r in rows if f in r[2].lower()]
+                res = "\n".join(f"{t} [{src}] {x}" for t, src, x in rows[-150:]) or "в журнале изменений ничего за этот период"
             elif b.name == "web_lookup":
                 from services import websearch
                 res = await websearch.look_up(str((b.input or {}).get("query", "")))
