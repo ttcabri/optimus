@@ -214,6 +214,10 @@ button.hrow{width:100%;border:none;color:inherit;font:inherit;text-align:left}
 .row .nm{min-width:0}.row .nm small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.row .nm .tg{font-style:normal;display:inline-grid;place-items:center;width:18px;height:18px;border-radius:6px;background:var(--panel2);font-size:10px;margin-right:5px;vertical-align:-3px}.row .nm .tg svg{width:11px;height:11px}.row .nm .tg.lf{color:var(--okl)}
 .row .rowmain .dur{flex-shrink:0;min-width:46px;text-align:right}
 .noteinp{height:44px!important;font-size:15px!important;color:var(--muted)}
+.now.flipout{animation:nflipo .17s ease-in forwards}@keyframes nflipo{to{transform:perspective(900px) rotateY(90deg)}}
+.now.flipin{animation:nflipi .22s ease-out}@keyframes nflipi{from{transform:perspective(900px) rotateY(-90deg)}to{transform:none}}
+.now.nback{background:var(--panel2);color:var(--fg);border:1px solid var(--line2)}.now.nback .k{color:var(--muted)}.nbtns{display:flex;flex-direction:column;gap:8px}
+.now.nback .bigbtn{background:var(--gold);color:var(--ink)}.now.nback .ghost{border-color:var(--line2);color:var(--fg)}.now.nback .ghost.nred{color:var(--red)}
 .now .kr{display:flex;align-items:center;gap:6px}.nowx{width:30px;height:30px;margin:-6px -6px -6px 0;border-radius:10px;border:none;background:rgba(0,0,0,.07);color:inherit;display:grid;place-items:center;padding:0}.nowx svg{width:15px;height:15px}.now.free .nowx{background:rgba(255,255,255,.06)}
 .row.anchor{border-color:var(--line2);border-left:4px solid var(--gold);padding-left:10px}.row.anchor .tm{color:var(--gold)}.row .tm .lk{font-style:normal;font-size:11px;line-height:1;margin-bottom:2px}
 /* анимации: лёгкие, выключаются системной настройкой «меньше движения» */
@@ -234,7 +238,7 @@ button.hrow{width:100%;border:none;color:inherit;font:inherit;text-align:left}
 .row,.opt,.goldbtn,.htile,.chip,.gcard,.bigbtn,.ghost,.hrow,.addmod,.pill,.navplus span,.mtile{transition:transform .12s ease}
 .row:active,.opt:active,.goldbtn:active,.htile:active,.chip:active,.gcard:active,.bigbtn:active,.ghost:active,.hrow:active,.addmod:active,.pill:active,.navplus:active span{transform:scale(.97)}
 [data-sort]>[data-sid].drag:active{transform:none}
-@media (prefers-reduced-motion:reduce){#view.fxin,.fxit,.now.run,.pill.fire svg,.pill.leaf.open::after,.sheet .pnl.pop{animation:none!important}}
+@media (prefers-reduced-motion:reduce){.now.flipout,.now.flipin,#view.fxin,.fxit,.now.run,.pill.fire svg,.pill.leaf.open::after,.sheet .pnl.pop{animation:none!important}}
 .row.gap{background:transparent;border:1px dashed var(--line);min-height:40px;padding:8px 12px}
 .row.gap .nm b{font-size:13px;color:var(--dim);font-weight:700}
 .pin{font-size:11px;font-weight:800;color:var(--gold);margin-left:6px}
@@ -860,6 +864,9 @@ function countUp(el){
   const f=x=>{let s=x.toFixed(dec),a=s,b="";if(dec){[a,b]=s.split(".")}if(grp)a=a.replace(/\B(?=(\d{3})+(?!\d))/g,"\u00a0");return pre+a+(dec?sep+b:"")+(m[0].length>raw.length?" ":"")+post};
   const t0=performance.now();(function st(now){if(!el.isConnected)return;const q=Math.min(1,(now-t0)/750);el.textContent=q<1?f(val*(1-Math.pow(1-q,3))):t;if(q<1)requestAnimationFrame(st)})(t0);
 }
+let nowFlip=null,nowAnim=0;
+// выполнить действие окна без показа окна (то же, что кнопка в шторке)
+function sheetAct(w,a){W=w;const b=document.createElement("button");b.type="button";b.dataset.w=a;b.hidden=true;$("sheet").appendChild(b);b.click();b.remove()}
 function celebrate(rc){
   try{if(matchMedia("(prefers-reduced-motion: reduce)").matches)return;try{Telegram.WebApp.HapticFeedback.notificationOccurred("success")}catch(e){}
     const f=document.createElement("div");f.className="fxflash";Object.assign(f.style,{left:rc.left+"px",top:rc.top+"px",width:rc.width+"px",height:rc.height+"px"});document.body.appendChild(f);setTimeout(()=>f.remove(),650);
@@ -938,7 +945,12 @@ function nowCard(k,d,p){
   if(it.game){const left=it.end-now;return `<section class="now free"><span class="k"><span>Отдых</span><span>до ${hm(it.end)}</span></span><div class="clock"><b>${left}</b><span>мин осталось</span></div><p>Потом: «${esc((p.items[1]&&p.items[1].q||{}).name||"дел нет")}»${p.items[1]?" в "+hm(p.items[1].start):""}. Сегодня отдыха: ${durTxt(restToday(d))}.</p><button type="button" class="ghost" data-restend="1">Закончил раньше</button></section>`}
   const q=it.q,late=it.late>0,left=it.end-now;
   const pinN=penItem(),penN=!!(q.penalty||(pinN&&pinN.id===q.id));
-  const kline=`<span class="k"><span>${it.started?"Сейчас":"Начать сейчас"}</span><span class="kr">${late?"план был до "+(it.pe!=null?hm(it.pe):hm(it.start-it.late)):"до "+hm(it.end)}<button type="button" class="nowx" ${penN?'data-penx="1"':`data-mv="${esc(q.id)}"`} aria-label="Перенести или убрать «${esc(q.name)}»">${IC.x}</button></span></span>`;
+  if(nowFlip===q.id&&!penN){const hs=/^(ch_|pr_)|^buy$/.test(q.id);
+    return `<section class="now nback${nowAnim?" flipin":""}"><span class="k"><span>Что сделать с делом?</span><span class="kr"></span></span><h2>${esc(q.name)}</h2>
+      <div class="nbtns">${hs?`<button type="button" class="bigbtn" data-nf="tom">Не сегодня</button>`:`<button type="button" class="bigbtn" data-nf="tom">Перенести на завтра</button><button type="button" class="ghost" data-nf="date">Другая дата…</button>`}
+      <button type="button" class="ghost nred" data-nf="del">${hs?"Убрать из моего плана":"Убрать на сегодня"}</button>
+      <button type="button" class="ghost" data-nf="back">← Назад</button></div></section>`}
+  const kline=`<span class="k"><span>${it.started?"Сейчас":"Начать сейчас"}</span><span class="kr">${late?"план был до "+(it.pe!=null?hm(it.pe):hm(it.start-it.late)):"до "+hm(it.end)}<button type="button" class="nowx" ${penN?'data-penx="1"':`data-nflip="${esc(q.id)}"`} aria-label="Перенести или убрать «${esc(q.name)}»">${IC.x}</button></span></span>`;
   const clock=it.started?`<div class="clock"><b>${late?"+"+it.late:left}</b><span>${late?"мин сверх плана":"мин осталось"}</span></div>`:`<div class="clock"><b>${hm(it.start)}–${hm(it.end)}</b></div>`;
   if(q.steps){
     const st=nextStep(d,q),i=q.steps.indexOf(st);
@@ -1646,6 +1658,13 @@ document.addEventListener("click",e=>{
     if(c){W={step:"cedit",id,c:clone(c),custom:1};renderSheet();return}
     const q=queue(key()).find(x=>x.id===id);if(!q)return;
     const pin=penItem();W={step:"cedit",id,pen:!!(q.penalty||(pin&&pin.id===id)),c:{id,name:q.name,dur:durOf(d,q),at:q.fixed||"",sub:noteOf(q)},base:{name:q.name,dur:durOf(d,q),at:q.fixed||"",sub:noteOf(q)},rt:!!ritem(id),house:/^(ch_|pr_)|^buy$/.test(id),multi:!!q.steps};renderSheet();return}
+  if(t.dataset.nflip){const c=t.closest(".now"),id=t.dataset.nflip;if(c)c.classList.add("flipout");setTimeout(()=>{nowFlip=id;nowAnim=1;render();nowAnim=0},170);return}
+  if(t.dataset.nf){const v=t.dataset.nf,id=nowFlip,q=findQ(id),c=t.closest(".now");
+    const flipBack=()=>{if(c)c.classList.add("flipout");setTimeout(()=>{nowFlip=null;nowAnim=1;render();nowAnim=0},170)};
+    if(v==="back"||!q)return flipBack();
+    const w={step:"mv",id,name:q.name,to:shift(key(),1),house:/^(ch_|pr_)|^buy$/.test(id)};nowFlip=null;
+    if(v==="date"){W=w;renderSheet();render();return}
+    sheetAct(w,v==="tom"?"mvgo":"mvdel");return}
   if(t.dataset.penx){toast("Штрафное дело: перенести или убрать нельзя");return}
   if(t.dataset.mv){const q=findQ(t.dataset.mv);if(!q)return;W={step:"mv",id:t.dataset.mv,name:q.name,to:shift(key(),1),house:/^(ch_|pr_)|^buy$/.test(t.dataset.mv)};renderSheet();return}
   if(t.dataset.delon){const[kk,id]=t.dataset.delon.split("|"),dt=dayOf(kk);mutate(()=>{dt.custom=dt.custom.filter(c=>c.id!==id);(dt.del=dt.del||[]).push(id)});return}
