@@ -47,6 +47,8 @@ def validate_init_data(init_data: str) -> int | None:
 
 async def _auth(request: web.Request) -> int:
     """Подпись Telegram, свежесть (не старше 7 дней) и доступ к боту: владелец или одобренный им."""
+    from services import journal
+    journal.SRC.set("приложение")
     from handlers.access import allowed
     init = request.headers.get("X-Init-Data", "") or request.query.get("init", "")
     uid = validate_init_data(init)
@@ -107,6 +109,8 @@ async def _meal_ask(uid: int, name: str) -> None:
 
 
 async def _morning(uid: int) -> None:
+    from services import journal
+    journal.SRC.set("бот (авто)")
     try:
         from services import dayflow
         await asyncio.sleep(1)  # дождаться, пока состояние с подъёмом сохранится

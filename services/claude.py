@@ -70,6 +70,16 @@ async def build_context_block(telegram_id: int, state: dict, day: dict) -> str:
     notes = state.get("notes") or []
     goals = state.get("goals") or {}
     body = state.get("body") or []
+    jr = ""
+    try:
+        from datetime import timedelta as _td
+        rows = await database.journal_recent(telegram_id, 40, (quest.now() - _td(hours=48)).strftime("%Y-%m-%d %H:%M"))
+        if rows:
+            jr = ("ЖУРНАЛ ИЗМЕНЕНИЙ за 2 суток (кто что уже сделал: «приложение» = человек руками, «бот» = ты сам). "
+                  "Это уже сделано: не записывай второй раз, удалённое не возвращай, на вопрос «что я менял» отвечай по журналу:\n"
+                  + "\n".join(f"{t[5:]} [{src}] {x}" for t, src, x in rows) + "\n\n")
+    except Exception as e:
+        logger.error(f"journal ctx: {e}")
     return (
         "=== КОНТЕКСТ ===\n"
         + (f"Человек: {' '.join(x for x in ((state.get('profile') or {}).get('name'), (state.get('profile') or {}).get('surname')) if x)}\n" if (state.get("profile") or {}).get("name") else "")
@@ -83,6 +93,7 @@ async def build_context_block(telegram_id: int, state: dict, day: dict) -> str:
         + f"\nТЕОРИЯ CBR:\n{theory.context(state)}\n\n"
         + brain.context(state) + "\n\n"
         + money.summary(state) + "\n\n"
+        + jr
         + f"ОТВЕТЫ НА ГОЛОСОВЫЕ СЕЙЧАС: {MODE_NAMES[reply_mode(state)]}\n\n"
         + _where(state)
         + "ЧТО ТЫ ЗНАЕШЬ О НЁМ (постоянная память, номера для forget):\n" + ("\n".join(f"{i + 1}. {x}" for i, x in enumerate(notes)) or "пока ничего") + "\n"
@@ -149,6 +160,8 @@ async def _create(**kw):
 
 
 async def get_ai_response(telegram_id: int, user_message: str, voice: bool = False) -> str:
+    from services import journal
+    journal.SRC.set("бот (чат)")
     """Свободный диалог: Claude с контекстом дня, памятью и инструментами."""
     from services import quest
     day = await quest.get_day(telegram_id)

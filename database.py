@@ -93,6 +93,15 @@ CREATE TABLE IF NOT EXISTS quest_days_archive (
 );
 
 -- приглашения: ссылка t.me/бот?start=inv_КОД открывает доступ (и, если надо, общий дом)
+CREATE TABLE IF NOT EXISTS journal (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    telegram_id INTEGER NOT NULL,
+    ts TEXT NOT NULL,
+    src TEXT,
+    text TEXT
+);
+CREATE INDEX IF NOT EXISTS journal_uid ON journal (telegram_id, id);
+
 CREATE TABLE IF NOT EXISTS invites (
     code TEXT PRIMARY KEY,
     owner INTEGER NOT NULL,
@@ -542,7 +551,12 @@ async def save_quest_state(telegram_id: int, state: dict) -> None:
             await _archive_old(db, telegram_id, state)
         except Exception as e:
             logger.error(f"archive error: {e}")
+        try:
+            old_personal = await _personal_state(db, telegram_id)
+        except Exception:
+            old_personal = None
         await _write_personal(db, telegram_id, state)
+        old_h = new_h = None
         if isinstance(incoming_house, dict):
             hid = await house_id_of(db, telegram_id)
             if not hid:
@@ -551,7 +565,44 @@ async def save_quest_state(telegram_id: int, state: dict) -> None:
             stored = await get_house(db, hid)
             merged = house_svc.merge(stored, dict(incoming_house, id=hid))
             await put_house(db, hid, merged)
+            old_h, new_h = stored, merged
+        if old_personal is not None:
+            await _journal(db, telegram_id, old_personal, state, old_h, new_h)
         await db.commit()
+
+
+# --- журнал изменений: кто (приложение/бот) что поменял ---
+
+async def _journal(db, telegram_id: int, old: dict, new: dict, old_h, new_h) -> None:
+    from services import journal
+    try:
+        lines = journal.diff(old, new, old_h, new_h)
+        if not lines:
+            return
+        src = journal.SRC.get()
+        import datetime as _dt
+        ts = _dt.datetime.now().astimezone().strftime("%Y-%m-%d %H:%M")
+        try:
+            from services import quest as _q
+            ts = _q.now().strftime("%Y-%m-%d %H:%M")
+        except Exception:
+            pass
+        await db.executemany("INSERT INTO journal (telegram_id, ts, src, text) VALUES (?, ?, ?, ?)",
+                             [(telegram_id, ts, src, x) for x in lines])
+        await db.execute("DELETE FROM journal WHERE telegram_id = ? AND id <= (SELECT id FROM journal WHERE telegram_id = ? ORDER BY id DESC LIMIT 1 OFFSET 3000)",
+                         (telegram_id, telegram_id))
+        for x in lines:
+            logger.info(f"journal {telegram_id} [{src}] {x}")
+    except Exception as e:
+        logger.error(f"journal error: {e}")
+
+
+async def journal_recent(telegram_id: int, limit: int = 40, since: str | None = None) -> list[tuple]:
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        q = "SELECT ts, src, text FROM journal WHERE telegram_id = ?" + (" AND ts >= ?" if since else "") + " ORDER BY id DESC LIMIT ?"
+        cur = await db.execute(q, (telegram_id, since, limit) if since else (telegram_id, limit))
+        rows = await cur.fetchall()
+    return list(reversed(rows))
 
 
 # --- приглашения ---

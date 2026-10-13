@@ -302,6 +302,8 @@ async def users() -> list[int]:
 def each(fn):
     """Задача по расписанию для каждого человека отдельно: ошибка у одного не мешает остальным."""
     async def run(bot: Bot) -> None:
+        from services import journal
+        journal.SRC.set("бот (авто)")
         for uid in await users():
             try:
                 await fn(bot, uid)
