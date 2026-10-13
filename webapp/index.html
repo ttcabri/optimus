@@ -208,6 +208,8 @@ button.hrow{width:100%;border:none;color:inherit;font:inherit;text-align:left}
 /* анимации: лёгкие, выключаются системной настройкой «меньше движения» */
 .fxflash{position:fixed;z-index:60;border-radius:16px;pointer-events:none;background:rgba(127,199,156,.28);box-shadow:0 0 0 2px rgba(127,199,156,.6);animation:fxf .6s ease forwards}
 @keyframes fxf{0%{opacity:0;transform:scale(.98)}25%{opacity:1;transform:scale(1.02)}100%{opacity:0;transform:scale(1)}}
+#view.fxin{animation:fxview .28s ease}@keyframes fxview{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.fxit{animation:fxitem .32s ease both}@keyframes fxitem{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 .fxdot{position:fixed;z-index:61;width:7px;height:7px;border-radius:50%;pointer-events:none}
 .now.run{animation:nowbr 2.8s ease-in-out infinite}
 @keyframes nowbr{0%,100%{box-shadow:0 0 0 0 rgba(240,138,93,0)}50%{box-shadow:0 0 0 4px rgba(240,138,93,.3),0 0 26px rgba(240,138,93,.3)}}
@@ -221,7 +223,7 @@ button.hrow{width:100%;border:none;color:inherit;font:inherit;text-align:left}
 .row,.opt,.goldbtn,.htile,.chip,.gcard,.bigbtn,.ghost,.hrow,.addmod,.pill,.navplus span,.mtile{transition:transform .12s ease}
 .row:active,.opt:active,.goldbtn:active,.htile:active,.chip:active,.gcard:active,.bigbtn:active,.ghost:active,.hrow:active,.addmod:active,.pill:active,.navplus:active span{transform:scale(.97)}
 [data-sort]>[data-sid].drag:active{transform:none}
-@media (prefers-reduced-motion:reduce){.now.run,.pill.fire svg,.pill.leaf.open::after,.sheet .pnl.pop{animation:none!important}}
+@media (prefers-reduced-motion:reduce){#view.fxin,.fxit,.now.run,.pill.fire svg,.pill.leaf.open::after,.sheet .pnl.pop{animation:none!important}}
 .row.gap{background:transparent;border:1px dashed var(--line);min-height:40px;padding:8px 12px}
 .row.gap .nm b{font-size:13px;color:var(--dim);font-weight:700}
 .pin{font-size:11px;font-weight:800;color:var(--gold);margin-left:6px}
@@ -823,6 +825,25 @@ function mutate(fn){
 }
 function findQ(id){if(String(id).startsWith("ch_")||id==="buy")return queue(key()).find(x=>x.id===id);return queue(key()).find(x=>x.id===id)||ritem(id)||ritems().flatMap(it=>it.steps||[]).find(x=>x.id===id)||dayOf(key()).custom.find(c=>c.id===id)}
 // «Сделал»: зелёная вспышка на месте дела и искры. Без анимаций в настройках телефона ничего не делаем.
+// новый экран (вкладка или подраздел): плавное появление, список по очереди, цифры с нуля
+let _fxKey="";
+function enterFx(){
+  const v=$("view"),h=v.querySelector(".sub h2,h2,.sec h3"),k=tab+"|"+(h?h.textContent:"")+"|"+(typeof meSeg!=="undefined"?meSeg:"")+"|"+(typeof homeSeg!=="undefined"?homeSeg:"");
+  if(k===_fxKey)return;const first=!_fxKey;_fxKey=k;
+  try{if(matchMedia("(prefers-reduced-motion: reduce)").matches)return}catch(e){}
+  v.classList.remove("fxin");void v.offsetWidth;v.classList.add("fxin");
+  let n=0;v.querySelectorAll(".list>*,.htiles>*,.g2>*,.mleg>*").forEach(el=>{if(n<14){el.style.animationDelay=(n*35)+"ms";el.classList.add("fxit");n++}});
+  setTimeout(()=>v.querySelectorAll(".fxit").forEach(el=>{el.classList.remove("fxit");el.style.animationDelay=""}),n*35+400);
+  if(!first||window.QD_LOADED)v.querySelectorAll(".mhero>b,.hero .hl2 b,.mtot b,.htile .v,.big,.num").forEach(countUp);
+}
+function countUp(el){
+  if(el.children.length)return;const t=el.textContent,m=t.match(/\d[\d\s\u00a0]*(?:[.,]\d+)?/);if(!m)return;
+  const raw=m[0].trim(),sep=/,\d+$/.test(raw)?",":/\.\d+$/.test(raw)?".":"",dec=sep?raw.split(sep).pop().length:0,grp=/[\s\u00a0]\d/.test(raw);
+  const val=parseFloat(raw.replace(/[\s\u00a0]/g,"").replace(",","."));if(!(val>=10))return;
+  const pre=t.slice(0,m.index),post=t.slice(m.index+m[0].length);
+  const f=x=>{let s=x.toFixed(dec),a=s,b="";if(dec){[a,b]=s.split(".")}if(grp)a=a.replace(/\B(?=(\d{3})+(?!\d))/g,"\u00a0");return pre+a+(dec?sep+b:"")+(m[0].length>raw.length?" ":"")+post};
+  const t0=performance.now();(function st(now){if(!el.isConnected)return;const q=Math.min(1,(now-t0)/750);el.textContent=q<1?f(val*(1-Math.pow(1-q,3))):t;if(q<1)requestAnimationFrame(st)})(t0);
+}
 function celebrate(rc){
   try{if(matchMedia("(prefers-reduced-motion: reduce)").matches)return;try{Telegram.WebApp.HapticFeedback.notificationOccurred("success")}catch(e){}
     const f=document.createElement("div");f.className="fxflash";Object.assign(f.style,{left:rc.left+"px",top:rc.top+"px",width:rc.width+"px",height:rc.height+"px"});document.body.appendChild(f);setTimeout(()=>f.remove(),650);
@@ -1436,7 +1457,7 @@ function render(){
   if(!ONB&&needOnb())ONB={s:0,name:"",wake:"08:00",bed:"23:30"};else if(ONB&&!needOnb())ONB=null;
   renderOnb();
   renderReward();renderHead();
-  migHealth();$("view").innerHTML={today:viewToday,home:viewHome,goals:viewGoalsTab,me:viewMe}[tab]();updBadge();
+  migHealth();$("view").innerHTML={today:viewToday,home:viewHome,goals:viewGoalsTab,me:viewMe}[tab]();updBadge();enterFx();
   document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-selected",String(b.dataset.tab===tab)));
   if(!$("focus").hidden)renderFocus();
 }
