@@ -500,6 +500,8 @@ def merge_incoming(server: dict, incoming: dict) -> dict:
         iday.setdefault("done", [])
         iday.setdefault("at", {})
         iday.setdefault("custom", [])
+        if sday.get("ord") and not iday.get("ord"):  # бот сохраняет свою копию: порядок, перетащенный в приложении, не терять
+            iday["ord"] = sday["ord"]
         # пруфы, засчитанные ботом
         for q in sday.get("done", []):
             if q in PROOF and q not in iday["done"]:
