@@ -261,6 +261,19 @@ def transfer(state: dict, frm: str | None, to: str | None, amt: float, note: str
     return o
 
 
+def fine(state: dict, amt: float, to: str | None = None, note: str = "", day: str | None = None) -> dict | None:
+    """Штраф: не трата, а перевод с карты в копилку штрафов (сейф, safemoney). Без своего счёта уходит в Акции."""
+    m = get(state)
+    frm = acct(m, "card")
+    dst = acct(m, to) if to else None
+    if not dst or dst["id"] == frm["id"]:
+        dst = acct(m, "stocks")
+    o = transfer(state, frm["id"], dst["id"], amt, note or "Штраф", day)
+    if o:
+        o["cat"] = "fine"
+    return o
+
+
 def remove(state: dict, oid: str) -> bool:
     m = get(state)
     n = len(m["ops"])

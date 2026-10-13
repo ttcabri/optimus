@@ -75,6 +75,9 @@ button{cursor:pointer}
 .rhint{margin:0;font-size:12.5px;color:var(--dim);font-weight:600}
 .rgoal{margin:-4px 0 4px;font-size:13px;font-weight:800;color:var(--gold)}
 .rdays{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}.rdays .chip{padding:8px 0;text-align:center;justify-content:center;color:var(--dim)}
+[data-sort]>[data-sid]{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;transition:transform .16s ease}
+[data-sort]>[data-sid].drag{position:relative;z-index:5;transition:none;background:var(--panel2);box-shadow:0 12px 28px rgba(0,0,0,.5);border-radius:14px}
+body.dragging{overscroll-behavior:none}
 .rdays .chip[aria-pressed="true"]{background:#1f2a20;border-color:var(--okl);color:var(--okl)}
 .opts.rtwo{grid-template-columns:1fr 1fr}.rtpick{position:relative;display:grid;place-items:center;cursor:pointer}.rtpick input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:none}
 .rsteps{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);font-weight:600}
@@ -591,7 +594,8 @@ function plan(k,extraGame){
   const ci=d.cur&&pending.findIndex(q=>q.id===d.cur.id);
   if(ci>=0){const q=pending.splice(ci,1)[0];const s=toMin(d.cur.at);const e=s+durOf(d,q);out.push({q,start:s,end:Math.max(e,now+5),pe:e,started:1,late:now>e?now-e:0,now:1});cur=Math.max(cur,Math.max(e,now+5))}
   const anchors=pending.filter(q=>q.fixed).sort((a,b)=>toMin(a.fixed)-toMin(b.fixed));
-  const flex=pending.filter(q=>!q.fixed);
+  const flex=pending.filter(q=>!q.fixed),ord=d.ord||[];
+  if(ord.length){const pos=new Map(ord.map((x,i)=>[x,i])),P_=x=>pos.has(x.id)?pos.get(x.id):1e4;flex.sort((a,b)=>P_(a)-P_(b))}
   const end=toMin(DAY_END_());
   const placeAnchor=a=>{const s=Math.max(toMin(a.fixed),cur);if(toMin(a.fixed)>cur&&toMin(a.fixed)-cur>=10)out.push({gap:1,start:cur,end:toMin(a.fixed)});out.push({q:a,start:s,end:s+durOf(d,a),anchor:1,late:Math.max(0,cur-toMin(a.fixed))});cur=s+durOf(d,a)};
   for(const q of flex){
@@ -884,7 +888,7 @@ function planRow(d,it,opts={}){
   const extra=!q.penalty&&!(pi&&pi.id===q.id)?`<button type="button" class="x" data-mv="${esc(q.id)}" aria-label="Перенести или убрать «${esc(q.name)}»">${IC.x}</button>`:"";
   const main=it.started?`<span class="rowmain"><span class="nm"><b>${esc(q.name)}</b><small>Идёт сейчас · ${esc(sub)}</small></span>${right}</span>`
     :`<button type="button" class="rowmain" ${startAttr} aria-label="Делать «${esc(q.name)}» сейчас"><span class="nm"><b>${esc(q.name)}</b><small>${esc(sub)}</small></span>${right}</button>`;
-  return `<div class="row${q.steps?" boss":""}${it.anchor?" anchor":""}${it.started?" cur":""}"><span class="tm" style="${it.late?"color:var(--red)":""}">${hm(it.start)}<small>${hm(it.end)}</small></span>${chk}${main}${extra}</div>`;
+  return `<div class="row${q.steps?" boss":""}${it.anchor?" anchor":""}${it.started?" cur":""}"${it.anchor||it.started?"":` data-sid="${esc(q.id)}"`}><span class="tm" style="${it.late?"color:var(--red)":""}">${hm(it.start)}<small>${hm(it.end)}</small></span>${chk}${main}${extra}</div>`;
 }
 function doneRow(d,q){
   const last=q.steps?stepIds(q).pop():q.id;
@@ -935,7 +939,7 @@ function viewToday(){
   const more=dayOpen&&rest.length>4?`<button type="button" class="sec spo" data-dayopen="0"><h3>Свернуть</h3><span>▴</span></button>`:hidden?`<button type="button" class="sec spo" data-dayopen="1"><h3>Ещё ${hidden} ${hidden%10===1&&hidden%100!==11?"дело":hidden%10>=2&&hidden%10<=4&&(hidden%100<10||hidden%100>=20)?"дела":"дел"}</h3><span>▾</span></button>`:"";
   return nowCard(k,d,p)+overCard(p)+
     `<div class="sec"><h3>Дальше</h3><span>до ${DAY_END_()}</span></div>
-     <div class="list">${shown.map(it=>planRow(d,it,{edit:dayOpen})).join("")||'<p class="empty">Больше ничего.</p>'}</div>${more}
+     <div class="list" data-sort="today">${shown.map(it=>planRow(d,it,{edit:dayOpen})).join("")||'<p class="empty">Больше ничего.</p>'}</div>${more}
      ${spoilers(k,d,done,up,dname)}`;
 }
 // Серия привычки: огонь, 7 дней, ступени-подарки за 7/14/30 дней подряд
@@ -1064,7 +1068,7 @@ function viewSet(){const P=prof(),pen=P.penalty,pi=penItem(),on=NOTIFY.filter(([
     <div class="glabel">День</div><div class="list">${srow('data-sset="pen"',"Штраф",pi?pi.name+(pen.fine?" · €"+pen.fine:""):"выключен")}</div>
     <div class="glabel">Бот</div><div class="list">${srow('data-sset="notify"',"Уведомления",on+" из "+NOTIFY.length)}${srow('data-sset="voice"',"Голосовые ответы",(VOICE.find(([k])=>k===voiceMode())||[,""])[1].toLowerCase())}${srow('data-sset="memory"',"Память",(notes.length+ins.length)+" записей")}</div>`}
 function routineCard(){
-  return `<div class="list">${ritems().map(it=>`<button type="button" class="hrow go" data-redit="${esc(it.id)}"><span class="nm"><b>${esc(it.name)}${it.main?' <span class="pin">ГЛАВНОЕ</span>':""}</b><small>${durTxt(it.dur||30)} · ${daysTxt(it)}${it.at?" · "+(it.at==="end"?"перед сном":"в "+it.at):""}${it.proof||(it.steps||[]).some(x=>x.proof)?" · пруф":""}${goalOfTask(it.id)?" · "+esc(goalOfTask(it.id).emoji||"🎯")+" "+esc(goalOfTask(it.id).name):""}</small></span></button>`).join("")}</div>
+  return `<div class="list" data-sort="routine">${ritems().map(it=>`<button type="button" class="hrow go" data-redit="${esc(it.id)}" data-sid="${esc(it.id)}"><span class="nm"><b>${esc(it.name)}${it.main?' <span class="pin">ГЛАВНОЕ</span>':""}</b><small>${durTxt(it.dur||30)} · ${daysTxt(it)}${it.at?" · "+(it.at==="end"?"перед сном":"в "+it.at):""}${it.proof||(it.steps||[]).some(x=>x.proof)?" · пруф":""}${goalOfTask(it.id)?" · "+esc(goalOfTask(it.id).emoji||"🎯")+" "+esc(goalOfTask(it.id).name):""}</small></span></button>`).join("")}</div>
     <div class="segfoot"><button type="button" class="line" data-redit="+">+ Дело в распорядок</button></div>`}
 const lvlTxt=x=>x.level==="out"?`<small class="bad">кончилось</small>`:x.level==="low"?`<small style="color:var(--gold)">мало</small>`:"";
 function amtTxt(x){if(x.amt==null)return x.qty?esc(x.qty):"";const v=+x.amt,u=x.unit||"шт";return (u==="г"||u==="мл")&&v>=1000?(Math.round(v/100)/10).toString().replace(".",",")+(u==="г"?" кг":" л"):String(v).replace(".",",")+" "+u}
@@ -1227,7 +1231,7 @@ const accLab=(m,id)=>{const a=m.accts.find(x=>x.id===id);return a?AT[aType(a)][0
 const mVis=m=>m.accts.filter(a=>!(m.hide||[]).includes(a.id));
 const mTotal=m=>mVis(m).reduce((s,a)=>s+mBal(m,a.id),0);
 const mMonth=m=>m.ops.filter(o=>String(o.d||"").startsWith(ym()));
-const mSpent=m=>{const r={};for(const o of mMonth(m))if(o.k==="exp")r[o.cat]=(r[o.cat]||0)+o.amt;return r};
+const mSpent=m=>{const r={};for(const o of mMonth(m))if(o.k==="exp"||(o.k==="tr"&&o.cat==="fine"))r[o.cat]=(r[o.cat]||0)+o.amt;return r};
 const mPigs=()=>GOALS().filter(g=>g.kind!=="health"&&g.metric&&g.metric.unit==="€").map(g=>[g,+gVal(g)||0,gTarget(g)]);
 const mRegLeft=m=>{const d=+key().slice(8,10);return m.reg.filter(r=>r.paid!==ym()&&(+r.day||1)>=d)};
 const daysLeftM=()=>{const k=key(),y=+k.slice(0,4),mo=+k.slice(5,7);return new Date(y,mo,0).getDate()-(+k.slice(8,10))+1};
@@ -1249,8 +1253,8 @@ function debtBlock(m){const ds=(m.debts||[]).filter(d=>!d.done),me=ds.filter(d=>
     <div class="segfoot" style="padding-top:8px"><button type="button" class="line" data-mdebt="+">+ Долг</button></div>`}
 function viewMoney(){const m=MON();
   if(meSeg.startsWith("money:c:")){const c=meSeg.slice(8);if(!MC[c]){meSeg="money";return viewMoney()}
-    const lim=(m.lim||{})[c],mo=mMonth(m).filter(o=>o.k==="exp"&&o.cat===c).sort((a,b)=>(b.d||"").localeCompare(a.d||"")||(b.u||0)-(a.u||0)),v=mo.reduce((s,o)=>s+o.amt,0);
-    const old=m.ops.filter(o=>o.k==="exp"&&o.cat===c&&!String(o.d||"").startsWith(ym())).sort((a,b)=>(b.d||"").localeCompare(a.d||"")).slice(0,30);
+    const lim=(m.lim||{})[c],mo=mMonth(m).filter(o=>(o.k==="exp"||o.k==="tr")&&o.cat===c).sort((a,b)=>(b.d||"").localeCompare(a.d||"")||(b.u||0)-(a.u||0)),v=mo.reduce((s,o)=>s+o.amt,0);
+    const old=m.ops.filter(o=>(o.k==="exp"||o.k==="tr")&&o.cat===c&&!String(o.d||"").startsWith(ym())).sort((a,b)=>(b.d||"").localeCompare(a.d||"")).slice(0,30);
     const avg=(()=>{const by={};for(const o of old)by[o.d.slice(0,7)]=(by[o.d.slice(0,7)]||0)+o.amt;const vs=Object.values(by);return vs.length?vs.reduce((a,b)=>a+b,0)/vs.length:null})();
     return `<div class="subh"><button type="button" class="bk" data-meseg="money" aria-label="Назад">${IC.back}</button><h2>${MC[c][0]} ${MC[c][1]}</h2><button type="button" class="addb" data-mnew="${c}" aria-label="Добавить трату">+</button></div>
       <section class="mhero"><small>Этот месяц</small><b>${eur(v)}</b>${lim?`<span class="pbar" style="display:block;height:8px"><i style="width:${Math.min(100,Math.round(v/lim*100))}%;${v>=lim?"background:var(--red)":v>=.8*lim?"background:var(--fire)":""}"></i></span><small>${v>=lim?"лимит "+eur(lim)+" кончился":"лимит "+eur(lim)+" · осталось "+eur(lim-v)+" · ~"+eur((lim-v)/daysLeftM())+" в день"}</small>`:"<small>без лимита</small>"}
@@ -1278,7 +1282,7 @@ function viewMoney(){const m=MON();
     return meHead("Все операции","money")+(ops.length?`<div class="list">${ops.slice(0,200).map(opRow).join("")}</div>`:'<p class="empty" style="padding:4px 20px">Пусто.</p>')}
   const head=`<div class="subh"><button type="button" class="bk" data-meseg="" aria-label="Назад">${IC.back}</button><h2>Деньги</h2>${eyeBtn()}</div>`;
   if(mEmpty(m))return head+`<section class="hsetup"><b>💰 Деньги</b><p>Начни с того, сколько сейчас на карте и наличными. Сбережения (банк, акции, крипта) отдельно, в «на месяц» они не входят. Дальше пиши боту «заправка 60» или «пришло 1200 WW», чеки шли фото, всё посчитается само.</p><button type="button" class="goldbtn" data-macc="${esc(mDefAcc(m))}">Сколько на карте</button></section>`;
-  const tot=mTotal(m),sp=mSpent(m),spT=Object.values(sp).reduce((a,b)=>a+b,0),inc=mMonth(m).filter(o=>o.k==="inc").reduce((s,o)=>s+o.amt,0),free=mFree(m),dl=daysLeftM(),pigs=mPigs(),rl=mRegLeft(m);
+  const tot=mTotal(m),sp=mSpent(m),spT=Object.entries(sp).filter(([c])=>c!=="fine"||mMonth(m).some(o=>o.k==="exp"&&o.cat==="fine")).map(([c,v])=>c==="fine"?mMonth(m).filter(o=>o.k==="exp"&&o.cat==="fine").reduce((s,o)=>s+o.amt,0):v).reduce((a,b)=>a+b,0),inc=mMonth(m).filter(o=>o.k==="inc").reduce((s,o)=>s+o.amt,0),free=mFree(m),dl=daysLeftM(),pigs=mPigs(),rl=mRegLeft(m);
   const cats=Object.keys(MC).filter(c=>sp[c]||(m.lim||{})[c]).sort((a,b)=>(sp[b]||0)-(sp[a]||0));
   const ops=m.ops.slice().sort((a,b)=>(b.d||"").localeCompare(a.d||"")||(b.u||0)-(a.u||0)).slice(0,8);
   const acc=a=>`<button type="button" class="chip${mBal(m,a.id)?"":" dim"}" data-macc="${esc(a.id)}">${AT[aType(a)][0]} ${AT[aType(a)][1]} <b>${eur(mBal(m,a.id))}</b></button>`,sv=mSaved(m),res=pigs.reduce((s,p)=>s+p[1],0);
@@ -1386,6 +1390,7 @@ document.addEventListener("change",e=>{if(e.target.id==="rtime"&&W&&W.step==="ri
 document.addEventListener("change",e=>{if(e.target.id==="bfile"&&e.target.files&&e.target.files[0]){const fl=e.target.files[0];if(fl.size>19*1024*1024){toast("Файл больше 19 МБ");return}const i=document.querySelector("form[data-add=brain] input[name=t]");brainAdd(i?i.value.trim():"",fl);if(i)i.value="";return}});
 document.addEventListener("change",e=>{if(ONB&&(e.target.id==="onbwake"||e.target.id==="onbbed")){ONB.wake=$("onbwake").value||ONB.wake;ONB.bed=$("onbbed").value||ONB.bed;renderOnb()}});
 function render(){
+  if(DRAG){DRAG.late=1;return}
   if(!ONB&&needOnb())ONB={s:0,name:"",wake:"08:00",bed:"23:30"};else if(ONB&&!needOnb())ONB=null;
   renderOnb();
   renderReward();renderHead();
@@ -1393,6 +1398,53 @@ function render(){
   document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-selected",String(b.dataset.tab===tab)));
   if(!$("focus").hidden)renderFocus();
 }
+
+/* ---------- перетаскивание зажатием ---------- */
+let DRAG=null,dragEnd=0;
+function sortDrop(kind,ids){
+  const place=(all,get)=>{const slots=[];all.forEach((x,i)=>{if(ids.includes(get(x)))slots.push(i)});const by=new Map(all.map(x=>[get(x),x])),out=all.slice();slots.forEach((si,n)=>{out[si]=by.get(ids[n])});return out};
+  if(kind==="today"){const k=key(),d=dayOf(k),all=plan(k).items.filter(x=>x.q&&!x.started&&!x.anchor).map(x=>x.q.id);d.ord=place(all,x=>x)}
+  else if(kind==="routine"){setProf({routine:place(prof().routine,x=>x.id)})}
+  save();
+}
+function dragBegin(row,y){
+  const list=row.parentElement,items=[...list.children].filter(c=>c.dataset.sid),idx=items.indexOf(row);
+  if(items.length<2)return;
+  const rects=items.map(c=>c.getBoundingClientRect());
+  const h=idx<items.length-1?rects[idx+1].top-rects[idx].top:rects[idx].top-rects[idx-1].top;
+  DRAG={kind:list.dataset.sort,list,row,items,rects,idx,to:idx,y0:y,h};
+  row.classList.add("drag");document.body.classList.add("dragging");
+  try{Telegram.WebApp.HapticFeedback.impactOccurred("medium")}catch(e){}
+}
+function dragMove(y){
+  const D=DRAG,dy=y-D.y0,mid=D.rects[D.idx].top+D.rects[D.idx].height/2+dy;
+  D.row.style.transform=`translateY(${dy}px)`;
+  let to=D.idx;
+  D.rects.forEach((r,i)=>{const c=r.top+r.height/2;if(i>D.idx&&mid>c)to=i;if(i<D.idx&&mid<c&&i<to)to=i});
+  if(to!==D.to){D.to=to;try{Telegram.WebApp.HapticFeedback.selectionChanged()}catch(e){}}
+  D.items.forEach((c,i)=>{if(i===D.idx)return;c.style.transform=i>D.idx&&i<=to?`translateY(${-D.h}px)`:i<D.idx&&i>=to?`translateY(${D.h}px)`:""});
+}
+function dragFinish(cancel){
+  const D=DRAG;if(!D)return;DRAG=null;dragEnd=Date.now();
+  D.items.forEach(c=>{c.style.transform=""});D.row.classList.remove("drag");document.body.classList.remove("dragging");
+  if(!cancel&&D.to!==D.idx){const ids=D.items.map(c=>c.dataset.sid),[m]=ids.splice(D.idx,1);ids.splice(D.to,0,m);sortDrop(D.kind,ids)}
+  render();
+}
+(function(){
+  let t=null,st=null;
+  const stop=()=>{clearTimeout(t);t=null;st=null};
+  const down=(e,x,y)=>{const row=e.target.closest("[data-sort] > [data-sid]");if(!row)return;st={x,y};t=setTimeout(()=>{t=null;if(st)dragBegin(row,st.y)},380)};
+  const mv=(e,x,y)=>{if(DRAG){e.preventDefault();dragMove(y);return}if(st&&(Math.abs(x-st.x)>8||Math.abs(y-st.y)>8))stop()};
+  document.addEventListener("touchstart",e=>{if(e.touches.length===1)down(e,e.touches[0].clientX,e.touches[0].clientY);else stop()},{passive:true});
+  document.addEventListener("touchmove",e=>mv(e,e.touches[0].clientX,e.touches[0].clientY),{passive:false});
+  document.addEventListener("touchend",()=>{stop();if(DRAG)dragFinish()});
+  document.addEventListener("touchcancel",()=>{stop();if(DRAG)dragFinish(true)});
+  document.addEventListener("mousedown",e=>{if(e.button===0&&!("ontouchstart" in window))down(e,e.clientX,e.clientY)});
+  document.addEventListener("mousemove",e=>mv(e,e.clientX,e.clientY));
+  document.addEventListener("mouseup",()=>{stop();if(DRAG)dragFinish()});
+  document.addEventListener("contextmenu",e=>{if(e.target.closest("[data-sort] [data-sid]"))e.preventDefault()});
+  document.addEventListener("click",e=>{if(Date.now()-dragEnd<450){e.stopPropagation();e.preventDefault()}},true);
+})();
 
 /* ---------- события ---------- */
 document.addEventListener("change",e=>{

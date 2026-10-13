@@ -687,6 +687,10 @@ def build_plan(day: dict, now_min: int | None = None, wd: int | None = None) -> 
             cur = max(cur, s + mins)
 
     pending = [q for q in queue if not is_done(q["id"])]
+    ordl = day.get("ord") or []
+    if ordl:  # порядок, который человек перетащил пальцем на сегодня
+        pos = {x: i for i, x in enumerate(ordl)}
+        pending.sort(key=lambda q: pos.get(q["id"], len(pos)))
     started = day.get("cur")
     if started:
         idx = next((i for i, q in enumerate(pending) if q["id"] == started.get("id")), -1)

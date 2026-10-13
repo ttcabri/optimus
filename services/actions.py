@@ -410,6 +410,10 @@ def run(state: dict, name: str, a: dict) -> str | None:
             if not isinstance(amt, (int, float)) or amt <= 0:
                 return "нужна сумма"
             day = _key(a.get("day")) if a.get("day") else None
+            if a.get("cat") == "fine" and (a.get("kind") or "exp") == "exp":  # штраф = перевод в сейф, не трата
+                pen = quest.prof(state).get("penalty") or {}
+                o = money.fine(state, amt, a.get("name") or pen.get("to"), str(a.get("note") or "Штраф"), day)
+                return f"штраф €{o['amt']:g} переведён в копилку (id {o['id']}). Всего €{money.total(m):g}." if o else "не получилось"
             o, warn = money.add(state, a.get("kind") or "exp", amt, str(a.get("cat") or "other"), a.get("acc"), str(a.get("note") or ""), day, "chat")
             return (f"записано: {'доход' if o['k'] == 'inc' else 'трата'} €{o['amt']:g} (id {o['id']}). На жизнь €{money.free(state):g}, всего €{money.total(m):g}."
                      + (" " + warn if warn else ""))

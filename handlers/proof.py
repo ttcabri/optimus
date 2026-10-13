@@ -228,7 +228,7 @@ async def proof_photo(message: Message, bot: Bot) -> None:
         st = await database.get_quest_state(message.from_user.id)
         fine = float((P.get("penalty") or {}).get("fine") or 0)
         if fine:
-            money.add(st, "exp", fine, "fine", None, "Штраф → " + str((P.get("penalty") or {}).get("to") or "копилка"), None, "fine")
+            money.fine(st, fine, (P.get("penalty") or {}).get("to"), "Штраф")
             await database.save_quest_state(message.from_user.id, st)
             extra += f"\n💸 €{fine:g} записал в Деньги."
     if it and it.get("tutor") == "cbr" and result.get("score") is not None:

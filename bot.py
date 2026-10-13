@@ -29,6 +29,16 @@ async def main() -> None:
         if prof and "reward" not in prof:  # у владельца награда была по умолчанию; для новых людей умолчания больше нет
             st["profile"] = dict(prof, reward="Трава")
             changed = True
+        # разово (13.10): штрафы 12.10 и 13.10 бот записал тратами и ещё раз переводом €10 в сейф. Оставляем один перевод.
+        from services import money as _money
+        mo = (st.get("money") or {}).get("ops") or []
+        tr = next((o for o in mo if o.get("id") == "m1a131ef32e1d6b"), None)
+        if tr and not tr.get("cat"):
+            for oid in ("m1a131ea850e6fc", "m1a131eb2483474"):
+                _money.remove(st, oid)
+            tr.update(cat="fine", n="Штрафы за 12.10 и 13.10", u=_money._ms())
+            st["notes"] = [n for n in st.get("notes") or [] if "заметки к переводам" not in n]
+            changed = True
         if changed:
             await database.save_quest_state(TELEGRAM_USER_ID, st)
     except Exception as e:
