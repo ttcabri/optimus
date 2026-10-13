@@ -93,6 +93,7 @@ async def build_context_block(telegram_id: int, state: dict, day: dict) -> str:
         + f"\nТЕОРИЯ CBR:\n{theory.context(state)}\n\n"
         + brain.context(state) + "\n\n"
         + money.summary(state) + "\n\n"
+        + __import__("services.receipt", fromlist=["context"]).context(state)
         + jr
         + f"ОТВЕТЫ НА ГОЛОСОВЫЕ СЕЙЧАС: {MODE_NAMES[reply_mode(state)]}\n\n"
         + _where(state)
@@ -166,6 +167,7 @@ async def get_ai_response(telegram_id: int, user_message: str, voice: bool = Fal
     from services import quest
     day = await quest.get_day(telegram_id)
     state = await database.get_quest_state(telegram_id)
+    _own0 = {k: json.dumps(state.get(k), sort_keys=True, ensure_ascii=False) for k in ("notes", "temp", "theory", "home", "insights", "rcpt")}
     # постоянная часть кэшируется (дешевле), контекст дня идёт после неё
     from config import TELEGRAM_USER_ID
     base = SYSTEM_PROMPT + ("\n\n" + OWNER_BIO if telegram_id == TELEGRAM_USER_ID else "")
@@ -224,6 +226,22 @@ async def get_ai_response(telegram_id: int, user_message: str, voice: bool = Fal
                         lines.append(d + ":")
                     lines.append(f"  {t} {EV_RU.get(ev, ev)} {name}" + (f" ({m} мин)" if m else ""))
                 res = "\n".join(lines) or "в журнале пусто за этот период"
+            elif b.name == "receipt":
+                from services import receipt as rc
+                i = b.input or {}
+                if not state.get("rcpt"):
+                    res = "чека на проверке нет"
+                elif i.get("op") == "ok":
+                    res = re.sub(r"<[^>]+>", "", rc.commit(state, telegram_id))
+                    changed = acted = True
+                elif i.get("op") == "cancel":
+                    state.pop("rcpt", None)
+                    res = "чек не записываю (фото остаётся в Документы → Чеки)"
+                    changed = acted = True
+                else:
+                    new = await rc.fix(state, str(i.get("text") or ""))
+                    res = re.sub(r"<[^>]+>", "", rc.text(new)) if new else "не получилось поправить"
+                    changed = acted = bool(new)
             elif b.name == "read_changes":
                 from datetime import timedelta
                 i = b.input or {}
@@ -267,7 +285,15 @@ async def get_ai_response(telegram_id: int, user_message: str, voice: bool = Fal
     if changed:
         # пока модель думала, приложение могло что-то сохранить: сливаем, а не затираем
         fresh = await database.get_quest_state(telegram_id)
-        await database.save_quest_state(telegram_id, quest.merge_incoming(fresh, state))
+        merged = quest.merge_incoming(fresh, state)
+        for k in ("notes", "temp", "theory", "home", "insights", "rcpt"):  # это ведёт бот: его правки из этого хода главнее
+            if json.dumps(state.get(k), sort_keys=True, ensure_ascii=False) == _own0[k]:
+                continue  # не трогал в этом ходе: оставляем как на сервере
+            if k in state:
+                merged[k] = state[k]
+            else:
+                merged.pop(k, None)
+        await database.save_quest_state(telegram_id, merged)
     reply = reply or "Готово."
     await database.add_message(telegram_id, "user", text_in)
     await database.add_message(telegram_id, "assistant", reply)

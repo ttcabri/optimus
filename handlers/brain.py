@@ -58,7 +58,7 @@ async def forwarded(message: Message) -> None:
     await save(message, text, _file(message), note=f"переслано из «{who}»" if who else "")
 
 
-@router.message(F.document)
+@router.message(F.document, ~F.document.mime_type.startswith("image/"))
 async def document(message: Message) -> None:
     await save(message, message.caption or "", _file(message), folder="docs" if not message.caption else None)
 

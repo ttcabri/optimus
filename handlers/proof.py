@@ -171,6 +171,33 @@ async def proof_photo(message: Message, bot: Bot) -> None:
     photo = message.photo[-1]
     buf = io.BytesIO()
     await bot.download(photo, destination=buf)
+    await photo_flow(message, bot, buf, photo)
+
+
+@router.message(F.document.mime_type.startswith("image/"))
+async def image_file(message: Message, bot: Bot) -> None:
+    """Картинка файлом (без сжатия): чек читается лучше. Идёт тем же путём, что и фото."""
+    if (message.document.file_size or 0) > 15 * 1024 * 1024:
+        await message.answer("Файл слишком большой, скинь поменьше.")
+        return
+    buf = io.BytesIO()
+    await bot.download(message.document, destination=buf)
+    data = buf.getvalue()
+    try:  # Claude принимает до ~5 МБ и разумный размер: ужимаем большой скан
+        from PIL import Image
+        im = Image.open(io.BytesIO(data))
+        im = im.convert("RGB")
+        if max(im.size) > 2400:
+            im.thumbnail((2400, 2400))
+        out = io.BytesIO()
+        im.save(out, "JPEG", quality=88)
+        data = out.getvalue()
+    except Exception:
+        pass
+    await photo_flow(message, bot, io.BytesIO(data), message.document)
+
+
+async def photo_flow(message: Message, bot: Bot, buf: io.BytesIO, photo) -> None:
 
     await bot.send_chat_action(message.chat.id, "typing")
     day = await quest.get_day(message.from_user.id)
@@ -179,12 +206,25 @@ async def proof_photo(message: Message, bot: Bot) -> None:
 
     kind = result.get("quest")
     comment = result.get("comment", "").strip()
-    if kind == "receipt" and result.get("items"):
+    if kind == "receipt":
         from services import receipt
-        state = await database.get_quest_state(message.from_user.id)
-        r = receipt.pending(state, result, photo.file_id)
-        await database.save_quest_state(message.from_user.id, state)
-        await message.answer(receipt.text(r), reply_markup=receipt.kb(r))
+        await bot.send_chat_action(message.chat.id, "typing")
+        res = await receipt.read(buf.getvalue(), message.caption or "")
+        if res and res.get("items"):
+            result = res
+        if result.get("items"):
+            state = await database.get_quest_state(message.from_user.id)
+            r = receipt.pending(state, result, photo.file_id, "doc" if getattr(photo, "mime_type", None) else "photo")
+            await database.save_quest_state(message.from_user.id, state)
+            out = receipt.text(r)
+            await message.answer(out, reply_markup=receipt.kb(r))
+        else:
+            out = ("🧾 Вижу чек, но не могу прочитать строки" + (f": {html.escape(res['note'])}" if res and res.get("note") else ".")
+                   + "\nСфоткай ровно и поближе, при хорошем свете. Длинный чек можно двумя фото или файлом (скрепка → Файл), так качество не сжимается.")
+            await message.answer(out)
+        # чтобы в разговоре бот помнил, что был чек и что он прочитал
+        await database.add_message(message.from_user.id, "user", "[прислал фото чека]" + (f" {message.caption}" if message.caption else ""))
+        await database.add_message(message.from_user.id, "assistant", re.sub(r"<[^>]+>", "", out))
         return
     if kind in ("receipt", "fridge") and result.get("items"):
         from services import house
@@ -198,7 +238,8 @@ async def proof_photo(message: Message, bot: Bot) -> None:
         return
     if kind == "brain":
         from handlers.brain import save
-        await save(message, (message.caption or ""), {"id": photo.file_id, "kind": "photo", "name": "фото"}, note=comment)
+        await save(message, (message.caption or ""), {"id": photo.file_id, "kind": "doc" if getattr(photo, "mime_type", None) else "photo",
+                                                       "name": getattr(photo, "file_name", None) or "фото", **({"mime": photo.mime_type} if getattr(photo, "mime_type", None) else {})}, note=comment)
         return
     if kind == "question":
         await message.answer("📚 " + html.escape(comment or "Не разобрал вопрос. Скинь скрин почётче."))
