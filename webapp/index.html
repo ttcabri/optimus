@@ -89,6 +89,15 @@ body.dragging{overscroll-behavior:none}
 .rcsum{font-size:13px;font-weight:700;color:var(--muted);padding-bottom:10px}.rcsum b{color:var(--fg)}
 .rdays .chip[aria-pressed="true"]{background:#1f2a20;border-color:var(--okl);color:var(--okl)}
 .opts.rtwo{grid-template-columns:1fr 1fr}.rtpick{position:relative;display:grid;place-items:center;cursor:pointer}.rtpick input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:none}
+.sseg{display:grid;grid-template-columns:1fr 1fr;background:var(--bg);border-radius:14px;padding:3px;border:1px solid var(--line2)}.sseg button{height:40px;border-radius:11px;border:none;background:none;color:var(--muted);font:inherit;font-weight:800;font-size:14px}.sseg button[aria-pressed="true"]{background:var(--panel2);color:var(--fg);box-shadow:inset 0 0 0 1px var(--gold)}
+.rsl .rst{display:flex;align-items:center;gap:4px;padding:7px 6px;border-top:1px solid var(--line)}.rsl .rst:first-child{border-top:none}
+.rst .hdl{color:var(--dim);font-size:16px;letter-spacing:-2px;padding:6px 2px;touch-action:none;cursor:grab}
+.rst>input{flex:1;min-width:0;height:36px!important;font-size:14px!important;padding:0 8px!important;border-radius:9px!important}
+.rsm{display:flex;align-items:center;gap:3px}.rsm input{width:42px!important;height:36px!important;padding:0 4px!important;text-align:center;font-size:14px!important;border-radius:9px!important}.rsm em{font-style:normal;font-size:11px;color:var(--muted);font-weight:700}
+.rst .x{width:28px;height:28px;flex-shrink:0}.rpf{width:32px;height:32px;flex-shrink:0;border-radius:9px;border:1px solid var(--line2);background:none;font-size:14px;opacity:.35;padding:0}.rpf[aria-pressed="true"]{opacity:1;border-color:var(--gold)}
+.flags{display:flex;flex-direction:column;gap:8px}.flag{display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:14px;background:var(--panel);border:1px solid var(--line2);color:var(--fg);font:inherit;font-weight:700;font-size:15px;text-align:left}.flag span{flex:1}.flag small{display:block;color:var(--dim);font-size:12px;font-weight:600}
+.flag .sw{width:42px;height:24px;border-radius:12px;background:var(--line2);position:relative;flex-shrink:0}.flag .sw::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:var(--dim);transition:left .15s}
+.flag[aria-pressed="true"]{border-color:var(--gold)}.flag[aria-pressed="true"] .sw{background:var(--gold)}.flag[aria-pressed="true"] .sw::after{left:21px;background:var(--ink)}
 .rsteps{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);font-weight:600}
 .opt{min-height:52px;border-radius:14px;border:1px solid var(--line2);background:var(--panel);font-weight:700;font-size:15px;padding:8px;text-align:center}
 .opt small{display:block;font-size:12px;font-weight:600;color:var(--muted)}
@@ -202,7 +211,8 @@ button.hrow{width:100%;border:none;color:inherit;font:inherit;text-align:left}
 .row.on .nm b{color:var(--dim);text-decoration:line-through}
 .row.boss{background:var(--panel2);border-color:var(--fire)}
 .row.game{background:#2a2014;border-color:var(--gold)}
-.row .nm{min-width:0}.row .nm small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.row .nm .pf{font-size:12px;margin-left:5px;vertical-align:1px}
+.row .nm{min-width:0}.row .nm small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.row .nm .tg{font-style:normal;display:inline-grid;place-items:center;width:18px;height:18px;border-radius:6px;background:var(--panel2);font-size:10px;margin-right:5px;vertical-align:-3px}.row .nm .tg svg{width:11px;height:11px}.row .nm .tg.lf{color:var(--okl)}
+.row .rowmain .dur{flex-shrink:0;min-width:46px;text-align:right}
 .noteinp{height:44px!important;font-size:15px!important;color:var(--muted)}
 .row.anchor{border-color:var(--line2);border-left:4px solid var(--gold);padding-left:10px}.row.anchor .tm{color:var(--gold)}.row .tm .lk{font-style:normal;font-size:11px;line-height:1;margin-bottom:2px}
 /* анимации: лёгкие, выключаются системной настройкой «меньше движения» */
@@ -568,7 +578,9 @@ const isMain=q=>!!(q.main||q.penalty);
 function durOf(d,q){
   if(d.dur[q.id])return d.dur[q.id];
   const L=learned()[q.id],base=L?L.min:(q.dur||30);
-  if(q.steps){const st=stepIds(q);return Math.max(20,Math.round(base*st.filter(b=>!has(d,b)).length/st.length))}
+  if(q.steps){const st=stepIds(q),left=q.steps.filter(x=>!has(d,x.id));
+    if(q.steps.every(x=>x.min>0))return Math.max(5,left.reduce((a,x)=>a+x.min+((d.sx||{})[x.id]||0),0));
+    return Math.max(20,Math.round(base*st.filter(b=>!has(d,b)).length/st.length))}
   return base;
 }
 
@@ -942,14 +954,16 @@ function planRow(d,it,opts={}){
   if(it.game)return `<div class="row game"><span class="tm">${hm(it.start)}<small>${hm(it.end)}</small></span>${IC.chest}<span class="nm"><b>Отдых</b><small>${durTxt(it.end-it.start)}</small></span></div>`;
   const q=it.q;
   const inReward=isMain(q),pi=penItem();
-  const right=inReward?`<span class="tok" title="Нужно для награды">${IC.leaf}</span>`:`<span class="dur">${durTxt(durOf(d,q))}</span>`;
-  const sub=q.steps?`${q.steps.filter(x=>has(d,x.id)).length} из ${q.steps.length} шагов · ${durTxt(durOf(d,q))}`:(it.late&&it.started?`Сверх плана ${it.late} мин`:noteOf(q));
-  const pf=BOT&&(q.proof||(q.steps||[]).some(x=>x.proof))?'<span class="pf" title="Нужен пруф фото">📸</span>':"";
+  const right=`<span class="dur">${durTxt(durOf(d,q))}</span>`;
+  const sub=q.steps?`${q.steps.filter(x=>has(d,x.id)).length} из ${q.steps.length} шагов`+(noteOf(q)?" · "+noteOf(q):""):(it.late&&it.started?`Сверх плана ${it.late} мин`:noteOf(q));
+  const tags=(inReward?`<i class="tg lf" title="Нужно для награды">${IC.leaf}</i>`:"")+(BOT&&(q.proof||(q.steps||[]).some(x=>x.proof))?'<i class="tg" title="Нужен пруф фото">📸</i>':"");
+  const line2=tags||sub?`<small>${tags}${esc(sub||"")}</small>`:"";
+  const pf="";
   const startAttr=q.steps?`data-focus="${esc(q.id)}"`:`data-start="${esc(q.id)}"`;
   const chk=`<button type="button" class="chk play" ${startAttr} aria-label="Запустить «${esc(q.name)}»">${IC.play}</button>`;
-  const extra=!q.penalty&&!(pi&&pi.id===q.id)?`<button type="button" class="x" data-mv="${esc(q.id)}" aria-label="Перенести или убрать «${esc(q.name)}»">${IC.x}</button>`:"";
-  const main=it.started?`<span class="rowmain"><span class="nm"><b>${esc(q.name)}${pf}</b><small>Идёт сейчас${sub?" · "+esc(sub):""}</small></span>${right}</span>`
-    :`<button type="button" class="rowmain" data-dedit="${esc(q.id)}" aria-label="Открыть «${esc(q.name)}»"><span class="nm"><b>${esc(q.name)}${pf}</b>${sub?`<small>${esc(sub)}</small>`:""}</span>${right}</button>`;
+  const extra="";
+  const main=it.started?`<span class="rowmain"><span class="nm"><b>${esc(q.name)}</b><small>${tags}Идёт сейчас${sub?" · "+esc(sub):""}</small></span>${right}</span>`
+    :`<button type="button" class="rowmain" data-dedit="${esc(q.id)}" aria-label="Открыть «${esc(q.name)}»"><span class="nm"><b>${esc(q.name)}</b>${line2}</span>${right}</button>`;
   return `<div class="row${q.steps?" boss":""}${it.anchor?" anchor":""}${it.started?" cur":""}"${it.anchor||it.started?"":` data-sid="${esc(q.id)}"`}><span class="tm" style="${it.late?"color:var(--red)":""}">${it.anchor?'<i class="lk" aria-label="Закреплено по времени">🔒</i>':""}${hm(it.start)}<small>${hm(it.end)}</small></span>${chk}${main}${extra}</div>`;
 }
 function doneRow(d,q){
@@ -1386,6 +1400,8 @@ function sleepAuto(k){const d=(state.days||{})[k];if(!d||!d.woke)return null;con
   if(last==null)last=toMin(prof().bed||"23:30");const v=toMin(d.woke)+1440-last;return v>=120&&v<=900?Math.round(v/6)/10:null}
 const sleepOf=k=>{const e=hlog("sleep").find(x=>x.d===k);return e?e.v:sleepAuto(k)};
 const hlFmt=(k,v)=>v==null?"—":k==="steps"?Number(v).toLocaleString("ru-RU"):String(v).replace(".",",");
+function migEnd(){const P=prof();if(!P.routine.some(x=>x.at==="end"))return;const t=DAY_END_();
+  mutate(()=>setProf({routine:P.routine.map(x=>x.at==="end"?Object.assign({},x,{at:t}):x)}))}
 function migHealth(){const P=prof();if(P.hv2||(BOT&&!window.QD_LOADED))return;
   const gs=Array.isArray(P.goals)?P.goals.filter(g=>!g.legacy&&!["body","chan","goal"].includes(g.id)):[];
   setProf({goals:gs,hv2:1,goal:false});if(gs.some(g=>g.kind!=="health"&&g.status!=="done"))saveGoals(gs);save()}
@@ -1457,7 +1473,7 @@ function render(){
   if(!ONB&&needOnb())ONB={s:0,name:"",wake:"08:00",bed:"23:30"};else if(ONB&&!needOnb())ONB=null;
   renderOnb();
   renderReward();renderHead();
-  migHealth();$("view").innerHTML={today:viewToday,home:viewHome,goals:viewGoalsTab,me:viewMe}[tab]();updBadge();enterFx();
+  migHealth();migEnd();$("view").innerHTML={today:viewToday,home:viewHome,goals:viewGoalsTab,me:viewMe}[tab]();updBadge();enterFx();
   document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-selected",String(b.dataset.tab===tab)));
   if(!$("focus").hidden)renderFocus();
 }
@@ -1466,6 +1482,7 @@ function render(){
 let DRAG=null,dragEnd=0;
 function sortDrop(kind,ids){
   const place=(all,get)=>{const slots=[];all.forEach((x,i)=>{if(ids.includes(get(x)))slots.push(i)});const by=new Map(all.map(x=>[get(x),x])),out=all.slice();slots.forEach((si,n)=>{out[si]=by.get(ids[n])});return out};
+  if(kind==="steps"){if(W&&W.it&&W.it.steps){const by=new Map(W.it.steps.map(x=>[x.id,x]));W.it.steps=ids.map(i=>by.get(i)).filter(Boolean);setTimeout(renderSheet)}return}
   if(kind==="today"){const k=key(),d=dayOf(k),all=plan(k).items.filter(x=>x.q&&!x.started&&!x.anchor).map(x=>x.q.id);d.ord=place(all,x=>x)}
   else if(kind==="routine"){setProf({routine:place(prof().routine,x=>x.id)})}
   save();
@@ -1496,7 +1513,7 @@ function dragFinish(cancel){
 (function(){
   let t=null,st=null;
   const stop=()=>{clearTimeout(t);t=null;st=null};
-  const down=(e,x,y)=>{const row=e.target.closest("[data-sort] > [data-sid]");if(!row)return;st={x,y};t=setTimeout(()=>{t=null;if(st)dragBegin(row,st.y)},380)};
+  const down=(e,x,y)=>{const row=e.target.closest("[data-sort] > [data-sid]");if(!row)return;if(row.parentElement.dataset.sort==="steps"&&!e.target.closest(".hdl"))return;st={x,y};t=setTimeout(()=>{t=null;if(st)dragBegin(row,st.y)},380)};
   const mv=(e,x,y)=>{if(DRAG){e.preventDefault();dragMove(y);return}if(st&&(Math.abs(x-st.x)>8||Math.abs(y-st.y)>8))stop()};
   document.addEventListener("touchstart",e=>{if(e.touches.length===1)down(e,e.touches[0].clientX,e.touches[0].clientY);else stop()},{passive:true});
   document.addEventListener("touchmove",e=>mv(e,e.touches[0].clientX,e.touches[0].clientY),{passive:false});
@@ -1621,7 +1638,7 @@ document.addEventListener("click",e=>{
   if(t.dataset.dedit){const id=t.dataset.dedit,d=dayOf(key()),c=d.custom.find(x=>x.id===id);
     if(c){W={step:"cedit",id,c:clone(c),custom:1};renderSheet();return}
     const q=queue(key()).find(x=>x.id===id);if(!q)return;
-    W={step:"cedit",id,c:{id,name:q.name,dur:durOf(d,q),at:q.fixed||"",sub:noteOf(q)},base:{name:q.name,dur:durOf(d,q),at:q.fixed||"",sub:noteOf(q)},rt:!!ritem(id),house:/^(ch_|pr_)|^buy$/.test(id),multi:!!q.steps};renderSheet();return}
+    const pin=penItem();W={step:"cedit",id,pen:!!(q.penalty||(pin&&pin.id===id)),c:{id,name:q.name,dur:durOf(d,q),at:q.fixed||"",sub:noteOf(q)},base:{name:q.name,dur:durOf(d,q),at:q.fixed||"",sub:noteOf(q)},rt:!!ritem(id),house:/^(ch_|pr_)|^buy$/.test(id),multi:!!q.steps};renderSheet();return}
   if(t.dataset.mv){const q=findQ(t.dataset.mv);if(!q)return;W={step:"mv",id:t.dataset.mv,name:q.name,to:shift(key(),1),house:/^(ch_|pr_)|^buy$/.test(t.dataset.mv)};renderSheet();return}
   if(t.dataset.delon){const[kk,id]=t.dataset.delon.split("|"),dt=dayOf(kk);mutate(()=>{dt.custom=dt.custom.filter(c=>c.id!==id);(dt.del=dt.del||[]).push(id)});return}
 });
@@ -1728,7 +1745,7 @@ function renderSheet(){
     body=`<h2>Дело на сегодня</h2>${W.custom?"":`<p class="rhint" style="margin-top:-8px">Правки только на сегодня. Завтра дело будет как в распорядке.</p>`}<form data-wf="cedit" style="display:flex;flex-direction:column;gap:8px"><input name="v" maxlength="60" value="${esc(c.name||"")}" placeholder="Название" aria-label="Название" autocomplete="off"><input name="note" maxlength="80" value="${esc(c.sub||"")}" placeholder="Заметка, можно пусто" aria-label="Заметка" autocomplete="off" class="noteinp"></form>
       ${W.multi?"":`<p class="rl">Сколько займёт</p><div class="perm">${durs.map(m=>`<button type="button" class="chip" data-w="cdur:${m}" aria-pressed="${(c.dur||30)===m}">${durTxt(m)}</button>`).join("")}</div>`}
       <p class="rl">Время</p><div class="opts rtwo"><button type="button" class="opt" data-w="ctm:" aria-pressed="${!c.at}">Время не важно</button><label class="opt rtpick" aria-pressed="${!!c.at}">${c.at?"🕐 В "+esc(c.at):"🕐 Ко времени"}<input type="time" id="ctime" value="${c.at?esc(c.at):""}" aria-label="Выбрать время"></label></div>
-      <button type="button" class="goldbtn" data-w="cesave">Сохранить</button><button type="button" class="dellink" data-w="cemv">Перенести или убрать</button>${W.rt?`<button type="button" class="dellink" style="color:var(--muted)" data-w="cert">Изменить в распорядке (все дни) ›</button>`:""}`}
+      <button type="button" class="goldbtn" data-w="cesave">Сохранить</button>${W.pen?`<p class="rhint" style="text-align:center">Штрафное дело: перенести или убрать нельзя.</p>`:`<button type="button" class="dellink" data-w="cemv">Перенести или убрать</button>`}${W.rt?`<button type="button" class="dellink" style="color:var(--muted)" data-w="cert">Изменить в распорядке (все дни) ›</button>`:""}`}
   if(W.step==="mv"){const t1=shift(key(),1),t2=shift(key(),2),oth=![t1,t2].includes(W.to);
     body=`<h2>${esc(W.name)}</h2><p class="q">${W.house?"Дело из Дома: перенос значит «не сегодня», завтра оно снова в плане.":"Перенести на"}</p>
       ${W.house?"":`<div class="sopts"><button type="button" class="opt" data-w="mvto:${t1}" aria-pressed="${W.to===t1}">Завтра</button><button type="button" class="opt" data-w="mvto:${t2}" aria-pressed="${W.to===t2}">Послезавтра</button><label class="opt" style="position:relative;overflow:hidden;display:grid;place-items:center" aria-pressed="${oth}">${oth?ddmm(W.to):"Дата…"}<input type="date" id="mvdate" min="${t1}" style="position:absolute;inset:0;opacity:0"></label></div>`}
@@ -1825,18 +1842,22 @@ function renderSheet(){
       <form data-wf="house"><input name="v" maxlength="60" placeholder="Например: молоко" autocomplete="off" aria-label="Что"></form>
       <div class="btns"><button type="button" data-w="hout">Кончилось</button><button type="button" class="pri" data-w="hbuy">Купил</button></div>`;
   if(W.step==="ritem"){const it=W.it,isNew=W.isNew,pi=penItem();
-    const og=goalOfTask(it.id),all=!it.days||!it.days.length||it.days.length===7,isPen=pi&&pi.id===it.id;
+    const og=goalOfTask(it.id),all=!it.days||!it.days.length||it.days.length===7,isPen=pi&&pi.id===it.id,hasS=!!(it.steps&&it.steps.length);
     body=`<h2>${isNew?"Новое дело":"Дело"}</h2>${og?`<p class="rgoal">${esc(og.emoji||"🎯")} Дело цели «${esc(og.name)}»</p>`:""}
       <form data-wf="ritem" style="display:flex;flex-direction:column;gap:8px"><input name="v" maxlength="60" value="${esc(it.name||"")}" placeholder="Например: чтение" autocomplete="off" aria-label="Название"><input name="note" maxlength="80" value="${esc(it.sub||"")}" placeholder="Заметка под названием, можно пусто" autocomplete="off" aria-label="Заметка" class="noteinp"></form>
-      <p class="rl">Сколько занимает</p><div class="opts four">${[10,15,20,30,45,60,90,120].map(m=>`<button type="button" class="opt" data-w="rdur:${m}" aria-pressed="${(it.dur||30)===m}">${durTxt(m)}</button>`).join("")}</div>
       <p class="rl">Дни <span>${all?"каждый день · нажми, чтобы выбрать":it.days.length+" в неделю"}</span></p><div class="rdays">${WD_ORDER.map(x=>`<button type="button" class="chip" data-w="rday:${x}" aria-pressed="${all||it.days.includes(x)}">${WD[x]}</button>`).join("")}</div>
-      <p class="rl">Время</p><div class="opts rtwo"><button type="button" class="opt" data-w="rat:" aria-pressed="${!it.at}">Время не важно</button><label class="opt rtpick" aria-pressed="${!!it.at&&it.at!=="pick"}">${it.at==="end"?"🌙 Перед сном":it.at&&it.at!=="pick"?"🕐 В "+esc(it.at):"🕐 Ко времени"}<input type="time" id="rtime" value="${it.at&&/^\d\d:\d\d$/.test(it.at)?esc(it.at):""}" aria-label="Выбрать время"></label></div>
-      <p class="rhint">${!it.at?"Сдвигается по дню, если опоздал или залип.":it.at==="end"?"Последнее дело перед отбоем.":"Стоит на месте, остальное обтекает его."}</p>
-      <div class="perm"><button type="button" class="chip" data-w="rflag:main" aria-pressed="${!!it.main}">★ Главное: нужно для награды дня</button>${it.steps?"":`<button type="button" class="chip" data-w="rflag:proof" aria-pressed="${!!it.proof}">📸 Закрывается скрином боту</button>`}</div>
-      ${it.proof&&!it.steps?`<form data-wf="ritem"><input name="check" maxlength="200" value="${esc(it.check||"")}" placeholder="Что на скрине (например: пройденный урок)" autocomplete="off" aria-label="Что на скрине"></form>`:""}
-      ${it.steps?`<p class="rl">Шаги</p><div class="rsteps">${it.steps.map((x,i)=>`<span>${i+1}. ${esc(x.name)}${x.proof?" 📸":""}</span>`).join("")}</div>`:""}
+      <p class="rl">Время</p><div class="opts rtwo"><button type="button" class="opt" data-w="rat:" aria-pressed="${!it.at}">Время не важно</button><label class="opt rtpick" aria-pressed="${!!it.at&&it.at!=="pick"}">${it.at&&it.at!=="pick"?"🕐 В "+esc(it.at):"🕐 Ко времени"}<input type="time" id="rtime" value="${it.at&&/^\d\d:\d\d$/.test(it.at)?esc(it.at):""}" aria-label="Выбрать время"></label></div>
+      <p class="rhint">${!it.at?"Сдвигается по дню, если опоздал или залип.":"Закреплено: стоит на месте, остальное обтекает его."}</p>
+      <p class="rl">Шаги ${hasS?"<span>зажми ⋮⋮ и тяни</span>":""}</p>
+      <div class="sseg"><button type="button" data-w="rsteps:0" aria-pressed="${!hasS}">Без шагов</button><button type="button" data-w="rsteps:1" aria-pressed="${hasS}">С шагами</button></div>
+      ${hasS?`<div class="list rsl" data-sort="steps">${it.steps.map((x,i)=>`<div class="rst" data-sid="${esc(x.id)}"><span class="hdl" aria-label="Перетащить">⋮⋮</span><input data-rs="${i}:name" maxlength="50" value="${esc(x.name||"")}" placeholder="Шаг" aria-label="Шаг ${i+1}"><span class="rsm"><input data-rs="${i}:min" inputmode="numeric" value="${x.min||""}" placeholder="мин" aria-label="Минут"></span><button type="button" class="rpf" data-w="rsp:${i}" aria-pressed="${!!x.proof}" aria-label="Пруф фото">📸</button><button type="button" class="x" data-w="rsx:${i}" aria-label="Убрать шаг">${IC.x}</button></div>`).join("")}</div>
+        <button type="button" class="addmod" data-w="rsadd">＋ шаг</button><p class="rhint" id="rssum">${stepSumTxt(it)}</p>`
+      :`<p class="rl">Сколько занимает</p><div class="opts four">${[10,15,20,30,45,60,90,120].map(m=>`<button type="button" class="opt" data-w="rdur:${m}" aria-pressed="${(it.dur||30)===m}">${durTxt(m)}</button>`).join("")}</div>`}
+      <div class="flags"><button type="button" class="flag" data-w="rflag:main" aria-pressed="${!!it.main}"><span>★ Главное<small>нужно для награды дня</small></span><i class="sw"></i></button>
+      ${hasS?"":`<button type="button" class="flag" data-w="rflag:proof" aria-pressed="${!!it.proof}"><span>📸 Пруф фото<small>закрывается скрином боту</small></span><i class="sw"></i></button>`}</div>
+      ${it.proof&&!hasS?`<form data-wf="ritem"><input name="check" maxlength="200" value="${esc(it.check||"")}" placeholder="Что на скрине (например: пройденный урок)" autocomplete="off" aria-label="Что на скрине"></form>`:""}
       <button type="button" class="goldbtn" data-w="rsave">Сохранить</button>
-      ${isNew?"":isPen?`<p class="rhint" style="text-align:center">Это штрафное дело. Убрать можно после смены штрафа: ⚙ → Штраф.</p>`:`<button type="button" class="dellink" data-w="rdel">Убрать из распорядка</button>`}`}
+      ${isNew?"":isPen?`<p class="rhint" style="text-align:center">Это штрафное дело, убрать нельзя. Сменить: ⚙ → Штраф.</p>`:`<button type="button" class="dellink" data-w="rdel">Убрать из распорядка</button>`}`}
   if(W.step==="goalnew"){const g=W.g;
     body=`<h2>Текущая цель</h2>
       <form data-wf="goal" style="display:flex;flex-direction:column;gap:8px"><input name="name" maxlength="40" value="${esc(g.name)}" placeholder="Название: например Рисование" autocomplete="off" aria-label="Название цели">
@@ -1976,9 +1997,18 @@ $("sheet").addEventListener("click",e=>{
   if(a.startsWith("rdur:")){rKeep();W.it.dur=+a.slice(5);return renderSheet()}
   if(a.startsWith("rday:")){rKeep();const x=+a.slice(5),all=!(W.it.days&&W.it.days.length&&W.it.days.length<7),cur=all?[]:W.it.days.slice(),i=cur.indexOf(x);if(i>=0)cur.splice(i,1);else cur.push(x);
     W.it.days=!cur.length||cur.length===7?undefined:cur.sort((p,q)=>p-q);return renderSheet()}
+  if(a.startsWith("rsteps:")){rKeep();const on=a.endsWith("1"),it=W.it;
+    if(on&&!(it.steps&&it.steps.length)){it.steps=W.stepsBak||[{id:it.id+"_s"+Date.now().toString(36),name:it.name||"Шаг 1",min:it.dur||30}];if(it.proof){it.steps[it.steps.length-1].proof=1;delete it.proof}}
+    else if(!on&&it.steps){W.stepsBak=it.steps;it.dur=stepSum(it)||it.dur||30;if(it.steps.some(x=>x.proof))it.proof=1;delete it.steps}
+    return renderSheet()}
+  if(a==="rsadd"){rKeep();const it=W.it;it.steps.push({id:it.id+"_s"+Date.now().toString(36),name:"",min:15});renderSheet();
+    setTimeout(()=>{const ins=$("sheet").querySelectorAll("input[data-rs$=':name']");const l=ins[ins.length-1];if(l)l.focus()},60);return}
+  if(a.startsWith("rsx:")){rKeep();W.it.steps.splice(+a.slice(4),1);if(!W.it.steps.length)delete W.it.steps;return renderSheet()}
+  if(a.startsWith("rsp:")){rKeep();const x=W.it.steps[+a.slice(4)];if(x.proof)delete x.proof;else x.proof=1;return renderSheet()}
   if(a.startsWith("rat:")){rKeep();const v=a.slice(4);W.it.at=v||undefined;return renderSheet()}
   if(a.startsWith("rflag:")){rKeep();const f=a.slice(6),it=W.it;if(f==="body"){if(it.goal==="body")delete it.goal;else it.goal="body"}else{if(it[f])delete it[f];else it[f]=1;if(f==="minor"&&it.minor)delete it.main;if(f==="main"&&it.main)delete it.minor}return renderSheet()}
   if(a==="rsave"){rKeep();const it=W.it;if(!it.name){toast("Напиши название");return}if(it.at==="pick"){toast("Выбери время");return}
+    if(it.steps){it.steps=it.steps.filter(x=>(x.name||"").trim());if(!it.steps.length)delete it.steps;else{it.dur=stepSum(it)||it.dur||30;delete it.proof}}
     const r=prof().routine.map(x=>Object.assign({},x)),i=r.findIndex(x=>x.id===it.id);
     if(i>=0)r[i]=it;else{const e=r.findIndex(x=>x.at==="end");r.splice(e<0?r.length:e,0,it)}
     if(it.goal==="body")for(const x of r)if(x!==it&&x.goal==="body")delete x.goal;
@@ -2089,6 +2119,10 @@ document.addEventListener("input",e=>{const t=e.target;if(!W||W.step!=="rcpt")re
   else if(t.dataset.re){const e2=r.extra[+t.dataset.re];if(e2)e2.amt=(e2.k==="bon"||e2.k==="disc"?-1:1)*Math.abs(pNum(t.value))}
   else if(t.dataset.rf){r[t.dataset.rf]=t.dataset.rf==="total"?(t.value.trim()?pNum(t.value):null):t.value}
   else return;const sm=$("rcsum");if(sm)sm.innerHTML=rcSum()});
+const stepSum=it=>(it.steps||[]).every(x=>x.min>0)?(it.steps||[]).reduce((a,x)=>a+x.min,0):0;
+function stepSumTxt(it){const s=stepSum(it);return s?`Всего по шагам: <b>${durTxt(s)}</b>`:"Впиши минуты каждому шагу, длительность посчитается сама."}
+document.addEventListener("input",e=>{const t=e.target;if(!t.dataset.rs||!W||W.step!=="ritem"||!W.it.steps)return;const [i,f]=t.dataset.rs.split(":"),x=W.it.steps[+i];if(!x)return;
+  if(f==="min"){const v=parseInt(t.value,10);if(v>0)x.min=Math.min(600,v);else delete x.min}else x.name=t.value;const el=$("rssum");if(el)el.innerHTML=stepSumTxt(W.it)});
 function cKeep(){const nt=$("sheet").querySelector("input[name=note]");if(nt&&W&&W.c)W.c.sub=nt.value.trim().slice(0,80);const n=$("sheet").querySelector("input[name=v]"),tm=$("ctime");if(n&&W&&W.c)W.c.name=n.value.trim().slice(0,60);if(tm&&tm.value&&W&&W.c)W.c.at=tm.value}
 document.addEventListener("change",e=>{if(e.target.id==="ctime"&&W&&W.step==="cedit"){cKeep();W.c.at=e.target.value||W.c.at;setTimeout(renderSheet)}});
 function rKeep(){const nt=$("sheet").querySelector("input[name=note]");if(nt&&W&&W.it){const v=nt.value.trim().slice(0,80);if(v)W.it.sub=v;else delete W.it.sub}const n=$("sheet").querySelector("input[name=v]"),c=$("sheet").querySelector("input[name=check]"),tm=$("rtime");
@@ -2160,20 +2194,27 @@ function stepTimer(){
     saveF();}
   renderFocus(true);
 }
+// шаг с минутами: таймер считает время шага (общий для приложения и бота: старт = начало дела или конец прошлого шага)
+function stepClock(d,it,st){if(!st||!(st.min>0)||!d.cur||d.cur.id!==it.id)return null;
+  const marks=[toMin(d.cur.at)].concat(stepIds(it).filter(x=>has(d,x)&&d.at[x]).map(x=>toMin(d.at[x])));const start=Math.max(...marks);
+  const tot=(st.min+((d.sx||{})[st.id]||0))*60,n=new Date(),nowS=(nowMin())*60+n.getSeconds();return {tot,left:Math.max(0,tot-(nowS-start*60))}}
 function renderFocus(onlyTime){
-  const s=remain(),mm=pad(Math.floor(s/60)),ss=pad(s%60),tot=F.phase==="work"?WORK:BREAK,C=2*Math.PI*104,off=C*(1-s/tot);
+  const _d=dayOf(key()),_it=ritem(focusId),_st=_it&&nextStep(_d,_it),SC=_it&&stepClock(_d,_it,_st);
+  if(SC&&SC.left<=0&&F.warned!==_st.id){F.warned=_st.id;haptic("warning");toast("⏰ Время шага вышло. Ещё 5 минут или шаг готов?")}
+  const s=SC?SC.left:remain(),mm=pad(Math.floor(s/60)),ss=pad(s%60),tot=SC?SC.tot:(F.phase==="work"?WORK:BREAK),C=2*Math.PI*104,off=C*(1-s/tot);
   if(onlyTime&&$("ftime")){$("ftime").textContent=mm+":"+ss;$("farc").setAttribute("stroke-dashoffset",off.toFixed(1));return}
   const d=dayOf(key()),it=ritem(focusId);if(!it){closeFocus();return}const st=nextStep(d,it);
-  const list=it.steps.map(x=>`<div class="${has(d,x.id)?"done":x===st?"cur":""}"><span class="dot">${has(d,x.id)?IC.check:""}</span>${esc(x.name)}</div>`).join("");
+  const list=it.steps.map(x=>`<div class="${has(d,x.id)?"done":x===st?"cur":""}"><span class="dot">${has(d,x.id)?IC.check:""}</span>${esc(x.name)}${x.min?` <small style="color:var(--dim);margin-left:auto">${x.min} мин</small>`:""}${x.proof?" 📸":""}</div>`).join("");
   const main=!st?`<button type="button" class="goldbtn" id="fclose2">Готово. Закрыть</button>`:locked(st)?`<button type="button" class="goldbtn" data-proof="1">Кинуть пруф боту</button>`:`<button type="button" class="goldbtn" data-t="${st.id}">Готово, следующий шаг</button>`;
   $("focus").innerHTML=`<div class="top"><button type="button" class="back" id="fclose" aria-label="Назад">${IC.back}</button><span style="font-size:14px;font-weight:800;color:var(--muted)">${F.phase==="work"?"Сессия "+F.session:"Перерыв"}</span><span style="width:44px"></span></div>
     <div class="ring"><svg width="240" height="240" viewBox="0 0 240 240" role="img" aria-label="Осталось ${mm} минут"><circle cx="120" cy="120" r="104" fill="none" stroke="#2a1d16" stroke-width="12"/><circle id="farc" cx="120" cy="120" r="104" fill="none" stroke="${F.phase==="work"?"#e5603f":"#6c9a7d"}" stroke-width="12" stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 120 120)"/></svg>
-      <div class="c"><b id="ftime">${mm}:${ss}</b><span>${F.phase==="work"?(F.running?"до перерыва":"на паузе"):"отдых"}</span></div></div>
+      <div class="c"><b id="ftime">${mm}:${ss}</b><span>${SC?(SC.left>0?"осталось на шаг":"время шага вышло"):F.phase==="work"?(F.running?"до перерыва":"на паузе"):"отдых"}</span></div></div>
     <div class="fstep"><h2>${st?esc(st.name):esc(it.name)+": готово"}</h2><p>${st?esc(st.hint||""):"Красавчик. В зачёт награды."}</p></div>
     <div class="flist">${list}</div>
-    <div class="factions"><span class="tip">Телефон экраном вниз. Отдых подождёт до конца.</span>${main}<button type="button" class="line" id="fpause">${F.running?"Пауза":"Продолжить"}</button></div>`;
+    <div class="factions"><span class="tip">Телефон экраном вниз. Отдых подождёт до конца.</span>${main}${SC?`<button type="button" class="line" id="fplus">+5 минут</button>`:`<button type="button" class="line" id="fpause">${F.running?"Пауза":"Продолжить"}</button>`}</div>`;
+  if($("fplus"))$("fplus").onclick=()=>{mutate(()=>{_d.sx=Object.assign({},_d.sx||{});_d.sx[_st.id]=(_d.sx[_st.id]||0)+5});F.warned=null;renderFocus()};
   $("fclose").onclick=closeFocus;if($("fclose2"))$("fclose2").onclick=closeFocus;
-  $("fpause").onclick=()=>{if(F.running){F.left=remain();F.running=false}else{F.running=true;F.endsAt=Date.now()+F.left*1000}saveF();renderFocus()};
+  if($("fpause"))$("fpause").onclick=()=>{if(F.running){F.left=remain();F.running=false}else{F.running=true;F.endsAt=Date.now()+F.left*1000}saveF();renderFocus()};
 }
 
 /* ---------- пересчёт раз в минуту ---------- */

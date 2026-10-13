@@ -113,6 +113,36 @@ async def send_reminders(bot: Bot, uid: int = TELEGRAM_USER_ID) -> None:
         logger.error(f"Reminders error: {e}")
 
 
+def step_kb(st: dict):
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+    done = (InlineKeyboardButton(text="📸 Кину пруф", callback_data=f"st:pf:{st['id']}") if st.get("proof")
+            else InlineKeyboardButton(text="✅ Шаг готов", callback_data=f"st:done:{st['id']}"))
+    return InlineKeyboardMarkup(inline_keyboard=[[done, InlineKeyboardButton(text="+5 минут", callback_data=f"st:ext:{st['id']}")]])
+
+
+async def send_step_timer(bot: Bot, uid: int = TELEGRAM_USER_ID) -> None:
+    """Каждую минуту: у идущего шага кончилось время → один раз написать (после «+5 минут» снова)."""
+    try:
+        state = await database.get_quest_state(uid)
+        k = quest.today_key()
+        day = (state.get("days") or {}).get(k)
+        if not day or not day.get("cur"):
+            return
+        sc = quest.step_clock(day, quest.full_profile(state))
+        if not sc or sc["left"] > 0:
+            return
+        st = sc["step"]
+        mark = f"{st['id']}:{(day.get('sx') or {}).get(st['id'], 0)}"
+        if day.get("sw") == mark:
+            return
+        day["sw"] = mark
+        await database.save_quest_state(uid, state)
+        await bot.send_message(uid, f"⏰ <b>{html.escape(st.get('name') or 'Шаг')}</b>: время шага вышло ({st['min']} мин).\n"
+                                    f"«{html.escape(sc['item'].get('name') or '')}». Готово или ещё 5 минут?", reply_markup=step_kb(st))
+    except Exception as e:
+        logger.error(f"step timer: {e}")
+
+
 async def send_quest_night(bot: Bot, uid: int = TELEGRAM_USER_ID) -> None:
     """22:30 — итог дня и экран выкл."""
     try:
@@ -320,6 +350,7 @@ def setup_scheduler(bot: Bot) -> AsyncIOScheduler:
     # Квест дня: живой план, проверка каждые 5 минут
     scheduler.add_job(each(send_quest_tick), "cron", minute="*/5", kwargs={"bot": bot})
     scheduler.add_job(each(send_reminders), "cron", minute="*", kwargs={"bot": bot})
+    scheduler.add_job(each(send_step_timer), "cron", minute="*", second=20, kwargs={"bot": bot})
     scheduler.add_job(each(send_quest_night), "cron", hour=22, minute=30, kwargs={"bot": bot})
     scheduler.add_job(each(send_quest_week), "cron", day_of_week="sun", hour=21, minute=0, kwargs={"bot": bot})
     scheduler.add_job(each(send_review), "cron", day_of_week="sun", hour=20, minute=30, kwargs={"bot": bot})

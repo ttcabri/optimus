@@ -368,6 +368,22 @@ def chores_for_plan(state: dict, uid=None) -> list[dict]:
     return out
 
 
+def step_clock(day: dict, P: dict) -> dict | None:
+    """Идущий шаг с минутами: {item, step, left (мин, может быть <0)}. Старт = начало дела или конец прошлого шага."""
+    cur = day.get("cur") or {}
+    it = next((x for x in items(P) if x.get("id") == cur.get("id") and x.get("steps")), None)
+    if not it or not cur.get("at"):
+        return None
+    done = set(day.get("done", []))
+    st = next((x for x in it["steps"] if x["id"] not in done), None)
+    if not st or not (isinstance(st.get("min"), (int, float)) and st["min"] > 0):
+        return None
+    at = day.get("at") or {}
+    start = max([to_min(cur["at"])] + [to_min(at[x["id"]]) for x in it["steps"] if x["id"] in done and at.get(x["id"])])
+    tot = st["min"] + (day.get("sx") or {}).get(st["id"], 0)
+    return {"item": it, "step": st, "left": tot - (now_min() - start)}
+
+
 async def mark_done(telegram_id: int, ids: list[str]) -> dict:
     state = await database.get_quest_state(telegram_id)
     day = _day(state, today_key())
@@ -500,6 +516,10 @@ def merge_incoming(server: dict, incoming: dict) -> dict:
         iday.setdefault("done", [])
         iday.setdefault("at", {})
         iday.setdefault("custom", [])
+        if sday.get("sw") and not iday.get("sw"):  # бот уже предупредил про шаг
+            iday["sw"] = sday["sw"]
+        if sday.get("sx"):  # +5 минут к шагу: из бота и из приложения
+            iday["sx"] = {k: max(v, (iday.get("sx") or {}).get(k, 0)) for k, v in sday["sx"].items()} | {k: v for k, v in (iday.get("sx") or {}).items() if k not in sday["sx"]}
         if sday.get("ovr") and not iday.get("ovr"):
             iday["ovr"] = sday["ovr"]
         if sday.get("ord") and not iday.get("ord"):  # бот сохраняет свою копию: порядок, перетащенный в приложении, не терять
@@ -643,6 +663,10 @@ def build_plan(day: dict, now_min: int | None = None, wd: int | None = None) -> 
         if qid in learn:
             base = learn[qid]["min"]
         if qid in multi:
+            steps = multi[qid]["steps"]
+            if all(isinstance(x.get("min"), (int, float)) and x["min"] > 0 for x in steps):
+                sx = day.get("sx") or {}
+                return max(5, sum(x["min"] + sx.get(x["id"], 0) for x in steps if x["id"] not in done))
             st = step_ids(multi[qid])
             return max(20, round(base * sum(1 for b in st if b not in done) / len(st)))
         return base

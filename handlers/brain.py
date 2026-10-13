@@ -185,6 +185,37 @@ async def maybe_receipt_fix(message: Message) -> None:
         raise SkipHandler()
 
 
+# ---------- таймер шага: кнопки ----------
+@router.callback_query(F.data.startswith("st:"))
+async def step_cb(cb: CallbackQuery) -> None:
+    from services import quest
+    _, op, sid = (cb.data.split(":", 2) + ["", ""])[:3]
+    uid = cb.from_user.id
+    try:
+        await cb.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    if op == "pf":
+        await cb.answer()
+        await cb.message.answer("Кидай фото сюда, засчитаю шаг.")
+        return
+    state = await database.get_quest_state(uid)
+    day = state.setdefault("days", {}).setdefault(quest.today_key(), {})
+    if sid in (day.get("done") or []):
+        await cb.answer("Этот шаг уже готов")
+        return
+    if op == "ext":
+        day["sx"] = dict(day.get("sx") or {})
+        day["sx"][sid] = day["sx"].get(sid, 0) + 5
+        await database.save_quest_state(uid, state)
+        await cb.answer("+5 минут")
+        await cb.message.answer("⏱ Ещё 5 минут на шаг. Напомню.")
+        return
+    await quest.mark_done(uid, [sid])
+    await cb.answer("Шаг готов")
+    await cb.message.answer("✅ Шаг готов. Следующий уже идёт, таймер в приложении.")
+
+
 # ---------- деньги и еда: кнопки ----------
 @router.callback_query(F.data.startswith("mn:"))
 async def money_cb(cb: CallbackQuery) -> None:
