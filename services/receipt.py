@@ -162,7 +162,7 @@ def text(r: dict) -> str:
         where.append(f"♻️ €{dep(r):.2f} залога запомню (вернёшь, сдав тару)")
     where.append("чек уже лежит в Документы → Чеки")
     w = ", ".join(where)
-    return "\n".join(lines) + "\n\n" + w[:1].upper() + w[1:] + ".\nВсё верно?"
+    return "\n".join(lines) + "\n\n" + w[:1].upper() + w[1:] + ".\nВсё верно? Поправить можно кнопкой ✏️ или словами."
 
 
 def context(state: dict) -> str:
@@ -176,10 +176,22 @@ def context(state: dict) -> str:
 
 
 def kb(r: dict):
-    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="✅ Всё верно", callback_data=f"rc:ok:{r['id']}"),
-                                                  InlineKeyboardButton(text="✏️ Поправить", callback_data=f"rc:edit:{r['id']}")],
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+    from config import WEBAPP_URL
+    edit = (InlineKeyboardButton(text="✏️ Править", web_app=WebAppInfo(url=WEBAPP_URL + ("&" if "?" in WEBAPP_URL else "?") + "rcpt=1"))
+            if WEBAPP_URL and WEBAPP_URL.startswith("https://") else InlineKeyboardButton(text="✏️ Поправить", callback_data=f"rc:edit:{r['id']}"))
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="✅ Всё верно", callback_data=f"rc:ok:{r['id']}"), edit],
                                                  [InlineKeyboardButton(text="Не записывать", callback_data=f"rc:no:{r['id']}")]])
+
+
+def apply(state: dict, data: dict) -> dict | None:
+    """Правка чека руками из приложения: те же правила, что при чтении, id и фото те же."""
+    r = state.get("rcpt")
+    if not r or not isinstance(data, dict):
+        return None
+    out = pending(state, data, r.get("file"), r.get("fkind") or "photo")
+    out["id"] = r["id"]
+    return out
 
 
 FIX = """Вот чек, который ты прочитал, в JSON:

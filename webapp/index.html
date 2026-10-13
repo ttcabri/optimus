@@ -79,6 +79,14 @@ button{cursor:pointer}
 [data-sort]>[data-sid].drag{position:relative;z-index:5;transition:none;background:var(--panel2);box-shadow:0 12px 28px rgba(0,0,0,.5);border-radius:14px}
 body.dragging{overscroll-behavior:none}
 .chk.play{border-color:var(--gold);color:var(--gold)}.chk.play svg{width:14px;height:14px;margin-left:2px}
+.rch{display:flex;justify-content:space-between;align-items:center}.rch a{font-size:14px;color:var(--muted);text-decoration:none;font-family:inherit}
+.rcm{display:grid;grid-template-columns:1.3fr 1fr;gap:8px;align-items:end}.rcm label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:800;color:var(--muted)}.rcm input{height:44px!important;font-size:15px!important}
+.rcl .rci{display:flex;align-items:center;gap:6px;padding:8px 10px;border-top:1px solid var(--line)}.rcl .rci:first-child{border-top:none}
+.rcn{flex:1;min-width:0;background:none;border:none;color:var(--fg);font:inherit;text-align:left;padding:0}.rcn b{display:block;font-size:14px}.rcn small{display:block;color:var(--dim);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rcq{display:flex;align-items:center;gap:2px;flex-shrink:0}.rcq em{font-style:normal;font-size:12px;color:var(--muted);font-weight:700}
+.rci input{height:34px!important;width:52px;padding:0 6px!important;font-size:14px!important;text-align:center;border-radius:9px!important}.rci input.rcp{width:62px}
+.rci.ed{flex-direction:column;align-items:stretch;background:#2b2016}.rci.ed>input{width:100%;text-align:left}.rcin{display:flex;gap:8px;align-items:center}.rcin input{width:70px}
+.rcsum{font-size:13px;font-weight:700;color:var(--muted);padding-bottom:10px}.rcsum b{color:var(--fg)}
 .rdays .chip[aria-pressed="true"]{background:#1f2a20;border-color:var(--okl);color:var(--okl)}
 .opts.rtwo{grid-template-columns:1fr 1fr}.rtpick{position:relative;display:grid;place-items:center;cursor:pointer}.rtpick input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:none}
 .rsteps{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);font-weight:600}
@@ -194,7 +202,26 @@ button.hrow{width:100%;border:none;color:inherit;font:inherit;text-align:left}
 .row.on .nm b{color:var(--dim);text-decoration:line-through}
 .row.boss{background:var(--panel2);border-color:var(--fire)}
 .row.game{background:#2a2014;border-color:var(--gold)}
-.row.anchor{border-color:var(--line2)}
+.row .nm{min-width:0}.row .nm small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.row .nm .pf{font-size:12px;margin-left:5px;vertical-align:1px}
+.noteinp{height:44px!important;font-size:15px!important;color:var(--muted)}
+.row.anchor{border-color:var(--line2);border-left:4px solid var(--gold);padding-left:10px}.row.anchor .tm{color:var(--gold)}.row .tm .lk{font-style:normal;font-size:11px;line-height:1;margin-bottom:2px}
+/* анимации: лёгкие, выключаются системной настройкой «меньше движения» */
+.fxflash{position:fixed;z-index:60;border-radius:16px;pointer-events:none;background:rgba(127,199,156,.28);box-shadow:0 0 0 2px rgba(127,199,156,.6);animation:fxf .6s ease forwards}
+@keyframes fxf{0%{opacity:0;transform:scale(.98)}25%{opacity:1;transform:scale(1.02)}100%{opacity:0;transform:scale(1)}}
+.fxdot{position:fixed;z-index:61;width:7px;height:7px;border-radius:50%;pointer-events:none}
+.now.run{animation:nowbr 2.8s ease-in-out infinite}
+@keyframes nowbr{0%,100%{box-shadow:0 0 0 0 rgba(240,138,93,0)}50%{box-shadow:0 0 0 4px rgba(240,138,93,.3),0 0 26px rgba(240,138,93,.3)}}
+.pill.fire:not(.zero) svg{animation:firefl 1.6s ease-in-out infinite;transform-origin:50% 90%}
+@keyframes firefl{0%,100%{transform:scale(1) rotate(-3deg);filter:drop-shadow(0 0 2px rgba(240,138,93,.4))}50%{transform:scale(1.1) rotate(3deg);filter:drop-shadow(0 0 7px rgba(240,138,93,.9))}}
+.pill.leaf.open{position:relative;overflow:hidden}
+.pill.leaf.open::after{content:"";position:absolute;top:0;bottom:0;width:26px;left:-40px;background:linear-gradient(90deg,transparent,rgba(255,230,180,.45),transparent);transform:skewX(-20deg);animation:shine 2.8s ease-in-out infinite}
+@keyframes shine{0%{left:-40px}55%,100%{left:120%}}
+.sheet .pnl.pop{animation:sheetup .42s cubic-bezier(.2,1.25,.4,1)}
+@keyframes sheetup{from{transform:translateY(100%)}to{transform:none}}
+.row,.opt,.goldbtn,.htile,.chip,.gcard,.bigbtn,.ghost,.hrow,.addmod,.pill,.navplus span,.mtile{transition:transform .12s ease}
+.row:active,.opt:active,.goldbtn:active,.htile:active,.chip:active,.gcard:active,.bigbtn:active,.ghost:active,.hrow:active,.addmod:active,.pill:active,.navplus:active span{transform:scale(.97)}
+[data-sort]>[data-sid].drag:active{transform:none}
+@media (prefers-reduced-motion:reduce){.now.run,.pill.fire svg,.pill.leaf.open::after,.sheet .pnl.pop{animation:none!important}}
 .row.gap{background:transparent;border:1px dashed var(--line);min-height:40px;padding:8px 12px}
 .row.gap .nm b{font-size:13px;color:var(--dim);font-weight:700}
 .pin{font-size:11px;font-weight:800;color:var(--gold);margin-left:6px}
@@ -506,14 +533,15 @@ function norm(s){if(!s||typeof s!=="object")s={};if(!s.days||typeof s.days!=="ob
 function dayOf(k){const d=state.days[k]||(state.days[k]={});d.done=d.done||[];d.at=d.at||{};d.custom=d.custom||[];d.skip=d.skip||[];d.dur=d.dur||{};d.gl=d.gl||[];return d}
 const peek=k=>state.days[k];
 const has=(d,id)=>!!d&&(d.done||[]).includes(id);
-const subOf=q=>(q.sub||"")+(BOT&&q.proof&&!q.penalty?(q.sub?". ":"")+"Пруф в бот":"");
+const subOf=q=>(q.sub||"")+(BOT&&q.proof&&!q.penalty?(q.sub?". ":"")+"📸 Пруф: фото в бот":"");
+const noteOf=q=>q.penalty?"":(q.sub||""); // в списке только заметка; пояснения штрафа и долга в большой карточке
 const locked=q=>BOT&&!!q.proof;
 
 function queue(k){
   const d=dayOf(k),P=prof(),wd=dow(k),debt=debtOf(k),pi=penItem(),pen=P.penalty||{},out=[];let hasC=false;
   const extra=()=>{if(pi&&(debt||(pi.bonus&&itemDone(d,pi)&&!d.skip.includes("vid2"))))
     out.push({id:"vid2",name:debt?(pi.debt||`Долг: ещё раз «${pi.name}»`):pi.bonus,sub:debt?"За вчера. Без него награды нет":"Плюс к цели",dur:pi.dur||30,proof:penProof()?1:0,opt:debt?0:1,penalty:debt?1:0})};
-  const customs=()=>{for(const c of d.custom)out.push({id:c.id,name:c.name,dur:c.dur||30,fixed:c.at||null,custom:1});
+  const customs=()=>{for(const c of d.custom)out.push({id:c.id,name:c.name,sub:c.sub||"",dur:c.dur||30,fixed:c.at||null,custom:1});
     if(k===key()){for(const c of houseOf().chores)if((isMe(c.who)||(c.last===k&&has(d,"ch_"+c.id)))&&!d.skip.includes("ch_"+c.id))out.push({id:"ch_"+c.id,name:c.name,sub:"Дом · взял на себя",dur:c.dur||20,minor:1,chore:1});
       for(const p of houseOf().projects)for(const st of p.steps||[]){const sid="pr_"+p.id+"_"+st.id;if(((!st.done&&isMe(st.who))||has(d,sid))&&!d.skip.includes(sid))out.push({id:sid,name:st.t,sub:"Проект · "+p.name,dur:st.dur||30,minor:1,chore:1})}
       const mb=myBuys();if((mb.length||has(d,"buy"))&&!d.skip.includes("buy"))out.push({id:"buy",name:mb.length?"Купить: "+mb.map(({x})=>x.name).join(", "):"Покупки",sub:"Дом · взял на себя",dur:Math.min(60,20+5*mb.length),minor:1,chore:1});}
@@ -530,7 +558,7 @@ function queue(k){
   }
   if(!hasC)customs();
   const ov=d.ovr||{};
-  for(const q of out){const o=ov[q.id];if(!o)continue;if(o.name)q.name=o.name;if("at" in o){q.fixed=o.at||null;if(!o.at)delete q.sub}}
+  for(const q of out){const o=ov[q.id];if(!o)continue;if(o.name)q.name=o.name;if("sub" in o)q.sub=o.sub;if("at" in o){q.fixed=o.at||null;if(!o.at)delete q.sub}}
   return out;
 }
 const isDone=(d,q)=>q.steps?itemDone(d,q):has(d,q.id);
@@ -794,6 +822,15 @@ function mutate(fn){
   render();save();
 }
 function findQ(id){if(String(id).startsWith("ch_")||id==="buy")return queue(key()).find(x=>x.id===id);return queue(key()).find(x=>x.id===id)||ritem(id)||ritems().flatMap(it=>it.steps||[]).find(x=>x.id===id)||dayOf(key()).custom.find(c=>c.id===id)}
+// «Сделал»: зелёная вспышка на месте дела и искры. Без анимаций в настройках телефона ничего не делаем.
+function celebrate(rc){
+  try{if(matchMedia("(prefers-reduced-motion: reduce)").matches)return;try{Telegram.WebApp.HapticFeedback.notificationOccurred("success")}catch(e){}
+    const f=document.createElement("div");f.className="fxflash";Object.assign(f.style,{left:rc.left+"px",top:rc.top+"px",width:rc.width+"px",height:rc.height+"px"});document.body.appendChild(f);setTimeout(()=>f.remove(),650);
+    const cx=rc.left+Math.min(60,rc.width/2),cy=rc.top+rc.height/2;
+    for(let i=0;i<12;i++){const b=document.createElement("i");b.className="fxdot";b.style.left=cx+"px";b.style.top=cy+"px";b.style.background=i%3?"#7fc79c":"#e0a456";document.body.appendChild(b);
+      const a=Math.random()*Math.PI*2,dd=28+Math.random()*36;b.animate([{transform:"translate(-50%,-50%)",opacity:1},{transform:`translate(calc(-50% + ${Math.cos(a)*dd}px),calc(-50% + ${Math.sin(a)*dd}px)) scale(.4)`,opacity:0}],{duration:650,easing:"cubic-bezier(.2,.8,.3,1)"}).onfinish=()=>b.remove()}
+  }catch(e){}
+}
 function toggle(id){const was=has(dayOf(key()),id);toggle0(id);const g=!was&&has(dayOf(key()),id)&&goalOfTask(id);
   if(g&&g.metric&&g.metric.ask==="after"&&g.metric.src==="m"){const L=((state.metrics||{})[g.id]||[]).filter(x=>x.add).map(x=>x.add),quick=[...new Set(L.slice(-3).reverse())];
     setTimeout(()=>{W={step:"gnum",id:g.id,after:1,quick};renderSheet()},350)}}
@@ -869,7 +906,7 @@ function nowCard(k,d,p){
     const st=nextStep(d,q),i=q.steps.indexOf(st);
     const segs=q.steps.map(x=>`<div class="seg${has(d,x.id)?" on":""}"></div>`).join("");
     const step=locked(st)?`<button type="button" class="ghost" data-proof="1">Кинуть пруф боту</button>`:`<button type="button" class="ghost" data-t="${st.id}">Шаг сделан</button>`;
-    return `<section class="now${late?" late":""}">${kline}<div><h2>${esc(q.name)}: ${esc(st.name.toLowerCase())}</h2><p>Шаг ${i+1} из ${q.steps.length}. ${esc(st.hint||"")}</p></div>${clock}<div class="segs">${segs}</div>
+    return `<section class="now${late?" late":""}${it.started?" run":""}">${kline}<div><h2>${esc(q.name)}: ${esc(st.name.toLowerCase())}</h2><p>Шаг ${i+1} из ${q.steps.length}. ${esc(st.hint||"")}</p></div>${clock}<div class="segs">${segs}</div>
       <button type="button" class="bigbtn" data-focus="${esc(q.id)}">${IC.play}${it.started?"Открыть фокус":"Начать фокус 50 минут"}</button>${step}</section>`;
   }
   const done=locked(q)?`<button type="button" class="bigbtn" data-proof="1">Кинуть пруф боту</button>`:`<button type="button" class="bigbtn" data-t="${esc(q.id)}">Готово</button>`;
@@ -877,7 +914,7 @@ function nowCard(k,d,p){
   const food=meal?(pr?`<div class="prepbox"><span style="flex:1;min-width:0"><b>${esc(pr.name)}</b><small>есть заготовка · ${pr.n} порц.</small></span><button type="button" data-prepeat="${pr.id}">Съел порцию</button></div>`:"")+`<button type="button" class="ghost" data-cookgo="1">🍳 ${pr?"Другое: что приготовить":"Что приготовить"}</button>`:"";
   const startB=it.started?"":`<button type="button" class="ghost" data-start="${esc(q.id)}">Начать, засечь время</button>`;
   const tok=isMain(q)?" Нужно для награды.":"";
-  return `<section class="now${late?" late":""}">${kline}<div><h2>${esc(q.name)}</h2><p>${esc(subOf(q))}${tok&&subOf(q)&&!/[.!?]$/.test(subOf(q))?".":""}${tok}</p></div>${clock}${food}${done}${startB}</section>`;
+  return `<section class="now${late?" late":""}${it.started?" run":""}">${kline}<div><h2>${esc(q.name)}</h2><p>${esc(subOf(q))}${tok&&subOf(q)&&!/[.!?]$/.test(subOf(q))?".":""}${tok}</p></div>${clock}${food}${done}${startB}</section>`;
 }
 function planRow(d,it,opts={}){
   if(it.gap)return `<div class="row gap"><span class="tm">${hm(it.start)}</span><span class="nm"><b>Свободно ${durTxt(it.end-it.start)}</b></span></div>`;
@@ -885,13 +922,14 @@ function planRow(d,it,opts={}){
   const q=it.q;
   const inReward=isMain(q),pi=penItem();
   const right=inReward?`<span class="tok" title="Нужно для награды">${IC.leaf}</span>`:`<span class="dur">${durTxt(durOf(d,q))}</span>`;
-  const sub=q.steps?`${q.steps.filter(x=>has(d,x.id)).length} из ${q.steps.length} шагов · ${durTxt(durOf(d,q))}`:(it.late&&it.started?`Сверх плана ${it.late} мин`:subOf(q));
+  const sub=q.steps?`${q.steps.filter(x=>has(d,x.id)).length} из ${q.steps.length} шагов · ${durTxt(durOf(d,q))}`:(it.late&&it.started?`Сверх плана ${it.late} мин`:noteOf(q));
+  const pf=BOT&&(q.proof||(q.steps||[]).some(x=>x.proof))?'<span class="pf" title="Нужен пруф фото">📸</span>':"";
   const startAttr=q.steps?`data-focus="${esc(q.id)}"`:`data-start="${esc(q.id)}"`;
   const chk=`<button type="button" class="chk play" ${startAttr} aria-label="Запустить «${esc(q.name)}»">${IC.play}</button>`;
   const extra=!q.penalty&&!(pi&&pi.id===q.id)?`<button type="button" class="x" data-mv="${esc(q.id)}" aria-label="Перенести или убрать «${esc(q.name)}»">${IC.x}</button>`:"";
-  const main=it.started?`<span class="rowmain"><span class="nm"><b>${esc(q.name)}</b><small>Идёт сейчас · ${esc(sub)}</small></span>${right}</span>`
-    :`<button type="button" class="rowmain" data-dedit="${esc(q.id)}" aria-label="Открыть «${esc(q.name)}»"><span class="nm"><b>${esc(q.name)}</b><small>${esc(sub)}</small></span>${right}</button>`;
-  return `<div class="row${q.steps?" boss":""}${it.anchor?" anchor":""}${it.started?" cur":""}"${it.anchor||it.started?"":` data-sid="${esc(q.id)}"`}><span class="tm" style="${it.late?"color:var(--red)":""}">${hm(it.start)}<small>${hm(it.end)}</small></span>${chk}${main}${extra}</div>`;
+  const main=it.started?`<span class="rowmain"><span class="nm"><b>${esc(q.name)}${pf}</b><small>Идёт сейчас${sub?" · "+esc(sub):""}</small></span>${right}</span>`
+    :`<button type="button" class="rowmain" data-dedit="${esc(q.id)}" aria-label="Открыть «${esc(q.name)}»"><span class="nm"><b>${esc(q.name)}${pf}</b>${sub?`<small>${esc(sub)}</small>`:""}</span>${right}</button>`;
+  return `<div class="row${q.steps?" boss":""}${it.anchor?" anchor":""}${it.started?" cur":""}"${it.anchor||it.started?"":` data-sid="${esc(q.id)}"`}><span class="tm" style="${it.late?"color:var(--red)":""}">${it.anchor?'<i class="lk" aria-label="Закреплено по времени">🔒</i>':""}${hm(it.start)}<small>${hm(it.end)}</small></span>${chk}${main}${extra}</div>`;
 }
 function doneRow(d,q){
   const last=q.steps?stepIds(q).pop():q.id;
@@ -1394,6 +1432,7 @@ document.addEventListener("change",e=>{if(e.target.id==="bfile"&&e.target.files&
 document.addEventListener("change",e=>{if(ONB&&(e.target.id==="onbwake"||e.target.id==="onbbed")){ONB.wake=$("onbwake").value||ONB.wake;ONB.bed=$("onbbed").value||ONB.bed;renderOnb()}});
 function render(){
   if(DRAG){DRAG.late=1;return}
+  if(window.QD_LOADED&&!window._rcOpened&&/[?&]rcpt=1/.test(location.search)){window._rcOpened=1;setTimeout(openRcpt,50)}
   if(!ONB&&needOnb())ONB={s:0,name:"",wake:"08:00",bed:"23:30"};else if(ONB&&!needOnb())ONB=null;
   renderOnb();
   renderReward();renderHead();
@@ -1480,7 +1519,7 @@ document.addEventListener("click",e=>{
   const t=e.target.closest("button");if(!t||t.disabled)return;
   if(t.dataset.tab){if(t.dataset.tab==="home")homeSeg="";if(t.dataset.tab==="me")meSeg="";if(t.dataset.tab==="goals")goalSeg="";tab=t.dataset.tab;dayOpen=false;render();window.scrollTo(0,0);return}
   if(t.dataset.tabGo){tab=t.dataset.tabGo;if(tab==="goals")goalSeg="";render();window.scrollTo(0,0);return}
-  if(t.dataset.t){const id=t.dataset.t,it=ritem(id),was=has(dayOf(key()),id);toggle(id);
+  if(t.dataset.t){const id=t.dataset.t,it=ritem(id),was=has(dayOf(key()),id),rc=(t.closest(".row,.now")||t).getBoundingClientRect();toggle(id);if(!was)celebrate(rc);
     if(it&&(it.meal==="prep"||id==="prep")&&!was&&has(dayOf(key()),id)){W={step:"prepnew",name:"",n:4};renderSheet()}return}
   if(t.dataset.wake){const d=dayOf(key());if(!d.woke){mutate(()=>{d.woke=hhmm();logEv(d,"woke")});haptic("success");toast("Встал в "+d.woke+". План пришлёт бот")}return}
   if(t.dataset.unskip){const id=t.dataset.unskip,d=dayOf(key()),m=(d.moved||{})[id];
@@ -1561,7 +1600,7 @@ document.addEventListener("click",e=>{
   if(t.dataset.dedit){const id=t.dataset.dedit,d=dayOf(key()),c=d.custom.find(x=>x.id===id);
     if(c){W={step:"cedit",id,c:clone(c),custom:1};renderSheet();return}
     const q=queue(key()).find(x=>x.id===id);if(!q)return;
-    W={step:"cedit",id,c:{id,name:q.name,dur:durOf(d,q),at:q.fixed||""},base:{name:q.name,dur:durOf(d,q),at:q.fixed||""},rt:!!ritem(id),house:/^(ch_|pr_)|^buy$/.test(id),multi:!!q.steps};renderSheet();return}
+    W={step:"cedit",id,c:{id,name:q.name,dur:durOf(d,q),at:q.fixed||"",sub:noteOf(q)},base:{name:q.name,dur:durOf(d,q),at:q.fixed||"",sub:noteOf(q)},rt:!!ritem(id),house:/^(ch_|pr_)|^buy$/.test(id),multi:!!q.steps};renderSheet();return}
   if(t.dataset.mv){const q=findQ(t.dataset.mv);if(!q)return;W={step:"mv",id:t.dataset.mv,name:q.name,to:shift(key(),1),house:/^(ch_|pr_)|^buy$/.test(t.dataset.mv)};renderSheet();return}
   if(t.dataset.delon){const[kk,id]=t.dataset.delon.split("|"),dt=dayOf(kk);mutate(()=>{dt.custom=dt.custom.filter(c=>c.id!==id);(dt.del=dt.del||[]).push(id)});return}
 });
@@ -1600,7 +1639,7 @@ function openSheet(){W={step:"menu",name:"",date:key(),at:"",dur:30};renderSheet
 function closeSheet(){W=null;$("sheet").hidden=true;$("sheet").innerHTML="";delete $("sheet").dataset.step}
 function wDate(){return W.date===key()?"сегодня":W.date===shift(key(),1)?"завтра":new Date(W.date+"T12:00:00").toLocaleDateString("ru-RU",{weekday:"long",day:"numeric",month:"long"})}
 function renderSheet(){
-  const el=$("sheet");el.hidden=false;const SS=PSTEPS.includes(W.step)?PSTEPS:STEPS,i=SS.indexOf(W.step);
+  const el=$("sheet"),opening=el.hidden;el.hidden=false;const SS=PSTEPS.includes(W.step)?PSTEPS:STEPS,i=SS.indexOf(W.step);
   const dots=i>=0?`<div class="dots">${SS.map((_,j)=>`<i class="${j<=i?"on":""}"></i>`).join("")}</div>`:"<span></span>";
   const top=`<div class="sbar">${i>0?`<button type="button" class="x" data-w="back" aria-label="Назад">${IC.back}</button>`:"<span style=\"width:36px\"></span>"}${dots}<button type="button" class="x" data-w="close" aria-label="Закрыть">${IC.x}</button></div>`;
   const pr=(v,cur)=>`aria-pressed="${v===cur}"`;
@@ -1649,9 +1688,23 @@ function renderSheet(){
       ${st==="open"?`<button type="button" class="goldbtn" data-w="take">Взял награду</button>`:st==="pending"?`<button type="button" class="line" data-w="take">Взял раньше</button>`:""}`}
   const H=houseOf(),opt3=(list,cur,attr)=>`<div class="sopts">${list.map(([v,tx])=>`<button type="button" class="opt" data-w="${attr}:${v}" aria-pressed="${cur===v}">${tx}</button>`).join("")}</div>`;
   const dele=(a,tx)=>`<button type="button" class="dellink" data-w="${a}">${tx}</button>`;
+  if(W.step==="rcpt"){const r=W.r,RX={deposit:"♻️ Залог за тару",bon:"♻️ Сдал бутылки",bag:"🛍 Пакет",disc:"🏷 Скидка"};
+    const row=(x,n)=>W.op===n?`<div class="rci ed"><input data-ri="${n}:name" maxlength="60" value="${esc(x.name||"")}" placeholder="Название" aria-label="Название" autocomplete="off">
+        <div class="rcin"><input data-ri="${n}:amt" inputmode="decimal" value="${x.amt??""}" aria-label="Количество"><div class="perm">${["шт","г","кг","мл","л"].map(u=>`<button type="button" class="chip" data-w="rcu:${n}:${u}" aria-pressed="${(x.unit||"шт")===u}">${u}</button>`).join("")}</div></div>
+        <div class="perm">${Object.keys(HCATS).filter(c=>c!=="prep").map(c=>`<button type="button" class="chip" data-w="rcc:${n}:${c}" aria-pressed="${x.cat===c}">${HICON[c]} ${HCATS[c]}</button>`).join("")}</div>
+        <button type="button" class="dellink" style="color:var(--muted)" data-w="rcop:${n}">Свернуть</button></div>`
+      :`<div class="rci"><button type="button" class="rcn" data-w="rcop:${n}"><b>${esc(x.name||"без названия")}${x.cat==="home"?" 🧴":""}</b><small>${esc(x.orig||HCATS[x.cat]||"")}${x.disc?` · скидка −${fmtE(x.disc)}`:""}</small></button><span class="rcq"><input data-ri="${n}:amt" inputmode="decimal" value="${x.amt??""}" aria-label="Количество"><em>${esc(x.unit||"шт")}</em></span><input class="rcp" data-ri="${n}:price" inputmode="decimal" value="${x.price!=null?fmtE(x.price,1):""}" placeholder="€" aria-label="Цена"><button type="button" class="x" data-w="rcdel:${n}" aria-label="Убрать строку">${IC.x}</button></div>`;
+    body=`<h2 class="rch">Чек${r.doc?`<a href="${bFileUrl({id:r.doc})}" target="_blank" rel="noopener">фото ›</a>`:""}</h2>
+      <div class="rcm"><label>Магазин<input data-rf="shop" value="${esc(r.shop||"")}" autocomplete="off"></label><label>Дата<input type="date" data-rf="date" value="${esc(r.date||key())}"></label></div>
+      <div class="list rcl">${r.items.map(row).join("")||'<p class="empty">Строк нет</p>'}</div>
+      <button type="button" class="addmod" data-w="rcadd:item">＋ строка</button>
+      ${(r.extra||[]).length?`<div class="list rcl">${r.extra.map((e,n)=>`<div class="rci"><span class="rcn"><b>${RX[e.k]}</b><small>${esc(e.n||"")}</small></span>${e.k==="bon"||e.k==="disc"?'<em style="font-style:normal;color:var(--muted);font-weight:800">−</em>':""}<input class="rcp" data-re="${n}" inputmode="decimal" value="${fmtE(Math.abs(e.amt),1)}" aria-label="Сумма"><button type="button" class="x" data-w="rcdx:${n}" aria-label="Убрать">${IC.x}</button></div>`).join("")}</div>`:""}
+      <div class="perm">${Object.entries(RX).map(([k,t])=>`<button type="button" class="chip" data-w="rcadd:${k}">＋ ${t}</button>`).join("")}</div>
+      <div class="rcm"><label>Итог на чеке, €<input data-rf="total" inputmode="decimal" value="${r.total!=null?fmtE(r.total,1):""}"></label><div class="rcsum" id="rcsum">${rcSum()}</div></div>
+      <button type="button" class="goldbtn" data-w="rcok">Сохранить и записать</button><button type="button" class="dellink" data-w="rcno">Не записывать</button>`}
   if(W.step==="cedit"){const c=W.c;
     const durs=[...new Set([15,30,45,60,90,120].concat(c.dur&&!W.multi?[c.dur]:[]))].sort((a,b)=>a-b);
-    body=`<h2>Дело на сегодня</h2>${W.custom?"":`<p class="rhint" style="margin-top:-8px">Правки только на сегодня. Завтра дело будет как в распорядке.</p>`}<form data-wf="cedit" style="display:flex;flex-direction:column;gap:8px"><input name="v" maxlength="60" value="${esc(c.name||"")}" placeholder="Название" aria-label="Название" autocomplete="off"></form>
+    body=`<h2>Дело на сегодня</h2>${W.custom?"":`<p class="rhint" style="margin-top:-8px">Правки только на сегодня. Завтра дело будет как в распорядке.</p>`}<form data-wf="cedit" style="display:flex;flex-direction:column;gap:8px"><input name="v" maxlength="60" value="${esc(c.name||"")}" placeholder="Название" aria-label="Название" autocomplete="off"><input name="note" maxlength="80" value="${esc(c.sub||"")}" placeholder="Заметка, можно пусто" aria-label="Заметка" autocomplete="off" class="noteinp"></form>
       ${W.multi?"":`<p class="rl">Сколько займёт</p><div class="perm">${durs.map(m=>`<button type="button" class="chip" data-w="cdur:${m}" aria-pressed="${(c.dur||30)===m}">${durTxt(m)}</button>`).join("")}</div>`}
       <p class="rl">Время</p><div class="opts rtwo"><button type="button" class="opt" data-w="ctm:" aria-pressed="${!c.at}">Время не важно</button><label class="opt rtpick" aria-pressed="${!!c.at}">${c.at?"🕐 В "+esc(c.at):"🕐 Ко времени"}<input type="time" id="ctime" value="${c.at?esc(c.at):""}" aria-label="Выбрать время"></label></div>
       <button type="button" class="goldbtn" data-w="cesave">Сохранить</button><button type="button" class="dellink" data-w="cemv">Перенести или убрать</button>${W.rt?`<button type="button" class="dellink" style="color:var(--muted)" data-w="cert">Изменить в распорядке (все дни) ›</button>`:""}`}
@@ -1753,7 +1806,7 @@ function renderSheet(){
   if(W.step==="ritem"){const it=W.it,isNew=W.isNew,pi=penItem();
     const og=goalOfTask(it.id),all=!it.days||!it.days.length||it.days.length===7,isPen=pi&&pi.id===it.id;
     body=`<h2>${isNew?"Новое дело":"Дело"}</h2>${og?`<p class="rgoal">${esc(og.emoji||"🎯")} Дело цели «${esc(og.name)}»</p>`:""}
-      <form data-wf="ritem"><input name="v" maxlength="60" value="${esc(it.name||"")}" placeholder="Например: чтение" autocomplete="off" aria-label="Название"></form>
+      <form data-wf="ritem" style="display:flex;flex-direction:column;gap:8px"><input name="v" maxlength="60" value="${esc(it.name||"")}" placeholder="Например: чтение" autocomplete="off" aria-label="Название"><input name="note" maxlength="80" value="${esc(it.sub||"")}" placeholder="Заметка под названием, можно пусто" autocomplete="off" aria-label="Заметка" class="noteinp"></form>
       <p class="rl">Сколько занимает</p><div class="opts four">${[10,15,20,30,45,60,90,120].map(m=>`<button type="button" class="opt" data-w="rdur:${m}" aria-pressed="${(it.dur||30)===m}">${durTxt(m)}</button>`).join("")}</div>
       <p class="rl">Дни <span>${all?"каждый день · нажми, чтобы выбрать":it.days.length+" в неделю"}</span></p><div class="rdays">${WD_ORDER.map(x=>`<button type="button" class="chip" data-w="rday:${x}" aria-pressed="${all||it.days.includes(x)}">${WD[x]}</button>`).join("")}</div>
       <p class="rl">Время</p><div class="opts rtwo"><button type="button" class="opt" data-w="rat:" aria-pressed="${!it.at}">Время не важно</button><label class="opt rtpick" aria-pressed="${!!it.at&&it.at!=="pick"}">${it.at==="end"?"🌙 Перед сном":it.at&&it.at!=="pick"?"🕐 В "+esc(it.at):"🕐 Ко времени"}<input type="time" id="rtime" value="${it.at&&/^\d\d:\d\d$/.test(it.at)?esc(it.at):""}" aria-label="Выбрать время"></label></div>
@@ -1810,7 +1863,7 @@ function renderSheet(){
       <button type="button" class="goldbtn" data-w="savelift">Записать</button>`;
   // перерисовка того же окна (нажал день, длительность): не прыгать наверх и не открывать клавиатуру заново
   const old=el.querySelector(".pnl"),same=old&&el.dataset.step===W.step,st=same?old.scrollTop:0,wst=window.scrollY;
-  el.innerHTML=`<div class="pnl" role="dialog" aria-modal="true" aria-label="Добавить">${top}${body}</div>`;el.dataset.step=W.step;
+  el.innerHTML=`<div class="pnl${opening?" pop":""}" role="dialog" aria-modal="true" aria-label="Добавить">${top}${body}</div>`;el.dataset.step=W.step;
   if(same){el.querySelector(".pnl").scrollTop=st;window.scrollTo(0,wst)}
   else{const inp=el.querySelector("input[name=v]");if(inp&&!inp.value)setTimeout(()=>inp.focus(),50)}
 }
@@ -1829,13 +1882,22 @@ $("sheet").addEventListener("click",e=>{
   if(a==="mvgo"){const id=W.id,hs=W.house,nm0=W.name,to=hs?shift(key(),1):W.to,d=dayOf(key());closeSheet();
     if(hs){mutate(()=>{if(!d.skip.includes(id))d.skip.push(id);d.moved=Object.assign({},d.moved,{[id]:{to,n:nm0}});logEv(d,"move",id)});toast("Сегодня убрал, завтра снова в плане");return}
     let nm="";mutate(()=>{nm=moveTask(id,to)});toast(nm?"Перенёс на "+ddmm(to)+". План пересчитан":"Это дело не переносится");return}
+  if(a.startsWith("rcop:")){const n=+a.slice(5);W.op=W.op===n?-1:n;return renderSheet()}
+  if(a.startsWith("rcu:")){const [,n,u]=a.split(":");W.r.items[+n].unit=u;return renderSheet()}
+  if(a.startsWith("rcc:")){const [,n,c]=a.split(":");W.r.items[+n].cat=c;return renderSheet()}
+  if(a.startsWith("rcdel:")){W.r.items.splice(+a.slice(6),1);W.op=-1;return renderSheet()}
+  if(a.startsWith("rcdx:")){W.r.extra.splice(+a.slice(5),1);return renderSheet()}
+  if(a.startsWith("rcadd:")){const k=a.slice(6);if(k==="item"){W.r.items.push({name:"",cat:"other",amt:1,unit:"шт",price:0});W.op=W.r.items.length-1}else{W.r.extra=W.r.extra||[];W.r.extra.push({k,n:"",amt:0})}return renderSheet()}
+  if(a==="rcok"||a==="rcno"){const op=a==="rcok"?"ok":"no",r=W.r;r.items=r.items.filter(x=>(x.name||"").trim());const w=W;w.busy=true;
+    if(!BOT||typeof fetchRcpt!=="function"){toast("Чеки работают в боте");return}
+    fetchRcpt(op,r).then(v=>{if(v.state){state=norm(v.state)}if(W===w)closeSheet();render();toast((v.msg||"Готово").split("\n")[0])}).catch(e=>toast(String(e.message||"Не получилось")));return}
   if(a.startsWith("cdur:")){cKeep();W.c.dur=+a.slice(5);return renderSheet()}
   if(a==="ctm:"){cKeep();delete W.c.at;return renderSheet()}
   if(a==="cemv"){const c=W.c;W={step:"mv",id:c.id,name:c.name,to:shift(key(),1),house:!!W.house};return renderSheet()}
   if(a==="cert"){const id=W.id;closeSheet();openRoutine(id);return}
   if(a==="cesave"){cKeep();const c=W.c,B=W.base,cu=W.custom;if(!c.name){toast("Впиши название");return}const d=dayOf(key());closeSheet();
-    if(cu){const x=d.custom.find(y=>y.id===c.id);if(x){x.name=c.name;x.dur=c.dur||30;if(c.at)x.at=c.at;else delete x.at}}
-    else{const o=Object.assign({},(d.ovr||{})[c.id]);if(c.name!==B.name)o.name=c.name;if((c.at||"")!==(B.at||""))o.at=c.at||"";
+    if(cu){const x=d.custom.find(y=>y.id===c.id);if(x){x.name=c.name;x.dur=c.dur||30;if(c.at)x.at=c.at;else delete x.at;if(c.sub)x.sub=c.sub;else delete x.sub}}
+    else{const o=Object.assign({},(d.ovr||{})[c.id]);if(c.name!==B.name)o.name=c.name;if((c.sub||"")!==(B.sub||""))o.sub=c.sub||"";if((c.at||"")!==(B.at||""))o.at=c.at||"";
       d.ovr=Object.assign({},d.ovr||{});if(Object.keys(o).length)d.ovr[c.id]=o;if(c.dur&&c.dur!==B.dur)d.dur[c.id]=c.dur}
     save();render();toast("Сохранил на сегодня");return}
   if(a==="mvdel"){const id=W.id,d=dayOf(key());closeSheet();
@@ -1995,9 +2057,20 @@ $("sheet").addEventListener("click",e=>{
 function dKeep(){const f=$("sheet").querySelector("form[data-wf=mdebt]");if(!f)return;W.d.who=f.who.value.trim().slice(0,40);const v=parseFloat(String(f.amt.value).replace(",","."));W.d.amt=isNaN(v)?0:Math.round(v*100)/100;W.d.n=f.n.value.trim().slice(0,60);const du=$("mdue");if(du)W.d.due=du.value||undefined}
 function mKeep(){const f=$("sheet").querySelector("form[data-wf=mop]");if(!f)return;const v=parseFloat(String(f.amt.value).replace(",","."));W.o.amt=isNaN(v)?0:Math.round(v*100)/100;W.o.n=f.n.value.trim().slice(0,60);const d=$("mdate");if(d&&d.value)W.o.d=d.value}
 function mrKeep(){const f=$("sheet").querySelector("form[data-wf=mreg]");if(f)W.f={n:f.n.value,amt:f.amt.value,day:f.day.value}}
-function cKeep(){const n=$("sheet").querySelector("input[name=v]"),tm=$("ctime");if(n&&W&&W.c)W.c.name=n.value.trim().slice(0,60);if(tm&&tm.value&&W&&W.c)W.c.at=tm.value}
+const fmtE=(v,bare)=>{const s=(Math.round((+v||0)*100)/100).toFixed(2).replace(".",",");return bare?s:"€"+s};
+const pNum=v=>{const n=parseFloat(String(v).replace(",",".").replace(/[^0-9.\-]/g,""));return isFinite(n)?n:0};
+function rcSum(){const r=W&&W.r;if(!r)return "";const s=Math.round((r.items.reduce((a,x)=>a+(+x.price||0),0)+(r.extra||[]).reduce((a,e)=>a+(+e.amt||0),0))*100)/100;
+  if(r.total==null||r.total==="")return `Сумма строк <b>${fmtE(s)}</b>`;const d=Math.round((r.total-s)*100)/100;
+  return d===0?`Сумма строк <b>${fmtE(s)}</b> <span style="color:var(--okl)">✓ сходится</span>`:`Сумма строк <b>${fmtE(s)}</b> <span style="color:var(--red)">не сходится на ${fmtE(Math.abs(d))}</span>`}
+function openRcpt(){if(!state.rcpt){toast("Этот чек уже записан или отменён");return}W={step:"rcpt",r:clone(state.rcpt),op:-1};W.r.extra=W.r.extra||[];renderSheet()}
+document.addEventListener("input",e=>{const t=e.target;if(!W||W.step!=="rcpt")return;const r=W.r;
+  if(t.dataset.ri){const [n,f]=t.dataset.ri.split(":"),x=r.items[+n];if(!x)return;x[f]=f==="name"?t.value:pNum(t.value)}
+  else if(t.dataset.re){const e2=r.extra[+t.dataset.re];if(e2)e2.amt=(e2.k==="bon"||e2.k==="disc"?-1:1)*Math.abs(pNum(t.value))}
+  else if(t.dataset.rf){r[t.dataset.rf]=t.dataset.rf==="total"?(t.value.trim()?pNum(t.value):null):t.value}
+  else return;const sm=$("rcsum");if(sm)sm.innerHTML=rcSum()});
+function cKeep(){const nt=$("sheet").querySelector("input[name=note]");if(nt&&W&&W.c)W.c.sub=nt.value.trim().slice(0,80);const n=$("sheet").querySelector("input[name=v]"),tm=$("ctime");if(n&&W&&W.c)W.c.name=n.value.trim().slice(0,60);if(tm&&tm.value&&W&&W.c)W.c.at=tm.value}
 document.addEventListener("change",e=>{if(e.target.id==="ctime"&&W&&W.step==="cedit"){cKeep();W.c.at=e.target.value||W.c.at;setTimeout(renderSheet)}});
-function rKeep(){const n=$("sheet").querySelector("input[name=v]"),c=$("sheet").querySelector("input[name=check]"),tm=$("rtime");
+function rKeep(){const nt=$("sheet").querySelector("input[name=note]");if(nt&&W&&W.it){const v=nt.value.trim().slice(0,80);if(v)W.it.sub=v;else delete W.it.sub}const n=$("sheet").querySelector("input[name=v]"),c=$("sheet").querySelector("input[name=check]"),tm=$("rtime");
   if(n)W.it.name=n.value.trim().slice(0,60);if(c)W.it.check=c.value.trim().slice(0,200)||undefined;if(tm&&tm.value)W.it.at=tm.value}
 function gqKeep(){const f=$("sheet").querySelector("form[data-wf=gq]");if(!f)return;for(const q of (W.qs&&W.qs.questions)||[]){const el=f.querySelector(`[name="${q.id}"]`);if(el&&el.value.trim())W.ans[q.id]=el.value.trim()}}
 const gText=w=>(w.health?"Здоровье и тело (тренировки, вес, сон), это не цель, а основа на каждый день: ":"")+w.text;
@@ -2102,6 +2175,7 @@ async function fetchGoal(q){const r=await fetch("api/goal",{method:"POST",header
 async function fetchCook(){const r=await fetch("api/cook",{method:"POST",headers:hdr(),body:"{}"});const v=await r.json().catch(()=>({}));if(!r.ok)throw new Error(v.error||r.status);return v.ideas||[]}
 async function fetchBrain(text,file){let r;if(file){const fd=new FormData();fd.append("text",text||"");fd.append("file",file,file.name||"file");r=await fetch("api/brain",{method:"POST",headers:{"X-Init-Data":tg?tg.initData:""},body:fd})}else r=await fetch("api/brain",{method:"POST",headers:hdr(),body:JSON.stringify({text})});const v=await r.json().catch(()=>({}));if(!r.ok)throw new Error(v.error||r.status);return v}
 async function fetchInvite(house){const r=await fetch("api/invite",{method:"POST",headers:hdr(),body:JSON.stringify({house:!!house})});const v=await r.json().catch(()=>({}));if(!r.ok||!v.link)throw new Error(v.error||r.status);return v.link}
+async function fetchRcpt(op,r){const res=await fetch("api/receipt",{method:"POST",headers:hdr(),body:JSON.stringify({op,r})});const v=await res.json().catch(()=>({}));if(!res.ok)throw new Error(v.error||res.status);return v}
 async function fetchGifts(q){const r=await fetch("api/gifts",{method:"POST",headers:hdr(),body:JSON.stringify(q)});const v=await r.json().catch(()=>({}));if(!r.ok)throw new Error(v.error||r.status);return v.ideas||[]}
 render();pull();
 document.addEventListener("visibilitychange",()=>{if(!document.hidden)pull()});

@@ -4,6 +4,7 @@
 поэтому доступ есть только у владельца бота (TELEGRAM_USER_ID).
 """
 import asyncio
+import re
 import hashlib
 import hmac
 import json
@@ -269,6 +270,40 @@ async def post_invite(request: web.Request) -> web.Response:
     return web.json_response({"link": f"https://t.me/{_BOT_NAME or 'BotButter_bot'}?start=inv_{code}"})
 
 
+async def post_receipt(request: web.Request) -> web.Response:
+    """Окно чека в приложении: save = сохранить правку, ok = сохранить и записать, no = не записывать."""
+    uid = await _auth(request)
+    from services import receipt
+    try:
+        body = await request.json()
+    except ValueError:
+        body = {}
+    state = await database.get_quest_state(uid)
+    if not state.get("rcpt"):
+        return web.json_response({"error": "Этот чек уже записан или отменён"}, status=404)
+    op = body.get("op")
+    msg = ""
+    if op in ("save", "ok") and isinstance(body.get("r"), dict):
+        receipt.apply(state, body["r"])
+    if op == "ok":
+        msg = receipt.commit(state, uid)
+    elif op == "no":
+        state.pop("rcpt", None)
+        msg = "Ок, чек не записываю. Фото осталось в Документы → Чеки."
+    await database.save_quest_state(uid, state)
+    if BOT:
+        try:
+            if op == "save":
+                r = state["rcpt"]
+                await BOT.send_message(uid, "✏️ Поправил чек в приложении.\n\n" + receipt.text(r), reply_markup=receipt.kb(r))
+            elif msg:
+                await BOT.send_message(uid, msg)
+        except Exception as e:
+            logger.error(f"receipt msg: {e}")
+    fresh = await database.get_quest_state(uid)
+    return web.json_response({"ok": True, "msg": re.sub(r"<[^>]+>", "", msg), "state": {**fresh, "_me": uid}})
+
+
 async def health(request: web.Request) -> web.Response:
     return web.Response(text="ok")
 
@@ -284,6 +319,7 @@ async def start_web() -> web.AppRunner:
     app.router.add_post("/api/goal", post_goal)
     app.router.add_post("/api/brain", post_brain)
     app.router.add_post("/api/invite", post_invite)
+    app.router.add_post("/api/receipt", post_receipt)
     app.router.add_get("/api/brainfile", get_brain_file)
     runner = web.AppRunner(app)
     await runner.setup()
