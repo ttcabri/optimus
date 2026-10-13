@@ -214,6 +214,7 @@ button.hrow{width:100%;border:none;color:inherit;font:inherit;text-align:left}
 .row .nm{min-width:0}.row .nm small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.row .nm .tg{font-style:normal;display:inline-grid;place-items:center;width:18px;height:18px;border-radius:6px;background:var(--panel2);font-size:10px;margin-right:5px;vertical-align:-3px}.row .nm .tg svg{width:11px;height:11px}.row .nm .tg.lf{color:var(--okl)}
 .row .rowmain .dur{flex-shrink:0;min-width:46px;text-align:right}
 .noteinp{height:44px!important;font-size:15px!important;color:var(--muted)}
+.now .kr{display:flex;align-items:center;gap:6px}.nowx{width:30px;height:30px;margin:-6px -6px -6px 0;border-radius:10px;border:none;background:rgba(0,0,0,.07);color:inherit;display:grid;place-items:center;padding:0}.nowx svg{width:15px;height:15px}.now.free .nowx{background:rgba(255,255,255,.06)}
 .row.anchor{border-color:var(--line2);border-left:4px solid var(--gold);padding-left:10px}.row.anchor .tm{color:var(--gold)}.row .tm .lk{font-style:normal;font-size:11px;line-height:1;margin-bottom:2px}
 /* анимации: лёгкие, выключаются системной настройкой «меньше движения» */
 .fxflash{position:fixed;z-index:60;border-radius:16px;pointer-events:none;background:rgba(127,199,156,.28);box-shadow:0 0 0 2px rgba(127,199,156,.6);animation:fxf .6s ease forwards}
@@ -936,7 +937,8 @@ function nowCard(k,d,p){
   if(it.gap)return `<section class="now free"><span class="k"><span>Свободно</span><span>до ${hm(it.end)}</span></span><h2>${durTxt(it.end-now)} свободно</h2><p>Следом: «${esc((p.items[1]&&p.items[1].q||{}).name||"")}». Можно отдохнуть или посмотреть ролик на английском.</p>${it.end-now>=30?`<button type="button" class="ghost" data-game="1">Отдохнуть</button>`:""}</section>`;
   if(it.game){const left=it.end-now;return `<section class="now free"><span class="k"><span>Отдых</span><span>до ${hm(it.end)}</span></span><div class="clock"><b>${left}</b><span>мин осталось</span></div><p>Потом: «${esc((p.items[1]&&p.items[1].q||{}).name||"дел нет")}»${p.items[1]?" в "+hm(p.items[1].start):""}. Сегодня отдыха: ${durTxt(restToday(d))}.</p><button type="button" class="ghost" data-restend="1">Закончил раньше</button></section>`}
   const q=it.q,late=it.late>0,left=it.end-now;
-  const kline=`<span class="k"><span>${it.started?"Сейчас":"Начать сейчас"}</span><span>${late?"план был до "+(it.pe!=null?hm(it.pe):hm(it.start-it.late)):"до "+hm(it.end)}</span></span>`;
+  const pinN=penItem(),penN=!!(q.penalty||(pinN&&pinN.id===q.id));
+  const kline=`<span class="k"><span>${it.started?"Сейчас":"Начать сейчас"}</span><span class="kr">${late?"план был до "+(it.pe!=null?hm(it.pe):hm(it.start-it.late)):"до "+hm(it.end)}<button type="button" class="nowx" ${penN?'data-penx="1"':`data-mv="${esc(q.id)}"`} aria-label="Перенести или убрать «${esc(q.name)}»">${IC.x}</button></span></span>`;
   const clock=it.started?`<div class="clock"><b>${late?"+"+it.late:left}</b><span>${late?"мин сверх плана":"мин осталось"}</span></div>`:`<div class="clock"><b>${hm(it.start)}–${hm(it.end)}</b></div>`;
   if(q.steps){
     const st=nextStep(d,q),i=q.steps.indexOf(st);
@@ -1644,6 +1646,7 @@ document.addEventListener("click",e=>{
     if(c){W={step:"cedit",id,c:clone(c),custom:1};renderSheet();return}
     const q=queue(key()).find(x=>x.id===id);if(!q)return;
     const pin=penItem();W={step:"cedit",id,pen:!!(q.penalty||(pin&&pin.id===id)),c:{id,name:q.name,dur:durOf(d,q),at:q.fixed||"",sub:noteOf(q)},base:{name:q.name,dur:durOf(d,q),at:q.fixed||"",sub:noteOf(q)},rt:!!ritem(id),house:/^(ch_|pr_)|^buy$/.test(id),multi:!!q.steps};renderSheet();return}
+  if(t.dataset.penx){toast("Штрафное дело: перенести или убрать нельзя");return}
   if(t.dataset.mv){const q=findQ(t.dataset.mv);if(!q)return;W={step:"mv",id:t.dataset.mv,name:q.name,to:shift(key(),1),house:/^(ch_|pr_)|^buy$/.test(t.dataset.mv)};renderSheet();return}
   if(t.dataset.delon){const[kk,id]=t.dataset.delon.split("|"),dt=dayOf(kk);mutate(()=>{dt.custom=dt.custom.filter(c=>c.id!==id);(dt.del=dt.del||[]).push(id)});return}
 });
