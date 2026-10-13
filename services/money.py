@@ -293,6 +293,11 @@ def set_balance(state: dict, acc: str | None, value: float, name: str | None = N
     return a
 
 
+def deposit(m: dict) -> float:
+    """Залог за бутылки и банки, который ещё можно вернуть (из чеков: плюс залог, минус сданное)."""
+    return round(max(0.0, sum(float(o.get("dep") or 0) for o in m.get("ops") or [])), 2)
+
+
 def summary(state: dict) -> str:
     m = get(state)
     if not m["ops"] and not any(a.get("base") for a in m["accts"]) and not m["reg"]:
@@ -311,6 +316,7 @@ def summary(state: dict) -> str:
             f"На жизнь (наличные+карта, минус платежи впереди): €{free(state):g}. Сбережения €{saved(m):g} (на цели из них €{reserved(state):g}). Всего €{total(m):g}.\n"
             f"Счета: {', '.join(a['n'] + ' €' + format(balance(m, a['id']), 'g') for a in visible(m))}.\n"
             f"Этот месяц: потрачено {cats}. Пришло €{income(m):g}. Лимиты: {', '.join(CATS.get(k, ('', k))[1] + ' €' + format(v, 'g') for k, v in lim.items() if v) or 'нет'}.\n"
+            + (f"Залог за тару к возврату: €{deposit(m):g} (сдаст бутылки: в чеке будет бон с минусом).\n" if deposit(m) else "")
             + (f"Платежи впереди: {', '.join(r['n'] + ' €' + format(r['amt'], 'g') + ' ' + str(r.get('day', '')) + '-го' for r in rl)}.\n" if rl else "")
             + (f"Можно тратить ~€{pdv[0]:g} в день до конца месяца ({pdv[1]}).\n" if pdv else "")
             + "".join(f"Лимит {CATS[k][1]}: €{sp_:g} из €{v:g}, ~€{d:g}/день.\n" for k, v, sp_, d in lim_left(m))
