@@ -34,7 +34,7 @@ def facts(state: dict, day: dict, uid) -> str:
     if items:
         lines.append("План: " + "; ".join(f"{quest.hm(it['start'])} {it['name']}" for it in items))
     if p["over"]:
-        lines.append("Не влезает: " + ", ".join(o["name"] for o in p["over"]))
+        lines.append("Не влезает до отбоя: " + ", ".join(o["name"] + (f" (главное, уйдёт до {quest.hm(o['late'])})" if o.get("late") else "") for o in p["over"]))
     if any(it.get("tutor") == "cbr" for it in quest.items(P)):
         lines.append("Тема теории: " + theory.stage_name(day.get("_theory_i", 0)))
     h = state.get("house")

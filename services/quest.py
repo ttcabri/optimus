@@ -678,7 +678,7 @@ def build_plan(day: dict, now_min: int | None = None, wd: int | None = None) -> 
     def extra():  # долг или бонус за штрафное дело
         if pi and (debt or (pi.get("bonus") and item_done(day, pi) and "vid2" not in skip)):
             queue.append({"id": "vid2", "name": (pi.get("debt") or f"Долг: ещё раз «{pi['name']}»") if debt else pi["bonus"],
-                          "dur": pi.get("dur", 30), "fixed": None, "minor": False})
+                          "dur": pi.get("dur", 30), "fixed": None, "minor": False, "main": bool(debt)})
 
     def customs():
         for c in day.get("custom", []):
@@ -697,11 +697,11 @@ def build_plan(day: dict, now_min: int | None = None, wd: int | None = None) -> 
         if not qid or not on_day(it, wd) or (qid in skip and it is not pi):
             continue
         if it.get("main") and debt and (P.get("penalty") or {}).get("fine") and not any(q["id"] == "fine" for q in queue):
-            queue.append({"id": "fine", "name": f"Штраф: €{P['penalty']['fine']} в {P['penalty'].get('to') or 'копилку'}", "dur": 5, "fixed": None, "minor": False})
+            queue.append({"id": "fine", "name": f"Штраф: €{P['penalty']['fine']} в {P['penalty'].get('to') or 'копилку'}", "dur": 5, "fixed": None, "minor": False, "main": True})
         if it.get("until") and now_m > to_min(it["until"]) and not is_done(qid):
             continue  # утро прошло: завтрак в вечер не тащим
         fixed = day_end(P) if it.get("at") == "end" else it.get("at")
-        queue.append({"id": qid, "name": it["name"], "dur": it.get("dur", 30), "fixed": fixed, "minor": bool(it.get("minor"))})
+        queue.append({"id": qid, "name": it["name"], "dur": it.get("dur", 30), "fixed": fixed, "minor": bool(it.get("minor")), "main": bool(it.get("main"))})
     if not has_custom:
         customs()
 
@@ -746,19 +746,31 @@ def build_plan(day: dict, now_min: int | None = None, wd: int | None = None) -> 
         out.append({**a, "start": s, "end": s + dur_of(a["id"], a["dur"]), "anchor": True, "late": max(0, cur - to_min(a["fixed"]))})
         cur = s + dur_of(a["id"], a["dur"])
 
-    for q in flex:
-        du = dur_of(q["id"], q["dur"])
-        while anchors and to_min(anchors[0]["fixed"]) < cur + du and anchors[0]["fixed"] != day_end(P):
+    base_out, base_cur, base_anchors = list(out), cur, list(anchors)
+
+    def lay(flex_list):
+        nonlocal cur, anchors, out
+        out, cur, anchors, ov = list(base_out), base_cur, list(base_anchors), []
+        for q in flex_list:
+            du = dur_of(q["id"], q["dur"])
+            while anchors and to_min(anchors[0]["fixed"]) < cur + du and anchors[0]["fixed"] != day_end(P):
+                place(anchors.pop(0))
+            if cur + du > end and not q.get("main"):
+                optional = q["id"] == "vid2" and not debt
+                if not optional:  # бонусы молча не влезают, без тревоги
+                    ov.append({**q, "dur": du})
+                continue
+            if cur + du > end:  # главное не выкидываем: в плане, но заходит за конец дня
+                ov.append({**q, "dur": du, "late": cur + du})
+            out.append({**q, "start": cur, "end": cur + du})
+            cur += du
+        while anchors:
             place(anchors.pop(0))
-        if cur + du > end:
-            optional = q["id"] == "vid2" and not debt
-            if not optional:  # бонусы молча не влезают, без тревоги
-                over.append({**q, "dur": du})
-            continue
-        out.append({**q, "start": cur, "end": cur + du})
-        cur += du
-    while anchors:
-        place(anchors.pop(0))
+        return ov
+
+    over = lay(flex)
+    if any(o.get("main") or o.get("late") for o in over):  # времени мало: главные и штрафные вперёд, в «не влезает» обычные
+        over = lay(sorted(flex, key=lambda q: 0 if q.get("main") else 1))
     return {"items": out, "over": over}
 
 

@@ -701,7 +701,7 @@ def plan_context(state: dict) -> str:
         elif not it.get("gap"):
             lines.append(f"- {it['id']}: {it['name']} {quest.hm(it['start'])}–{quest.hm(it['end'])}" + (" (идёт сейчас)" if it.get("started") else ""))
     for o in p["over"]:
-        lines.append(f"- {o['id']}: {o['name']} (не влезает до отбоя)")
+        lines.append(f"- {o['id']}: {o['name']} " + (f"(главное: в плане, но заходит за отбой до {quest.hm(o['late'])})" if o.get("late") else "(не влезает до отбоя)"))
     now_m = quest.now_min()
     spans = sorted((it["start"], it["end"]) for it in p["items"] if not it.get("gap"))
     free, cur = [], max(now_m, quest.to_min(P["wake"]))

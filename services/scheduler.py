@@ -69,7 +69,7 @@ def quest_messages(day: dict, now_min: int, today: str, wd: int) -> list[str]:
             hint = f"Сегодня: {theory.stage_name(day.get('_theory_i', 0))}. Напиши «теория», расскажу что учить."
         once(f"start:{first['id']}", f"▶️ Пора: <b>{first['name']}</b>, до {quest.hm(first['end'])}. {hint}".strip())
     if p["over"]:
-        names = ", ".join(o["name"] for o in p["over"])
+        names = ", ".join(o["name"] + (f" (главное, до {quest.hm(o['late'])})" if o.get("late") else "") for o in p["over"])
         once("over:" + names, f"⚠️ До отбоя не влезает: {names}. Открой квест и реши: сократить, убрать или на завтра.")
     return out
 

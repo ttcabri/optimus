@@ -625,7 +625,7 @@ function learned(){
 
 /* ---------- живой план ---------- */
 // Раскладывает несделанное от «сейчас»: якоря стоят на месте, остальное обтекает их.
-function plan(k,extraGame){
+function plan(k,extraGame,prio){
   const d=dayOf(k),now=nowMin(),out=[],over=[];
   const w0=d.at.wake||d.woke;
   const start=w0?Math.min(now,toMin(w0)):Math.max(now,toMin(DAY_START_()));
@@ -641,15 +641,18 @@ function plan(k,extraGame){
   const anchors=pending.filter(q=>q.fixed).sort((a,b)=>toMin(a.fixed)-toMin(b.fixed));
   const flex=pending.filter(q=>!q.fixed),ord=d.ord||[];
   if(ord.length){const pos=new Map(ord.map((x,i)=>[x,i])),P_=x=>pos.has(x.id)?pos.get(x.id):1e4;flex.sort((a,b)=>P_(a)-P_(b))}
+  if(prio)flex.sort((a,b)=>(isMain(b)?1:0)-(isMain(a)?1:0)); // времени мало: главные и штрафные вперёд
   const end=toMin(DAY_END_());
   const placeAnchor=a=>{const s=Math.max(toMin(a.fixed),cur);if(toMin(a.fixed)>cur&&toMin(a.fixed)-cur>=10)out.push({gap:1,start:cur,end:toMin(a.fixed)});out.push({q:a,start:s,end:s+durOf(d,a),anchor:1,late:Math.max(0,cur-toMin(a.fixed))});cur=s+durOf(d,a)};
   for(const q of flex){
     const du=durOf(d,q);
     while(anchors.length&&toMin(anchors[0].fixed)<cur+du&&anchors[0].fixed!==DAY_END_())placeAnchor(anchors.shift());
-    if(cur+du>end){if(!q.opt||q.penalty)over.push({q,dur:du});continue} // бонусы молча не влезают
+    if(cur+du>end&&!isMain(q)){if(!q.opt||q.penalty)over.push({q,dur:du});continue} // бонусы молча не влезают
+    if(cur+du>end)over.push({q,dur:du,late:cur+du}); // главное не выкидываем: стоит в плане, но заходит за конец дня
     out.push({q,start:cur,end:cur+du});cur+=du;
   }
   while(anchors.length)placeAnchor(anchors.shift());
+  if(!prio&&over.some(o=>isMain(o.q)||o.late))return plan(k,extraGame,true);
   if(out.length&&!out[0].now&&out[0].start<=now+1)out[0].now=1;
   return {items:out,over};
 }
@@ -972,11 +975,13 @@ function doneRow(d,q){
 }
 function overCard(p){
   if(!p.over.length)return "";
-  const late=p.over.reduce((a,o)=>a+o.dur,0);
-  return `<section class="over"><h3>Не влезает до ${DAY_END_()}</h3>
-    ${p.over.map(o=>`<div class="it"><b>${esc(o.q.name)} · ${durTxt(o.dur)}</b>
+  const late=p.over.filter(o=>o.late),drop=p.over.filter(o=>!o.late);
+  return `<section class="over">${late.length?`<h3>Главное заходит за ${DAY_END_()}</h3>
+    ${late.map(o=>`<div class="it"><b>${esc(o.q.name)} · до ${hm(o.late)}</b>${o.dur>=30?`<button type="button" class="chip" data-cut="${esc(o.q.id)}">Вдвое</button>`:""}</div>`).join("")}`:""}
+    ${drop.length?`<h3${late.length?' style="margin-top:8px"':""}>Не влезает до ${DAY_END_()}</h3>
+    ${drop.map(o=>`<div class="it"><b>${esc(o.q.name)} · ${durTxt(o.dur)}</b>
       ${o.dur>=30?`<button type="button" class="chip" data-cut="${esc(o.q.id)}">Вдвое</button>`:""}
-      ${o.q.penalty?"":`<button type="button" class="chip" data-mv="${esc(o.q.id)}">Перенести</button>`}</div>`).join("")}</section>`;
+      ${o.q.penalty?"":`<button type="button" class="chip" data-mv="${esc(o.q.id)}">Перенести</button>`}</div>`).join("")}`:""}</section>`;
 }
 
 let dayOpen=false;
