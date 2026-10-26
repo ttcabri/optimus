@@ -33,8 +33,9 @@ POSTCODES = {"gouda": "2801", "waddinxveen": "2741", "bodegraven": "2411", "alph
              "schiedam": "3111", "pijnacker": "2641", "nootdorp": "2631", "wateringen": "2291", "lelystad": "8232", "almere": "1315", "dronten": "8251",
              "zwolle": "8011", "kampen": "8261", "harderwijk": "3841", "amsterdam": "1012", "delft": "2611"}
 
-OLD_AREAS = ["gouda", "waddinxveen", "alphen aan den rijn", "zoetermeer", "bodegraven"]
-DEFAULT = {"on": False, "areas": ["rijswijk", "den haag", "delft", "zoetermeer", "leidschendam", "leiden", "rotterdam"],
+OLD_AREAS = [["gouda", "waddinxveen", "alphen aan den rijn", "zoetermeer", "bodegraven"],
+             ["rijswijk", "den haag", "delft", "zoetermeer", "leidschendam", "leiden", "rotterdam"]]
+DEFAULT = {"on": False, "areas": ["gouda", "waddinxveen", "bodegraven", "alphen aan den rijn", "zoetermeer", "woerden", "nieuwerkerk aan den ijssel"],
            "max": 1350, "room_max": 800, "min_m2": 0, "kitchen": True, "about": "", "seen": {}, "items": {}, "stat": {}}
 
 BAD = re.compile(r"gezocht|zoek(?:t|en)?\b|ruil|te koop|koopwoning|garage|parkeer|berging|bedrijfsruimte|kantoor|vakantie", re.I)
@@ -59,7 +60,7 @@ async def get(uid: int) -> dict:
     except ValueError:
         s = {}
     out = {**json.loads(json.dumps(DEFAULT)), **s}
-    if out.get("areas") == OLD_AREAS:  # раньше по ошибке искали у Reeuwijk (Гауда); нужен Rijswijk у Гааги
+    if out.get("areas") in OLD_AREAS:  # старые наборы городов по умолчанию → текущий (вокруг Reeuwijk/Гауды)
         out.update(areas=DEFAULT["areas"], max=DEFAULT["max"], seen={})
     return out
 
