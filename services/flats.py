@@ -156,29 +156,40 @@ def _ok(x: dict, s: dict) -> bool:
 # ---------- источники ----------
 async def src_marktplaats(cl: httpx.AsyncClient, s: dict) -> list[dict]:
     out, seen = [], set()
+    jobs = []
     for city in s["areas"]:
         pc = POSTCODES.get(city.lower())
-        if not pc:
-            continue
-        for q in ("huurwoning", "studio te huur", "appartement te huur"):
-            url = (f"https://www.marktplaats.nl/lrp/api/search?query={quote(q)}&postcode={pc}&distanceMeters=10000"
-                   f"&priceTo={int(s['max']) * 100}&limit=30&offset=0&sortBy=SORT_INDEX&sortOrder=DECREASING&viewOptions=list-view")
+        if pc:
+            for q in ("huurwoning", "studio te huur", "appartement te huur"):
+                jobs.append((city, f"https://www.marktplaats.nl/lrp/api/search?query={quote(q)}&postcode={pc}&distanceMeters=10000"
+                                   f"&priceTo={int(s['max']) * 100}&limit=30&offset=0&sortBy=SORT_INDEX&sortOrder=DECREASING&viewOptions=list-view"))
+    sem = asyncio.Semaphore(5)
+
+    async def get1(url):
+        async with sem:
             r = await cl.get(url, headers={**HEAD, "Accept": "application/json"})
             r.raise_for_status()
-            for it in r.json().get("listings") or []:
-                iid = str(it.get("itemId") or it.get("id") or "")
-                if not iid or iid in seen:
-                    continue
-                seen.add(iid)
-                pi = it.get("priceInfo") or {}
-                price = (pi.get("priceCents") or 0) / 100 or None
-                loc = it.get("location") or {}
-                link = it.get("vipUrl") or it.get("selfLink") or ""
-                out.append({"src": "Marktplaats", "id": iid, "title": it.get("title") or "", "price": price,
-                            "city": loc.get("cityName") or city.title(), "m2": None,
-                            "url": link if link.startswith("http") else "https://www.marktplaats.nl" + link,
-                            "text": (it.get("description") or "")[:400], "img": ((it.get("pictures") or [{}])[0] or {}).get("mediumUrl"),
-                            "date": it.get("date") or it.get("sortDate") or ""})
+            return r.json().get("listings") or []
+    res = await asyncio.gather(*(get1(u) for _, u in jobs), return_exceptions=True)
+    if res and all(isinstance(r, Exception) for r in res):
+        raise res[0]
+    for (city, _), lst in zip(jobs, res):
+        if isinstance(lst, Exception):
+            continue
+        for it in lst:
+            iid = str(it.get("itemId") or it.get("id") or "")
+            if not iid or iid in seen:
+                continue
+            seen.add(iid)
+            pi = it.get("priceInfo") or {}
+            price = (pi.get("priceCents") or 0) / 100 or None
+            loc = it.get("location") or {}
+            link = it.get("vipUrl") or it.get("selfLink") or ""
+            out.append({"src": "Marktplaats", "id": iid, "title": it.get("title") or "", "price": price,
+                        "city": loc.get("cityName") or city.title(), "m2": None,
+                        "url": link if link.startswith("http") else "https://www.marktplaats.nl" + link,
+                        "text": (it.get("description") or "")[:400], "img": ((it.get("pictures") or [{}])[0] or {}).get("mediumUrl"),
+                        "date": it.get("date") or it.get("sortDate") or ""})
     return out
 
 
@@ -300,7 +311,92 @@ async def src_funda(cl: httpx.AsyncClient, s: dict) -> list[dict]:
     return await asyncio.to_thread(_funda_sync, s)
 
 
-SOURCES = {"Pararius": src_pararius, "Funda": src_funda, "Kamernet": src_kamernet, "Marktplaats": src_marktplaats}
+# ---------- Pararius и Funda через их же письма-оповещения (сайты режут серверы, письма не режут) ----------
+MAIL_EXTRACT = """Это письмо-оповещение о новых объявлениях аренды с сайта {site}. Вытащи из него ВСЕ объявления.
+Для каждого: title (адрес или заголовок как в письме), city, price (число € в месяц или null), m2 (число или null),
+url (ссылка именно на это объявление из текста, как есть), text (что ещё сказано: тип, комнаты, мебель, 1 строка).
+Рекламу, «похожие поиски», ссылки отписки и настройки не бери.
+Ответ строго JSON-массив: [{{"title": "", "city": "", "price": null, "m2": null, "url": "", "text": ""}}]
+
+Письмо:
+{body}"""
+
+
+def _mail_fetch_sync(user: str, pw: str) -> list[tuple[str, str]]:
+    """Непрочитанные письма от Pararius/Funda: [(сайт, текст со ссылками)]. Прочитанные помечаются."""
+    import email
+    import imaplib
+    from email.header import decode_header
+    from bs4 import BeautifulSoup
+    out = []
+    M = imaplib.IMAP4_SSL("imap.gmail.com")
+    try:
+        M.login(user, pw)
+        M.select("INBOX")
+        typ, data = M.search(None, "UNSEEN")
+        for num in (data[0].split() if data and data[0] else [])[-20:]:
+            typ, msg = M.fetch(num, "(RFC822)")
+            m = email.message_from_bytes(msg[0][1])
+            frm = str(m.get("From") or "").lower()
+            subj = "".join(t.decode(c or "utf-8", "ignore") if isinstance(t, bytes) else t for t, c in decode_header(m.get("Subject") or ""))
+            site = "Pararius" if "pararius" in frm else "Funda" if "funda" in frm else None
+            if not site:
+                continue
+            html_part = text_part = ""
+            for part in m.walk():
+                ct = part.get_content_type()
+                if ct in ("text/html", "text/plain"):
+                    try:
+                        payload = part.get_payload(decode=True).decode(part.get_content_charset() or "utf-8", "ignore")
+                    except Exception:
+                        continue
+                    if ct == "text/html":
+                        html_part += payload
+                    else:
+                        text_part += payload
+            if html_part:
+                soup = BeautifulSoup(html_part, "html.parser")
+                for a in soup.find_all("a", href=True):
+                    a.replace_with(f"{a.get_text(' ', strip=True)} [{a['href']}]")
+                body = soup.get_text("\n", strip=True)
+            else:
+                body = text_part
+            out.append((site, f"Тема: {subj}\n{body}"[:12000]))
+    finally:
+        try:
+            M.logout()
+        except Exception:
+            pass
+    return out
+
+
+async def src_mail(cl: httpx.AsyncClient, s: dict) -> list[dict]:
+    import os
+    user, pw = os.getenv("FLATS_MAIL"), os.getenv("FLATS_MAIL_PASS")
+    if not user or not pw:
+        raise RuntimeError("почта не подключена")
+    mails = await asyncio.to_thread(_mail_fetch_sync, user, pw.replace(" ", ""))
+    from services import claude
+    out = []
+    for site, body in mails:
+        try:
+            r = await claude.client.messages.create(model=claude.FALLBACK_MODEL, max_tokens=3000,
+                                                    messages=[{"role": "user", "content": MAIL_EXTRACT.format(site=site, body=body)}])
+            t = "".join(b.text for b in r.content if b.type == "text")
+            m = re.search(r"\[.*\]", t, re.S)
+            for x in json.loads(m.group(0)) if m else []:
+                title = str(x.get("title") or "")[:120]
+                price = _num(x.get("price"))
+                out.append({"src": site, "id": re.sub(r"\W+", "", f"{title}{price}".lower())[:50], "title": title, "price": price,
+                            "city": str(x.get("city") or ""), "m2": _num(x.get("m2")), "url": str(x.get("url") or ""),
+                            "text": str(x.get("text") or "")[:300], "date": "vandaag", "push": True})
+        except Exception as e:
+            logger.warning(f"flats mail parse: {e}")
+    return out
+
+
+# Pararius и Funda напрямую режут серверы (403 / обрыв), поэтому идут через почту
+SOURCES = {"Почта (Pararius+Funda)": src_mail, "Kamernet": src_kamernet, "Marktplaats": src_marktplaats}
 
 
 async def fetch_all(s: dict) -> tuple[list[dict], dict]:
@@ -358,8 +454,9 @@ async def translate(xs: list[dict]) -> None:
 
 def kb(x: dict):
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Открыть", url=x["url"]),
-                                                  InlineKeyboardButton(text="✍️ Ответ хозяину", callback_data=f"fl:r:{key(x)}"[:64])]])
+    row = [InlineKeyboardButton(text="Открыть", url=x["url"])] if str(x.get("url") or "").startswith("http") else []
+    return InlineKeyboardMarkup(inline_keyboard=[row + [
+        InlineKeyboardButton(text="✍️ Ответ хозяину", callback_data=f"fl:r:{key(x)}"[:64])]])
 
 
 async def check(uid: int, send) -> int:
@@ -378,7 +475,7 @@ async def check(uid: int, send) -> int:
         if k in bucket:
             continue
         bucket.add(k)
-        if not fresh_src:
+        if not fresh_src or x.get("push"):
             new.append(x)
     s["seen"] = {k: list(v)[-400:] for k, v in seen.items()}
     s["stat"] = {**stat, "_t": int(time.time())}
