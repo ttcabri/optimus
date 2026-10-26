@@ -29,11 +29,13 @@ HEAD = {"User-Agent": UA, "Accept-Language": "nl-NL,nl;q=0.9,en;q=0.8",
 POSTCODES = {"gouda": "2801", "waddinxveen": "2741", "bodegraven": "2411", "alphen aan den rijn": "2405",
              "zoetermeer": "2711", "reeuwijk": "2811", "rotterdam": "3011", "den haag": "2511", "'s-gravenhage": "2511",
              "leiden": "2311", "utrecht": "3511", "woerden": "3441", "nieuwerkerk aan den ijssel": "2911",
-             "capelle aan den ijssel": "2901", "lelystad": "8232", "almere": "1315", "dronten": "8251",
+             "capelle aan den ijssel": "2901", "rijswijk": "2281", "leidschendam": "2265", "voorburg": "2271",
+             "schiedam": "3111", "pijnacker": "2641", "nootdorp": "2631", "wateringen": "2291", "lelystad": "8232", "almere": "1315", "dronten": "8251",
              "zwolle": "8011", "kampen": "8261", "harderwijk": "3841", "amsterdam": "1012", "delft": "2611"}
 
-DEFAULT = {"on": False, "areas": ["gouda", "waddinxveen", "alphen aan den rijn", "zoetermeer", "bodegraven"],
-           "max": 1200, "min_m2": 0, "kitchen": True, "about": "", "seen": {}, "items": {}, "stat": {}}
+OLD_AREAS = ["gouda", "waddinxveen", "alphen aan den rijn", "zoetermeer", "bodegraven"]
+DEFAULT = {"on": False, "areas": ["rijswijk", "den haag", "delft", "zoetermeer", "leidschendam", "leiden", "rotterdam"],
+           "max": 1350, "room_max": 800, "min_m2": 0, "kitchen": True, "about": "", "seen": {}, "items": {}, "stat": {}}
 
 BAD = re.compile(r"gezocht|zoek(?:t|en)?\b|ruil|te koop|koopwoning|garage|parkeer|berging|bedrijfsruimte|kantoor|vakantie", re.I)
 
@@ -56,7 +58,10 @@ async def get(uid: int) -> dict:
         s = json.loads(row[0]) if row and row[0] else {}
     except ValueError:
         s = {}
-    return {**json.loads(json.dumps(DEFAULT)), **s}
+    out = {**json.loads(json.dumps(DEFAULT)), **s}
+    if out.get("areas") == OLD_AREAS:  # раньше по ошибке искали у Reeuwijk (Гауда); нужен Rijswijk у Гааги
+        out.update(areas=DEFAULT["areas"], max=DEFAULT["max"], seen={})
+    return out
 
 
 async def put(uid: int, s: dict) -> None:
@@ -89,9 +94,24 @@ def _num(v) -> float | None:
         return None
 
 
+ROOM = re.compile(r"\bkamer\b|\broom\b|onzelfstandig|gedeelde (keuken|badkamer)|shared", re.I)
+NO_REG = re.compile(r"(geen|niet|zonder)\s+(mogelijkheid\s+(tot|om)\s+)?(in)?schrijv|inschrijv\w*\s+(is\s+)?niet\s+(mogelijk|toegestaan)|no registration|registration (is )?not (possible|allowed)", re.I)
+YES_REG = re.compile(r"inschrijv\w*\s+(is\s+)?(mogelijk|toegestaan)|registration (is )?(possible|allowed)|bsn registration", re.I)
+
+
+def tag(x: dict) -> None:
+    t = f"{x.get('title') or ''} {x.get('text') or ''}"
+    x["room"] = bool(ROOM.search(t))
+    x["reg"] = "no" if NO_REG.search(t) else "yes" if YES_REG.search(t) else "?"
+
+
 def _ok(x: dict, s: dict) -> bool:
+    tag(x)
     p = x.get("price")
-    if p is not None and (p > s["max"] or p < 250):
+    if x.get("reg") == "no":  # без прописки не берём: BRP по месту жительства обязателен
+        return False
+    lim = s.get("room_max", 800) if x.get("room") else s["max"]
+    if p is not None and (p > lim or p < 250):
         return False
     if s.get("min_m2") and x.get("m2") and x["m2"] < s["min_m2"]:
         return False
@@ -194,12 +214,11 @@ async def src_kamernet(cl: httpx.AsyncClient, s: dict) -> list[dict]:
                     continue
                 seen.add(lid)
                 typ = str(x.get("listingType") or x.get("roomType") or "")
-                if typ.lower() in ("room", "kamer", "1"):
-                    continue
+                is_room = typ.lower() in ("room", "kamer", "1")
                 url2 = x.get("url") or x.get("detailUrl") or x.get("urlKey") or x.get("detailPageUrl") or ""
                 if url2 and not url2.startswith("http"):
                     url2 = "https://kamernet.nl" + (url2 if url2.startswith("/") else "/" + url2)
-                out.append({"src": "Kamernet", "id": lid, "title": f"{x.get('street') or ''}, {x.get('city') or city.title()}".strip(", "),
+                out.append({"src": "Kamernet", "id": lid, "title": ("Kamer " if is_room else "") + f"{x.get('street') or ''}, {x.get('city') or city.title()}".strip(", "),
                             "price": _num(x.get("totalRentalPrice") or x.get("rent")), "city": x.get("city") or city.title(),
                             "m2": _num(x.get("surfaceArea") or x.get("surface")), "url": url2 or url, "text": ""})
         if good:
@@ -271,7 +290,8 @@ def key(x: dict) -> str:
 def card(x: dict) -> str:
     bits = [f"€{x['price']:g}" if x.get("price") else "цена ?", f"{x['m2']:g} м²" if x.get("m2") else "", html.escape(x.get("city") or "")]
     title = x.get("ru_title") or x["title"]
-    return (f"🏠 <b>{html.escape(title[:90] or 'Объявление')}</b>\n" + " · ".join(b for b in bits if b)
+    bits.append({"yes": "✅ прописка можно", "?": "❔ прописка не указана"}.get(x.get("reg"), ""))
+    return (("🛏 <b>Комната</b> · запасной вариант\n" if x.get("room") else "") + f"🏠 <b>{html.escape(title[:90] or 'Объявление')}</b>\n" + " · ".join(b for b in bits if b)
             + f"\n<i>{x['src']}" + (f" · {html.escape(x['title'][:60])}" if x.get("ru_title") else "") + "</i>"
             + (f"\n{html.escape((x.get('ru') or x['text'])[:300])}" if x.get("ru") or x.get("text") else ""))
 
@@ -341,7 +361,8 @@ async def check(uid: int, send) -> int:
 def status_text(s: dict) -> str:
     st = s.get("stat") or {}
     lines = [f"🏠 <b>Поиск жилья</b>: {'включён' if s.get('on') else 'выключен'}",
-             f"Где: {', '.join(a.title() for a in s['areas'])}", f"До €{s['max']:g}" + (f", от {s['min_m2']} м²" if s.get("min_m2") else "")]
+             f"Где: {', '.join(a.title() for a in s['areas'])}", f"Студии и квартиры до €{s['max']:g}, комнаты (запасной вариант) до €{s.get('room_max', 800):g}"
+             + (f", от {s['min_m2']} м²" if s.get("min_m2") else ""), "Без прописки (geen inschrijving) не показываю"]
     if st.get("_t"):
         import datetime as _dt
         import pytz
@@ -360,6 +381,7 @@ LETTER = """Напиши короткое первое сообщение хоз
 О человеке: {about}
 Правила: 5–8 коротких предложений. Без длинных тире. Не выдумывай факты, которых нет в «О человеке». Спроси, свободно ли жильё и когда можно посмотреть.
 Если в «О человеке» есть про доход, сбережения или оплату вперёд, упомяни это одной фразой.
+Обязательно спроси, можно ли прописаться по этому адресу (inschrijven bij de gemeente), если в объявлении это не сказано.
 Ответ строго в двух частях:
 NL:
 <текст на голландском>
