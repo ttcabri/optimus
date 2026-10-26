@@ -143,6 +143,15 @@ async def send_step_timer(bot: Bot, uid: int = TELEGRAM_USER_ID) -> None:
         logger.error(f"step timer: {e}")
 
 
+async def send_flats(bot: Bot, uid: int = TELEGRAM_USER_ID) -> None:
+    """Каждые 5 минут: новые объявления жилья (если поиск включён)."""
+    from services import flats
+    try:
+        await flats.check(uid, lambda t, k: bot.send_message(uid, t, reply_markup=k, disable_web_page_preview=True))
+    except Exception as e:
+        logger.error(f"flats: {e}")
+
+
 async def send_quest_night(bot: Bot, uid: int = TELEGRAM_USER_ID) -> None:
     """22:30 — итог дня и экран выкл."""
     try:
@@ -350,6 +359,7 @@ def setup_scheduler(bot: Bot) -> AsyncIOScheduler:
     # Квест дня: живой план, проверка каждые 5 минут
     scheduler.add_job(each(send_quest_tick), "cron", minute="*/5", kwargs={"bot": bot})
     scheduler.add_job(each(send_reminders), "cron", minute="*", kwargs={"bot": bot})
+    scheduler.add_job(each(send_flats), "cron", minute="*/5", second=40, kwargs={"bot": bot})
     scheduler.add_job(each(send_step_timer), "cron", minute="*", second=20, kwargs={"bot": bot})
     scheduler.add_job(each(send_quest_night), "cron", hour=22, minute=30, kwargs={"bot": bot})
     scheduler.add_job(each(send_quest_week), "cron", day_of_week="sun", hour=21, minute=0, kwargs={"bot": bot})

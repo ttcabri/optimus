@@ -242,6 +242,25 @@ async def get_ai_response(telegram_id: int, user_message: str, voice: bool = Fal
                     new = await rc.fix(state, str(i.get("text") or ""))
                     res = re.sub(r"<[^>]+>", "", rc.text(new)) if new else "не получилось поправить"
                     changed = acted = bool(new)
+            elif b.name == "flats":
+                from services import flats as fl
+                i = b.input or {}
+                fs = await fl.get(telegram_id)
+                op = i.get("op")
+                if op in ("on", "off"):
+                    fs["on"] = op == "on"
+                elif op == "set":
+                    if i.get("areas"):
+                        fs["areas"] = [str(a).strip().lower() for a in i["areas"]][:8]
+                        fs["seen"] = {}
+                    if i.get("max"):
+                        fs["max"] = int(i["max"])
+                    if i.get("min_m2") is not None:
+                        fs["min_m2"] = int(i["min_m2"])
+                elif op == "about":
+                    fs["about"] = str(i.get("text") or "")[:600]
+                await fl.put(telegram_id, fs)
+                res = re.sub(r"<[^>]+>", "", fl.status_text(fs))
             elif b.name == "read_changes":
                 from datetime import timedelta
                 i = b.input or {}
