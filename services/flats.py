@@ -36,7 +36,7 @@ POSTCODES = {"gouda": "2801", "waddinxveen": "2741", "bodegraven": "2411", "alph
 OLD_AREAS = [["gouda", "waddinxveen", "alphen aan den rijn", "zoetermeer", "bodegraven"],
              ["rijswijk", "den haag", "delft", "zoetermeer", "leidschendam", "leiden", "rotterdam"]]
 DEFAULT = {"on": False, "areas": ["gouda", "waddinxveen", "bodegraven", "alphen aan den rijn", "zoetermeer", "woerden", "nieuwerkerk aan den ijssel"],
-           "max": 1350, "room_max": 800, "min_m2": 0, "kitchen": True, "about": "", "seen": {}, "items": {}, "stat": {}}
+           "max": 1350, "room_max": 800, "fresh_days": 21, "min_m2": 0, "kitchen": True, "about": "", "seen": {}, "items": {}, "stat": {}}
 
 BAD = re.compile(r"gezocht|zoek(?:t|en)?\b|ruil|te koop|koopwoning|garage|parkeer|berging|bedrijfsruimte|kantoor|vakantie", re.I)
 
@@ -100,6 +100,37 @@ NO_REG = re.compile(r"(geen|niet|zonder)\s+(mogelijkheid\s+(tot|om)\s+)?(in)?sch
 YES_REG = re.compile(r"inschrijv\w*\s+(is\s+)?(mogelijk|toegestaan)|registration (is )?(possible|allowed)|bsn registration", re.I)
 
 
+NL_MON = {"jan": 1, "feb": 2, "mrt": 3, "apr": 4, "mei": 5, "jun": 6, "jul": 7, "aug": 8, "sep": 9, "okt": 10, "nov": 11, "dec": 12}
+
+
+def age_days(d) -> int | None:
+    """Сколько дней объявлению. ISO, «Vandaag», «Gisteren», «2 aug. 26», «12 okt»."""
+    import datetime as _dt
+    if not d:
+        return None
+    t = str(d).strip().lower()
+    today = _dt.date.today()
+    if t.startswith(("vandaag", "today")):
+        return 0
+    if t.startswith(("gisteren", "yesterday")):
+        return 1
+    m = re.match(r"(\d{4})-(\d{2})-(\d{2})", t)
+    if m:
+        return (today - _dt.date(int(m.group(1)), int(m.group(2)), int(m.group(3)))).days
+    m = re.match(r"(\d{1,2})\s+([a-z]{3})\w*\.?\s*(?:'?(\d{2,4}))?", t)
+    if m and m.group(2) in NL_MON:
+        y = int(m.group(3)) if m.group(3) else today.year
+        y = y + 2000 if y < 100 else y
+        try:
+            dd = _dt.date(y, NL_MON[m.group(2)], int(m.group(1)))
+        except ValueError:
+            return None
+        if dd > today:
+            dd = dd.replace(year=dd.year - 1)
+        return (today - dd).days
+    return None
+
+
 def tag(x: dict) -> None:
     t = f"{x.get('title') or ''} {x.get('text') or ''}"
     x["room"] = bool(ROOM.search(t))
@@ -108,6 +139,9 @@ def tag(x: dict) -> None:
 
 def _ok(x: dict, s: dict) -> bool:
     tag(x)
+    x["age"] = age_days(x.get("date"))
+    if x["age"] is not None and x["age"] > s.get("fresh_days", 21):  # старые висяки: скорее всего уже сдано
+        return False
     p = x.get("price")
     if x.get("reg") == "no":  # без прописки не берём: BRP по месту жительства обязателен
         return False
@@ -143,7 +177,8 @@ async def src_marktplaats(cl: httpx.AsyncClient, s: dict) -> list[dict]:
                 out.append({"src": "Marktplaats", "id": iid, "title": it.get("title") or "", "price": price,
                             "city": loc.get("cityName") or city.title(), "m2": None,
                             "url": link if link.startswith("http") else "https://www.marktplaats.nl" + link,
-                            "text": (it.get("description") or "")[:400], "img": ((it.get("pictures") or [{}])[0] or {}).get("mediumUrl")})
+                            "text": (it.get("description") or "")[:400], "img": ((it.get("pictures") or [{}])[0] or {}).get("mediumUrl"),
+                            "date": it.get("date") or it.get("sortDate") or ""})
     return out
 
 
@@ -221,7 +256,8 @@ async def src_kamernet(cl: httpx.AsyncClient, s: dict) -> list[dict]:
                     url2 = "https://kamernet.nl" + (url2 if url2.startswith("/") else "/" + url2)
                 out.append({"src": "Kamernet", "id": lid, "title": ("Kamer " if is_room else "") + f"{x.get('street') or ''}, {x.get('city') or city.title()}".strip(", "),
                             "price": _num(x.get("totalRentalPrice") or x.get("rent")), "city": x.get("city") or city.title(),
-                            "m2": _num(x.get("surfaceArea") or x.get("surface")), "url": url2 or url, "text": ""})
+                            "m2": _num(x.get("surfaceArea") or x.get("surface")), "url": url2 or url, "text": "",
+                            "date": str(x.get("publishDate") or x.get("createdAt") or x.get("activatedAt") or "")})
         if good:
             _kn_ok[city] = [p for p in good if "kamer-" not in p] or good
     if not out and not any(_kn_ok.values()):
@@ -253,7 +289,8 @@ def _funda_sync(s: dict) -> list[dict]:
             except Exception:
                 pass
             out.append({"src": "Funda", "id": str(l.listing_id), "title": l.address.title or "", "price": price,
-                        "city": l.address.city or city.title(), "m2": m2, "url": l.urls.full or "", "text": l.highlight or ""})
+                        "city": l.address.city or city.title(), "m2": m2, "url": l.urls.full or "", "text": l.highlight or "",
+                        "date": str(l.publication_date or "")})
     if errs and len(errs) == len(s["areas"]):
         raise RuntimeError("сайт обрывает соединение с сервером (" + errs[0][:60] + ")")
     return out
@@ -292,6 +329,8 @@ def card(x: dict) -> str:
     bits = [f"€{x['price']:g}" if x.get("price") else "цена ?", f"{x['m2']:g} м²" if x.get("m2") else "", html.escape(x.get("city") or "")]
     title = x.get("ru_title") or x["title"]
     bits.append({"yes": "✅ прописка можно", "?": "❔ прописка не указана"}.get(x.get("reg"), ""))
+    a = x.get("age")
+    bits.append("" if a is None else "🆕 сегодня" if a == 0 else "🕒 вчера" if a == 1 else f"🕒 {a} дн. назад")
     return (("🛏 <b>Комната</b> · запасной вариант\n" if x.get("room") else "") + f"🏠 <b>{html.escape(title[:90] or 'Объявление')}</b>\n" + " · ".join(b for b in bits if b)
             + f"\n<i>{x['src']}" + (f" · {html.escape(x['title'][:60])}" if x.get("ru_title") else "") + "</i>"
             + (f"\n{html.escape((x.get('ru') or x['text'])[:300])}" if x.get("ru") or x.get("text") else ""))
@@ -363,7 +402,7 @@ def status_text(s: dict) -> str:
     st = s.get("stat") or {}
     lines = [f"🏠 <b>Поиск жилья</b>: {'включён' if s.get('on') else 'выключен'}",
              f"Где: {', '.join(a.title() for a in s['areas'])}", f"Студии и квартиры до €{s['max']:g}, комнаты (запасной вариант) до €{s.get('room_max', 800):g}"
-             + (f", от {s['min_m2']} м²" if s.get("min_m2") else ""), "Без прописки (geen inschrijving) не показываю"]
+             + (f", от {s['min_m2']} м²" if s.get("min_m2") else ""), "Без прописки (geen inschrijving) не показываю", f"Старше {s.get('fresh_days', 21)} дней не показываю"]
     if st.get("_t"):
         import datetime as _dt
         import pytz
