@@ -47,6 +47,7 @@ async def cmd_flats(message: Message) -> None:
         s["stat"] = {**stat, "_t": int(__import__("time").time())}
         await flats.put(uid, s)
         await message.answer(flats.status_text(s))
+        await flats.translate(xs[:3])
         for x in xs[:3]:
             await message.answer(flats.card(x), reply_markup=flats.kb(x), disable_web_page_preview=True)
             s["items"][flats.key(x)] = x

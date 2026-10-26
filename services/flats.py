@@ -165,47 +165,60 @@ def _walk(o, found: list):
             _walk(v, found)
 
 
+KN_PATTERNS = ["huren/huurwoningen-{c}", "huren/appartement-{c}", "huren/studio-{c}", "en/for-rent/apartments-{c}",
+               "en/for-rent/studios-{c}", "en/for-rent/properties-{c}", "huren/kamer-{c}"]
+_kn_ok: dict = {}  # город → шаблоны адресов, которые реально отвечают
+
+
 async def src_kamernet(cl: httpx.AsyncClient, s: dict) -> list[dict]:
-    out, seen = [], set()
+    out, seen, tried = [], set(), []
     for city in s["areas"]:
-        for kind in ("appartementen", "studios"):
-            r = await cl.get(f"https://kamernet.nl/huren/{kind}-{slug(city)}?maxRent={int(s['max'])}&sort=1", headers=HEAD)
-            if r.status_code == 404:
+        pats = _kn_ok.get(city) or KN_PATTERNS
+        good = []
+        for pat in pats:
+            url = f"https://kamernet.nl/{pat.format(c=slug(city))}?maxRent={int(s['max'])}"
+            r = await cl.get(url, headers=HEAD)
+            tried.append(f"{pat.split('-')[0]}:{r.status_code}")
+            if r.status_code != 200:
                 continue
-            r.raise_for_status()
             m = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', r.text, re.S)
             if not m:
                 continue
             found: list = []
             _walk(json.loads(m.group(1)), found)
+            if found:
+                good.append(pat)
             for x in found:
                 lid = str(x.get("listingId"))
                 if lid in seen:
                     continue
                 seen.add(lid)
-                url = x.get("url") or x.get("detailUrl") or x.get("urlKey") or ""
-                if url and not url.startswith("http"):
-                    url = "https://kamernet.nl" + (url if url.startswith("/") else "/" + url)
-                if not url:
-                    url = f"https://kamernet.nl/huren/{kind}-{slug(x.get('city') or city)}"
-                typ = str(x.get("listingType") or "")
-                if typ.lower() in ("room", "1", "kamer"):
+                typ = str(x.get("listingType") or x.get("roomType") or "")
+                if typ.lower() in ("room", "kamer", "1"):
                     continue
+                url2 = x.get("url") or x.get("detailUrl") or x.get("urlKey") or x.get("detailPageUrl") or ""
+                if url2 and not url2.startswith("http"):
+                    url2 = "https://kamernet.nl" + (url2 if url2.startswith("/") else "/" + url2)
                 out.append({"src": "Kamernet", "id": lid, "title": f"{x.get('street') or ''}, {x.get('city') or city.title()}".strip(", "),
-                            "price": _num(x.get("totalRentalPrice")), "city": x.get("city") or city.title(), "m2": _num(x.get("surfaceArea")),
-                            "url": url, "text": ""})
+                            "price": _num(x.get("totalRentalPrice") or x.get("rent")), "city": x.get("city") or city.title(),
+                            "m2": _num(x.get("surfaceArea") or x.get("surface")), "url": url2 or url, "text": ""})
+        if good:
+            _kn_ok[city] = [p for p in good if "kamer-" not in p] or good
+    if not out and not any(_kn_ok.values()):
+        raise RuntimeError("не нашёл страницу поиска: " + ", ".join(sorted(set(tried)))[:110])
     return out
 
 
 def _funda_sync(s: dict) -> list[dict]:
     from funda import Funda
     f = Funda()
-    out = []
+    out, errs = [], []
     for city in s["areas"]:
         try:
             res = f.search(slug(city), category="rent", max_price=int(s["max"]), sort="newest")
         except Exception as e:
             logger.warning(f"funda {city}: {e}")
+            errs.append(str(e))
             continue
         for l in res[:30]:
             raw = (l.raw or {}).get("_source") or {}
@@ -221,6 +234,8 @@ def _funda_sync(s: dict) -> list[dict]:
                 pass
             out.append({"src": "Funda", "id": str(l.listing_id), "title": l.address.title or "", "price": price,
                         "city": l.address.city or city.title(), "m2": m2, "url": l.urls.full or "", "text": l.highlight or ""})
+    if errs and len(errs) == len(s["areas"]):
+        raise RuntimeError("сайт обрывает соединение с сервером (" + errs[0][:60] + ")")
     return out
 
 
@@ -255,8 +270,30 @@ def key(x: dict) -> str:
 
 def card(x: dict) -> str:
     bits = [f"€{x['price']:g}" if x.get("price") else "цена ?", f"{x['m2']:g} м²" if x.get("m2") else "", html.escape(x.get("city") or "")]
-    return (f"🏠 <b>{html.escape(x['title'][:90] or 'Объявление')}</b>\n" + " · ".join(b for b in bits if b)
-            + f"\n<i>{x['src']}</i>" + (f"\n{html.escape(x['text'][:200])}" if x.get("text") else ""))
+    title = x.get("ru_title") or x["title"]
+    return (f"🏠 <b>{html.escape(title[:90] or 'Объявление')}</b>\n" + " · ".join(b for b in bits if b)
+            + f"\n<i>{x['src']}" + (f" · {html.escape(x['title'][:60])}" if x.get("ru_title") else "") + "</i>"
+            + (f"\n{html.escape((x.get('ru') or x['text'])[:300])}" if x.get("ru") or x.get("text") else ""))
+
+
+async def translate(xs: list[dict]) -> None:
+    """Заголовки и описания на русский одним запросом (быстрая модель). Не вышло: оставляем как есть."""
+    if not xs:
+        return
+    from services import claude
+    data = [{"i": i, "t": x.get("title") or "", "d": (x.get("text") or "")[:400]} for i, x in enumerate(xs)]
+    try:
+        r = await claude.client.messages.create(model=claude.FALLBACK_MODEL, max_tokens=2000, messages=[{"role": "user", "content":
+            "Переведи объявления об аренде жилья с голландского на русский. Коротко и понятно, суммы и м² не меняй, "
+            "в описании оставь главное (что за жильё, кухня, мебель, с какого числа, условия) в 1-2 предложениях. "
+            "Ответ строго JSON-массив [{\"i\": 0, \"t\": \"заголовок\", \"d\": \"описание\"}]:\n" + json.dumps(data, ensure_ascii=False)}])
+        t = "".join(b.text for b in r.content if b.type == "text")
+        m = re.search(r"\[.*\]", t, re.S)
+        for o in json.loads(m.group(0)) if m else []:
+            x = xs[int(o["i"])]
+            x["ru_title"], x["ru"] = str(o.get("t") or "")[:120], str(o.get("d") or "")[:400]
+    except Exception as e:
+        logger.warning(f"flats translate: {e}")
 
 
 def kb(x: dict):
@@ -285,6 +322,7 @@ async def check(uid: int, send) -> int:
             new.append(x)
     s["seen"] = {k: list(v)[-400:] for k, v in seen.items()}
     s["stat"] = {**stat, "_t": int(time.time())}
+    await translate(new[:15])
     items = s.get("items") or {}
     for x in new[:15]:
         items[key(x)] = x
