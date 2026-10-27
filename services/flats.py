@@ -36,7 +36,7 @@ POSTCODES = {"gouda": "2801", "waddinxveen": "2741", "bodegraven": "2411", "alph
 OLD_AREAS = [["gouda", "waddinxveen", "alphen aan den rijn", "zoetermeer", "bodegraven"],
              ["rijswijk", "den haag", "delft", "zoetermeer", "leidschendam", "leiden", "rotterdam"]]
 DEFAULT = {"on": False, "areas": ["gouda", "waddinxveen", "bodegraven", "alphen aan den rijn", "zoetermeer", "woerden", "nieuwerkerk aan den ijssel"],
-           "max": 1350, "room_max": 800, "fresh_days": 21, "min_m2": 0, "kitchen": True, "about": "", "seen": {}, "items": {}, "stat": {}}
+           "max": 1000, "room_max": 800, "fresh_days": 21, "min_m2": 0, "kitchen": True, "about": "", "seen": {}, "items": {}, "stat": {}}
 
 BAD = re.compile(r"gezocht|zoek(?:t|en)?\b|ruil|te koop|koopwoning|garage|parkeer|berging|bedrijfsruimte|kantoor|vakantie", re.I)
 
@@ -62,6 +62,8 @@ async def get(uid: int) -> dict:
     out = {**json.loads(json.dumps(DEFAULT)), **s}
     if out.get("areas") in OLD_AREAS:  # старые наборы городов по умолчанию → текущий (вокруг Reeuwijk/Гауды)
         out.update(areas=DEFAULT["areas"], max=DEFAULT["max"], seen={})
+    if not out.get("m1000"):  # разово: потолок €1000 (доход 2720 бруто, ×3 правило)
+        out.update(max=1000, m1000=True)
     return out
 
 
