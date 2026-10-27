@@ -427,10 +427,25 @@ def key(x: dict) -> str:
     return f"{x['src'][:2]}:{x['id']}"[-60:]
 
 
+ONE = re.compile(r"\b(?:1|één|een|max(?:imaal)?\.?\s*1)\s*pers(?:oon|\.|\b)|geen\s+(?:stel|koppel)|alleenstaande|single\s+(?:person|occupancy)|no\s+couples|1\s+person\b|één bewoner", re.I)
+TWO = re.compile(r"\b(?:2|twee|max(?:imaal)?\.?\s*2)\s*pers(?:onen|\.|\b)|\b(?:stel|koppel|stellen|koppels)\b|couples?\b|2\s+persons|twee bewoners", re.I)
+
+
+def pair(x: dict) -> str:
+    """Можно ли вдвоём: 'yes' / 'no' / '' (не сказано). Сначала по тексту, иначе как поняла модель."""
+    t = f"{x.get('title') or ''} {x.get('text') or ''}"
+    if ONE.search(t):
+        return "no"
+    if TWO.search(t):
+        return "yes"
+    return {"2": "yes", "1": "no"}.get(str(x.get("pp") or ""), "")
+
+
 def card(x: dict) -> str:
     bits = [f"€{x['price']:g}" if x.get("price") else "цена ?", f"{x['m2']:g} м²" if x.get("m2") else "", html.escape(x.get("city") or "")]
     title = x.get("ru_title") or x["title"]
     bits.append({"yes": "✅ прописка можно", "?": "❔ прописка не указана"}.get(x.get("reg"), ""))
+    bits.append({"yes": "👫 можно вдвоём", "no": "⚠️ только один"}.get(pair(x), ""))
     a = x.get("age")
     bits.append("" if a is None else "🆕 сегодня" if a == 0 else "🕒 вчера" if a == 1 else f"🕒 {a} дн. назад")
     return (("🛏 <b>Комната</b> · запасной вариант\n" if x.get("room") else "") + f"🏠 <b>{html.escape(title[:90] or 'Объявление')}</b>\n" + " · ".join(b for b in bits if b)
@@ -443,17 +458,20 @@ async def translate(xs: list[dict]) -> None:
     if not xs:
         return
     from services import claude
-    data = [{"i": i, "t": x.get("title") or "", "d": (x.get("text") or "")[:400]} for i, x in enumerate(xs)]
+    data = [{"i": i, "t": x.get("title") or "", "d": (x.get("text") or "")[:700]} for i, x in enumerate(xs)]
     try:
         r = await claude.client.messages.create(model=claude.FALLBACK_MODEL, max_tokens=2000, messages=[{"role": "user", "content":
             "Переведи объявления об аренде жилья с голландского на русский. Коротко и понятно, суммы и м² не меняй, "
             "в описании оставь главное (что за жильё, кухня, мебель, с какого числа, условия) в 1-2 предложениях. "
-            "Ответ строго JSON-массив [{\"i\": 0, \"t\": \"заголовок\", \"d\": \"описание\"}]:\n" + json.dumps(data, ensure_ascii=False)}])
+            "Поле p: \"1\" если сказано, что жильё только для одного человека (1 persoon, geen stellen), "
+            "\"2\" если прямо можно вдвоём или паре (2 personen, stel), иначе \"\". Не угадывай. "
+            "Ответ строго JSON-массив [{\"i\": 0, \"t\": \"заголовок\", \"d\": \"описание\", \"p\": \"\"}]:\n" + json.dumps(data, ensure_ascii=False)}])
         t = "".join(b.text for b in r.content if b.type == "text")
         m = re.search(r"\[.*\]", t, re.S)
         for o in json.loads(m.group(0)) if m else []:
             x = xs[int(o["i"])]
             x["ru_title"], x["ru"] = str(o.get("t") or "")[:120], str(o.get("d") or "")[:400]
+            x["pp"] = str(o.get("p") or "")
     except Exception as e:
         logger.warning(f"flats translate: {e}")
 
