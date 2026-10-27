@@ -573,3 +573,42 @@ async def letter(x: dict, about: str) -> str:
     ad = f"{x['src']}: {x.get('title')}, {x.get('city')}, " + (f"€{x['price']:g}" if x.get("price") else "") + (f", {x['m2']:g} m²" if x.get("m2") else "") + (f". {x.get('text')}" if x.get("text") else "")
     r = await claude._create(max_tokens=900, messages=[{"role": "user", "content": LETTER.format(ad=ad[:600], about=about or "Andrey Kovalev, zoekt een studio voor zichzelf.")}])
     return "".join(b.text for b in r.content if b.type == "text").strip()
+
+
+async def diag(uid: int) -> None:
+    """Отладка в логи: что приходит с источников и почему отсеивается. Метка FLDIAG."""
+    s = await get(uid)
+    L = lambda m: logger.warning("FLDIAG " + m)
+    L(f"areas={s['areas']} max={s['max']} room_max={s.get('room_max')} fresh={s.get('fresh_days')}")
+    async with httpx.AsyncClient(timeout=25, follow_redirects=True) as cl:
+        pc = POSTCODES.get("gouda")
+        for cat in ("&l1CategoryId=1032", ""):
+            url = (f"https://www.marktplaats.nl/lrp/api/search?query=studio%20te%20huur{cat}&postcode={pc}&distanceMeters=10000"
+                   f"&priceTo={int(s['max']) * 100}&limit=30&offset=0&sortBy=SORT_INDEX&sortOrder=DECREASING&viewOptions=list-view")
+            try:
+                r = await cl.get(url, headers={**HEAD, "Accept": "application/json"})
+                lst = r.json().get("listings") or []
+                L(f"MP raw cat={bool(cat)} status={r.status_code} n={len(lst)}")
+                for it in lst[:12]:
+                    loc = it.get("location") or {}
+                    L(f"MP  {it.get('date')!r} cat={it.get('categoryId')} d={loc.get('distanceMeters')} {loc.get('cityName')} "
+                      f"v={it.get('verticals')} €{((it.get('priceInfo') or {}).get('priceCents') or 0)/100:g} {str(it.get('title'))[:60]}")
+            except Exception as e:
+                L(f"MP err {e}")
+        for name, fn in SOURCES.items():
+            try:
+                xs = await fn(cl, s)
+            except Exception as e:
+                L(f"{name} ERR {e}")
+                continue
+            kept, why = [], {}
+            for x in xs:
+                if _ok(x, s):
+                    kept.append(x)
+                else:
+                    w = ("old" if x.get("age") is not None and x["age"] > s.get("fresh_days", 21) else "noreg" if x.get("reg") == "no"
+                         else "price" if x.get("price") is not None else "bad")
+                    why[w] = why.get(w, 0) + 1
+            L(f"{name}: raw={len(xs)} kept={len(kept)} drop={why}")
+            for x in kept[:8]:
+                L(f"  {x.get('city')} €{x.get('price')} {x.get('m2')}м² age={x.get('age')} room={x.get('room')} {str(x.get('title'))[:50]} {x.get('url')}")
