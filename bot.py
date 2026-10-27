@@ -76,15 +76,6 @@ async def main() -> None:
     scheduler = setup_scheduler(bot)
     scheduler.start()
 
-    async def _fldiag():
-        await asyncio.sleep(15)
-        try:
-            from services import flats as _fl
-            await _fl.diag(TELEGRAM_USER_ID)
-        except Exception as e:
-            logging.warning(f"FLDIAG fail {e}")
-    asyncio.get_event_loop().create_task(_fldiag())
-
     import webserver
     webserver.BOT = bot
     await start_web()

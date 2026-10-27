@@ -270,6 +270,51 @@ async def post_invite(request: web.Request) -> web.Response:
     return web.json_response({"link": f"https://t.me/{_BOT_NAME or 'BotButter_bot'}?start=inv_{code}"})
 
 
+async def get_flats(request: web.Request) -> web.Response:
+    """«Аренда» в приложении: все сохранённые объявления с отметками. Недопереведённые догоняем."""
+    uid = await _auth(request)
+    from services import flats
+    s = await flats.get(uid)
+    try:
+        if await flats.ensure_ru(s):
+            await flats.put(uid, s)
+    except Exception as e:
+        logger.warning(f"flats ru: {e}")
+    return web.json_response(flats.public(s))
+
+
+async def post_flats(request: web.Request) -> web.Response:
+    """op: mark {k, v: ''|no|star|sent}, viewed, letter {k} → {nl, ru}."""
+    uid = await _auth(request)
+    from services import flats
+    try:
+        body = await request.json()
+    except ValueError:
+        body = {}
+    s = await flats.get(uid)
+    op, k = body.get("op"), str(body.get("k") or "")
+    if op == "mark":
+        v = body.get("v") if body.get("v") in ("", "no", "star", "sent") else ""
+        mark = s.setdefault("mark", {})
+        if v:
+            mark[k] = v
+        else:
+            mark.pop(k, None)
+    elif op == "viewed":
+        s["viewed"] = int(__import__("time").time())
+    elif op == "letter":
+        x = (s.get("items") or {}).get(k)
+        if not x:
+            return web.json_response({"error": "Объявление не найдено"}, status=404)
+        t = await flats.letter(x, s.get("about") or "")
+        nl, ru = (t.split("RU:", 1) + [""])[:2]
+        return web.json_response({"nl": nl.replace("NL:", "").strip(), "ru": ru.strip()})
+    else:
+        return web.json_response({"error": "op?"}, status=400)
+    await flats.put(uid, s)
+    return web.json_response(flats.public(s))
+
+
 async def post_receipt(request: web.Request) -> web.Response:
     """Окно чека в приложении: save = сохранить правку, ok = сохранить и записать, no = не записывать."""
     uid = await _auth(request)
@@ -320,6 +365,8 @@ async def start_web() -> web.AppRunner:
     app.router.add_post("/api/brain", post_brain)
     app.router.add_post("/api/invite", post_invite)
     app.router.add_post("/api/receipt", post_receipt)
+    app.router.add_get("/api/flats", get_flats)
+    app.router.add_post("/api/flats", post_flats)
     app.router.add_get("/api/brainfile", get_brain_file)
     runner = web.AppRunner(app)
     await runner.setup()

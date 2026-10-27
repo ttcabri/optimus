@@ -298,6 +298,24 @@ button.hrow{width:100%;border:none;color:inherit;font:inherit;text-align:left}
 .htiles.two{grid-template-columns:repeat(2,minmax(0,1fr))}
 .htiles.two .htile{flex-direction:row;align-items:center;min-height:68px;gap:10px;padding:12px}
 .htiles.two .htile .tb{margin-top:0}.htiles.two .htile b{font-size:15px}
+.flrow .sb2{position:static;display:inline-grid;margin-left:6px;vertical-align:1px;min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:var(--gold);color:var(--ink);font-size:11px;font-weight:800;place-items:center}
+.flt{display:flex;gap:6px;overflow-x:auto;padding:0 16px 8px;scrollbar-width:none}.flt::-webkit-scrollbar{display:none}
+.flt .chip{flex-shrink:0;white-space:nowrap}.flt .chip b{color:var(--fg);margin-left:3px}.flt .chip[aria-pressed=true]{border-color:var(--gold);color:var(--gold);background:#3a2416}
+.fls{display:flex;flex-direction:column;gap:8px;padding:0 16px}
+.flc{position:relative;display:grid;grid-template-columns:88px minmax(0,1fr);gap:10px;padding:8px;border-radius:16px;background:var(--panel);border:none;color:inherit;font:inherit;text-align:left;width:100%;overflow:hidden}
+.flc.nw::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--gold)}
+.flc.dim{opacity:.45}
+.flc .im{width:88px;height:88px;border-radius:11px;background:var(--panel2);display:grid;place-items:center;font-size:30px;overflow:hidden}.flc .im img{width:100%;height:100%;object-fit:cover}
+.flc .bd{min-width:0;display:flex;flex-direction:column;gap:2px}
+.flc b{font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.flc .pr{font-weight:800;color:var(--gold);font-size:15px}.flc .pr small{color:var(--muted);font-weight:700;font-size:12px}
+.fltg{display:flex;gap:4px;flex-wrap:wrap;margin-top:2px}.fltg i{font-style:normal;font-size:11px;font-weight:800;padding:3px 7px;border-radius:8px;background:var(--panel2);color:var(--muted)}.fltg i.g{color:var(--okl)}.fltg i.r{color:var(--red)}
+.flc .mk{position:absolute;right:8px;top:8px;font-size:11px;font-weight:800;color:var(--okl)}
+.flbig{height:190px;border-radius:16px;background:var(--panel);display:grid;place-items:center;font-size:44px;overflow:hidden}.flbig img{width:100%;height:100%;object-fit:cover}
+.flmeta{display:flex;gap:10px;flex-wrap:wrap;font-size:13px;font-weight:700;color:var(--muted)}.flmeta .p{color:var(--gold)}
+.fltx{font-size:13.5px;line-height:1.45;background:var(--panel);border-radius:12px;padding:10px 12px;margin:0}.fltx small{display:block;color:var(--dim);font-size:11.5px;margin-top:6px}
+.flbt{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.flbt .chip{min-height:44px;justify-content:center;text-align:center}.flbt .chip[aria-pressed=true]{border-color:var(--gold);color:var(--gold);background:#3a2416}
+.fllet{display:flex;flex-direction:column;gap:6px}.fllet pre{white-space:pre-wrap;font:inherit;font-size:13.5px;background:var(--bg);border:1px solid var(--line2);border-radius:12px;padding:10px;margin:0}
 .btiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:0 16px}
 .btile{position:relative;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;gap:14px;min-height:150px;padding:14px;border-radius:20px;background:var(--panel);border:1px solid transparent;color:inherit;font:inherit;text-align:left}
 .btile:active{background:var(--panel2)}
@@ -1181,6 +1199,7 @@ function viewHome(){
   const food=h.items.filter(x=>FOOD.includes(x.cat)&&!(x.cat==="prep"&&!(x.n|0)));
   const head=(title,back,add)=>`<div class="subh"><button type="button" class="bk" data-hseg="${back}" aria-label="Назад">${IC.back}</button><h2>${esc(title)}</h2>${add?`<button type="button" class="addb" ${add} aria-label="Добавить">+</button>`:""}</div>`;
   const seg=homeSeg,cat=seg.startsWith("cat:")?seg.slice(4):null,pid=seg.startsWith("proj:")?seg.slice(5):null;
+  if(seg==="rent")return viewRent(head);
   if(seg==="food"){
     const first=[...preps.map(itemRow),...exp.filter(x=>x.cat!=="prep").map(itemRow)].join("");
     const ctile=c=>{const its=h.items.filter(x=>x.cat===c&&!(c==="prep"&&!(x.n|0))),e=its.filter(x=>exp.includes(x)).length,low=its.filter(x=>x.level!=="ok").length;
@@ -1228,8 +1247,32 @@ function viewHome(){
     return `<button type="button" class="prow" data-hseg="proj:${p.id}"><span style="font-size:22px">📦</span><span style="flex:1;min-width:0"><b style="font-size:14px">${esc(p.name)}</b>${p.due?`<small style="display:block;font-size:12px;font-weight:700;color:var(--muted)">до ${ddmm(p.due)}</small>`:""}<span class="pbar" style="display:block"><i style="width:${p.steps.length?Math.round(dn/p.steps.length*100):0}%"></i></span></span><small style="color:var(--muted);font-weight:700">${dn}/${p.steps.length}</small><span class="go"></span></button>`}).join("");
   return (now?`<div class="glabel" style="padding-top:4px">Сейчас</div><div class="list">${now}</div>`:"")
     +`<div class="glabel">Дом</div><div class="btiles">${tile("food","🍎","Продукты",food.length+(preps.length?" · "+preps.length+" загот.":""),exp.length)}${tile("cat:home","🧴","Хозтовары",homeIt.length+(lowH?" · "+lowH+" мало":""),0)}${tile("shop","🛒","Покупки",sl.length?sl.length+" купить":"пусто",sl.length,true)}${tile("chores","🧺","Быт",h.chores.length+" дел",fd.length)}</div>`
+    +(()=>{if(FL===null){loadFlats();return ""}if(!FL.on&&!FL.items.some(x=>x.m==="star"||x.m==="sent"))return "";
+      const nn=FL.items.filter(x=>!x.seed&&x.m!=="no"&&x.t>(FLV!=null?FLV:FL.viewed||0)).length,ch=FL.check?new Date(FL.check*1000).toTimeString().slice(0,5):"";
+      return `<button type="button" class="prow flrow" data-hseg="rent"><span style="font-size:22px">🔑</span><span style="flex:1;min-width:0"><b style="font-size:14px">Аренда${nn?`<i class="sb2">${nn>99?"99+":nn}</i>`:""}</b><small style="display:block;font-size:12px;font-weight:700;color:var(--muted)">${FL.items.filter(x=>x.m!=="no").length} объявлений${ch?" · проверка "+ch:""}</small></span><span class="go"></span></button>`})()
     +(projRows||`<button type="button" class="prow" data-hseg="proj"><span style="font-size:22px">📦</span><span style="flex:1"><b style="font-size:14px">Проекты</b><small style="display:block;font-size:12px;font-weight:700;color:var(--muted)">нет активных</small></span><span class="go"></span></button>`);
 }
+let FL=null,flBusy=false,flTab="all",FLV=null,flErr="";
+function loadFlats(){if(!BOT||typeof fetchFlats!=="function"||flBusy)return;flBusy=true;
+  fetchFlats("get").then(v=>{FL=v;flErr=""}).catch(e=>{flErr=String(e.message||"нет связи")}).finally(()=>{flBusy=false;if(tab==="home")render();if(W&&W.step==="flat")renderSheet()})}
+function flSet(v){FL=v;if(tab==="home")render();if(W&&W.step==="flat")renderSheet()}
+const flNew=x=>!x.seed&&x.m!=="no"&&FLV!=null&&x.t>FLV;
+const flPrice=x=>x.price?"€"+Math.round(x.price):"цена ?";
+function flAge(x){const d=x.age!=null?x.age:x.t?Math.floor((Date.now()/1000-x.t)/86400):null;return d==null?"":d===0?"сегодня":d===1?"вчера":d+" дн."}
+function flTags(x,sh){return (x.m&&FLM[x.m]&&x.m!=="no"&&!sh?`<i class="g">${FLM[x.m]}</i>`:"")+(x.reg==="yes"?'<i class="g">✅ прописка</i>':x.reg==="?"?"<i>❔ прописка</i>":"")+(x.pair==="yes"?'<i class="g">👫 вдвоём</i>':x.pair==="no"?'<i class="r">⚠️ только один</i>':"")+(sh?"":(flAge(x)?`<i>${flAge(x)}</i>`:"")+`<i>${esc(x.src||"")}</i>`)}
+const FLM={sent:"✉️ написал",star:"★",no:"скрыто"};
+function viewRent(head){
+  if(FL===null){loadFlats();return head("Аренда","")+`<p class="empty" style="padding:4px 20px">${flErr?"Не загрузилось: "+esc(flErr):"Загружаю объявления…"}</p>`}
+  if(FLV===null){FLV=FL.viewed||0;if(typeof fetchFlats==="function")fetchFlats("viewed").catch(()=>{})}
+  const all=FL.items,vis=all.filter(x=>x.m!=="no");
+  const F={all:["Все",vis],new:["Новые",vis.filter(flNew)],flat:["Квартиры",vis.filter(x=>!x.room)],room:["Комнаты",vis.filter(x=>x.room)],star:["★",all.filter(x=>x.m==="star")],sent:["Написал",all.filter(x=>x.m==="sent")],no:["Скрытые",all.filter(x=>x.m==="no")]};
+  if(!F[flTab])flTab="all";
+  const chk=FL.check?new Date(FL.check*1000).toTimeString().slice(0,5):"";
+  const card=x=>`<button type="button" class="flc${flNew(x)?" nw":""}${x.m==="no"&&flTab!=="no"?" dim":""}" data-fl="${esc(x.k)}"><span class="im">${x.img?`<img src="${esc(x.img)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:(x.room?"🛏":"🏠")}</span><span class="bd"><b>${x.room?"🛏 ":""}${esc(x.title||"Объявление")}</b><span class="pr">${flPrice(x)} <small>${x.m2?" · "+Math.round(x.m2)+" м²":""} · ${esc(x.city||"")}</small></span><span class="fltg">${flTags(x)}</span></span></button>`;
+  const list=F[flTab][1];
+  return head("Аренда","")+`<p class="rhint" style="padding:0 20px 8px">${FL.on?"Поиск включён":"Поиск выключен"} · до €${FL.max}, комнаты до €${FL.room_max}${chk?" · проверка "+chk:""}</p>`
+    +`<div class="flt">${Object.entries(F).filter(([k,[_,a]])=>k==="all"||a.length).map(([k,[t,a]])=>`<button type="button" class="chip" data-flt="${k}" aria-pressed="${flTab===k}">${t}<b>${a.length}</b></button>`).join("")}</div>`
+    +`<div class="fls">${list.map(card).join("")||'<p class="empty" style="padding:4px 4px">Тут пусто.</p>'}</div>`}
 let goalsArch=false;
 const fmtV=(g,v)=>v==null?"—":g.metric&&g.metric.src==="body"?String(v):fmtN(v);
 function gWins(it){const k=key();return `<div class="gwins">${Array.from({length:7},(_,i)=>shift(k,i-6)).map(x=>`<i class="${itemDone(peek(x),it)?"on":""}${onDay(it,dow(x))?"":" off"}"></i>`).join("")}</div>`}
@@ -1488,6 +1531,7 @@ document.addEventListener("change",e=>{if(e.target.id==="bfile"&&e.target.files&
 document.addEventListener("change",e=>{if(ONB&&(e.target.id==="onbwake"||e.target.id==="onbbed")){ONB.wake=$("onbwake").value||ONB.wake;ONB.bed=$("onbbed").value||ONB.bed;renderOnb()}});
 function render(){
   if(DRAG){DRAG.late=1;return}
+  if(window.QD_LOADED&&!window._flOpened&&/[?&]flats=1/.test(location.search)){window._flOpened=1;tab="home";homeSeg="rent"}
   if(window.QD_LOADED&&!window._rcOpened&&/[?&]rcpt=1/.test(location.search)){window._rcOpened=1;setTimeout(openRcpt,50)}
   if(!ONB&&needOnb())ONB={s:0,name:"",wake:"08:00",bed:"23:30"};else if(ONB&&!needOnb())ONB=null;
   renderOnb();
@@ -1575,6 +1619,8 @@ document.addEventListener("click",e=>{const g=e.target.closest("[data-mgo]");if(
 document.addEventListener("click",e=>{
   const t=e.target.closest("button");if(!t||t.disabled)return;
   if(t.dataset.tab){if(t.dataset.tab==="home")homeSeg="";if(t.dataset.tab==="me")meSeg="";if(t.dataset.tab==="goals")goalSeg="";tab=t.dataset.tab;dayOpen=false;render();window.scrollTo(0,0);return}
+  if(t.dataset.flt){flTab=t.dataset.flt;render();return}
+  if(t.dataset.fl){W={step:"flat",k:t.dataset.fl};renderSheet();return}
   if(t.dataset.tabGo){tab=t.dataset.tabGo;if(tab==="goals")goalSeg="";render();window.scrollTo(0,0);return}
   if(t.dataset.t){const id=t.dataset.t,it=ritem(id),was=has(dayOf(key()),id),rc=(t.closest(".row,.now")||t).getBoundingClientRect();toggle(id);if(!was)celebrate(rc);
     if(it&&(it.meal==="prep"||id==="prep")&&!was&&has(dayOf(key()),id)){W={step:"prepnew",name:"",n:4};renderSheet()}return}
@@ -1622,6 +1668,7 @@ document.addEventListener("click",e=>{
   if(t.dataset.game){askGame();return}
   if(t.dataset.restend){endRest();return}
   if(t.dataset.prefs){openPrefs();return}
+  if(t.dataset.hseg==="rent"){FLV=null;loadFlats()}
   if(t.dataset.hseg!==undefined){homeSeg=t.dataset.hseg;if(homeSeg!=="chores")choreEdit=false;render();window.scrollTo(0,0);return}
   if(t.dataset.meseg!==undefined&&!t.dataset.tabGo){meSeg=t.dataset.meseg;render();window.scrollTo(0,0);return}
   if(t.dataset.ndel){const h=houseOf();mutate(()=>{h.notes=h.notes.filter(i=>i.id!==t.dataset.ndel);h.del.push(t.dataset.ndel)});return}
@@ -1753,6 +1800,17 @@ function renderSheet(){
       ${st==="open"?`<button type="button" class="goldbtn" data-w="take">Взял награду</button>`:st==="pending"?`<button type="button" class="line" data-w="take">Взял раньше</button>`:""}`}
   const H=houseOf(),opt3=(list,cur,attr)=>`<div class="sopts">${list.map(([v,tx])=>`<button type="button" class="opt" data-w="${attr}:${v}" aria-pressed="${cur===v}">${tx}</button>`).join("")}</div>`;
   const dele=(a,tx)=>`<button type="button" class="dellink" data-w="${a}">${tx}</button>`;
+  if(W.step==="flat"){const x=FL&&FL.items.find(o=>o.k===W.k);
+    if(!x)body=`<h2>Объявление</h2><p class="empty">Не нашёл, обнови список.</p>`;
+    else body=`<div class="flbig">${x.img?`<img src="${esc(x.img)}" alt="" referrerpolicy="no-referrer">`:(x.room?"🛏":"🏠")}</div>
+      <h2 style="margin:0">${x.room?"🛏 ":""}${esc(x.title||"Объявление")}</h2>
+      <div class="flmeta"><span class="p">${flPrice(x)}</span>${x.m2?`<span>${Math.round(x.m2)} м²</span>`:""}<span>${esc(x.city||"")}</span><span>${esc(x.src||"")}</span>${flAge(x)?`<span>${flAge(x)}</span>`:""}</div>
+      <div class="fltg">${flTags(x,1)}</div>
+      ${x.text||x.orig?`<p class="fltx">${esc(x.text||"")}${x.orig?`<small>${esc(x.orig)}</small>`:""}</p>`:""}
+      ${W.letter?`<div class="fllet"><pre>${esc(W.letter.nl)}</pre><button type="button" class="chip" data-w="flcopy" style="justify-content:center">📋 Скопировать текст</button>${W.letter.ru?`<p class="rhint">🇷🇺 ${esc(W.letter.ru)}</p>`:""}</div>`
+        :`<button type="button" class="goldbtn" data-w="flletter" style="height:52px;font-size:16px"${W.busy?" disabled":""}>${W.busy?"Пишу письмо…":"✍️ Письмо хозяину (NL + перевод)"}</button>`}
+      ${x.url?`<button type="button" class="chip" data-w="flopen" style="justify-content:center;min-height:46px">🔗 Открыть на сайте</button>`:""}
+      <div class="flbt"><button type="button" class="chip" data-w="flm:sent" aria-pressed="${x.m==="sent"}">✉️ Написал</button><button type="button" class="chip" data-w="flm:star" aria-pressed="${x.m==="star"}">★ Нравится</button><button type="button" class="chip" data-w="flm:no" aria-pressed="${x.m==="no"}">👎 Не надо</button></div>`}
   if(W.step==="rcpt"){const r=W.r,RX={deposit:"♻️ Залог за тару",bon:"♻️ Сдал бутылки",bag:"🛍 Пакет",disc:"🏷 Скидка"};
     const row=(x,n)=>W.op===n?`<div class="rci ed"><input data-ri="${n}:name" maxlength="60" value="${esc(x.name||"")}" placeholder="Название" aria-label="Название" autocomplete="off">
         <div class="rcin"><input data-ri="${n}:amt" inputmode="decimal" value="${x.amt??""}" aria-label="Количество"><div class="perm">${["шт","г","кг","мл","л"].map(u=>`<button type="button" class="chip" data-w="rcu:${n}:${u}" aria-pressed="${(x.unit||"шт")===u}">${u}</button>`).join("")}</div></div>
@@ -1946,6 +2004,14 @@ $("sheet").addEventListener("click",e=>{
   if(e.target===$("sheet")){closeSheet();return}
   const b=e.target.closest("[data-w]");if(!b)return;e.stopPropagation();const a=b.dataset.w;
   if(a==="close")return closeSheet();
+  if(W&&W.step==="flat"&&a.startsWith("fl")){const x=FL&&FL.items.find(o=>o.k===W.k);if(!x)return;
+    if(a.startsWith("flm:")){const v=a.slice(4)===x.m?"":a.slice(4),w0=W;x.m=v;renderSheet();render();
+      fetchFlats("mark",{k:x.k,v}).then(r=>{flSet(r);if(v==="no"&&W===w0){closeSheet();toast("Скрыл. Найдёшь во вкладке «Скрытые»")}}).catch(e=>toast(String(e.message||"Не получилось")));return}
+    if(a==="flopen"){const T=window.Telegram&&Telegram.WebApp;try{T&&T.openLink?T.openLink(x.url):window.open(x.url,"_blank")}catch(e){window.open(x.url,"_blank")}return}
+    if(a==="flletter"){const w0=W;W.busy=true;renderSheet();
+      fetchFlats("letter",{k:x.k}).then(r=>{w0.busy=false;w0.letter=r;if(W===w0)renderSheet()}).catch(e=>{w0.busy=false;if(W===w0)renderSheet();toast(String(e.message||"Не получилось"))});return}
+    if(a==="flcopy"){const l=W.letter.nl;try{navigator.clipboard.writeText(l).then(()=>toast("Скопировал. Отправь хозяину на сайте")).catch(()=>toast("Выдели текст и скопируй"))}catch(e){toast("Выдели текст и скопируй")}return}
+    return}
   const H=houseOf(),nmV=()=>{const i=$("sheet").querySelector("input[name=v]");return i?i.value.trim():""};
   if(a.startsWith("mvto:")){W.to=a.slice(5);return renderSheet()}
   if(a==="mvgo"){const id=W.id,hs=W.house,nm0=W.name,to=hs?shift(key(),1):W.to,d=dayOf(key());closeSheet();
@@ -2265,6 +2331,7 @@ async function fetchCook(){const r=await fetch("api/cook",{method:"POST",headers
 async function fetchBrain(text,file){let r;if(file){const fd=new FormData();fd.append("text",text||"");fd.append("file",file,file.name||"file");r=await fetch("api/brain",{method:"POST",headers:{"X-Init-Data":tg?tg.initData:""},body:fd})}else r=await fetch("api/brain",{method:"POST",headers:hdr(),body:JSON.stringify({text})});const v=await r.json().catch(()=>({}));if(!r.ok)throw new Error(v.error||r.status);return v}
 async function fetchInvite(house){const r=await fetch("api/invite",{method:"POST",headers:hdr(),body:JSON.stringify({house:!!house})});const v=await r.json().catch(()=>({}));if(!r.ok||!v.link)throw new Error(v.error||r.status);return v.link}
 async function fetchRcpt(op,r){const res=await fetch("api/receipt",{method:"POST",headers:hdr(),body:JSON.stringify({op,r})});const v=await res.json().catch(()=>({}));if(!res.ok)throw new Error(v.error||res.status);return v}
+async function fetchFlats(op,q){const r=op==="get"?await fetch("api/flats",{headers:hdr()}):await fetch("api/flats",{method:"POST",headers:hdr(),body:JSON.stringify({op,...(q||{})})});const v=await r.json().catch(()=>({}));if(!r.ok)throw new Error(v.error||r.status);return v}
 async function fetchGifts(q){const r=await fetch("api/gifts",{method:"POST",headers:hdr(),body:JSON.stringify(q)});const v=await r.json().catch(()=>({}));if(!r.ok)throw new Error(v.error||r.status);return v.ideas||[]}
 render();pull();
 document.addEventListener("visibilitychange",()=>{if(!document.hidden)pull()});

@@ -301,6 +301,7 @@ async def src_kamernet(cl: httpx.AsyncClient, s: dict) -> list[dict]:
                 out.append({"src": "Kamernet", "id": lid, "title": ("Kamer " if is_room else "") + f"{x.get('street') or ''}, {x.get('city') or city.title()}".strip(", "),
                             "price": _num(x.get("totalRentalPrice") or x.get("rent")), "city": x.get("city") or city.title(),
                             "m2": _num(x.get("surfaceArea") or x.get("surface")), "url": url2 or url, "text": "",
+                            "img": x.get("resizedFullPreviewImageUrl") or x.get("thumbnailUrl"),
                             "date": str(x.get("publishDate") or x.get("createdAt") or x.get("activatedAt") or "")})
         if good:
             _kn_ok[city] = [p for p in good if "kamer-" not in p] or good
@@ -349,7 +350,8 @@ MAIL_EXTRACT = """Это письмо-оповещение о новых объ�
 Для каждого: title (адрес или заголовок как в письме), city, price (число € в месяц или null), m2 (число или null),
 url (ссылка именно на это объявление из текста, как есть), text (что ещё сказано: тип, комнаты, мебель, 1 строка).
 Рекламу, «похожие поиски», ссылки отписки и настройки не бери.
-Ответ строго JSON-массив: [{{"title": "", "city": "", "price": null, "m2": null, "url": "", "text": ""}}]
+img: ссылка на фото этого объявления из [img …] рядом с ним, если есть, иначе "".
+Ответ строго JSON-массив: [{{"title": "", "city": "", "price": null, "m2": null, "url": "", "text": "", "img": ""}}]
 
 Письмо:
 {body}"""
@@ -389,6 +391,9 @@ def _mail_fetch_sync(user: str, pw: str) -> list[tuple[str, str]]:
                         text_part += payload
             if html_part:
                 soup = BeautifulSoup(html_part, "html.parser")
+                for im in soup.find_all("img", src=True):
+                    if str(im["src"]).startswith("http") and not re.search(r"logo|icon|pixel|track|spacer", im["src"], re.I):
+                        im.replace_with(f" [img {im['src']}] ")
                 for a in soup.find_all("a", href=True):
                     a.replace_with(f"{a.get_text(' ', strip=True)} [{a['href']}]")
                 body = soup.get_text("\n", strip=True)
@@ -422,7 +427,8 @@ async def src_mail(cl: httpx.AsyncClient, s: dict) -> list[dict]:
                 price = _num(x.get("price"))
                 out.append({"src": site, "id": re.sub(r"\W+", "", f"{title}{price}".lower())[:50], "title": title, "price": price,
                             "city": str(x.get("city") or ""), "m2": _num(x.get("m2")), "url": str(x.get("url") or ""),
-                            "text": str(x.get("text") or "")[:300], "date": "vandaag", "push": True})
+                            "text": str(x.get("text") or "")[:300], "date": "vandaag", "push": True,
+                            "img": str(x.get("img") or "") if str(x.get("img") or "").startswith("http") else None})
         except Exception as e:
             logger.warning(f"flats mail parse: {e}")
     return out
@@ -503,47 +509,128 @@ async def translate(xs: list[dict]) -> None:
         logger.warning(f"flats translate: {e}")
 
 
+def app_url(extra: str = "flats=1") -> str:
+    from config import WEBAPP_URL
+    return WEBAPP_URL + ("&" if "?" in WEBAPP_URL else "?") + extra if WEBAPP_URL and WEBAPP_URL.startswith("https://") else ""
+
+
 def kb(x: dict):
-    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-    row = [InlineKeyboardButton(text="Открыть", url=x["url"])] if str(x.get("url") or "").startswith("http") else []
-    return InlineKeyboardMarkup(inline_keyboard=[row + [
-        InlineKeyboardButton(text="✍️ Ответ хозяину", callback_data=f"fl:r:{key(x)}"[:64])]])
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+    k = key(x)
+    row = [InlineKeyboardButton(text="🔗 Открыть", url=x["url"])] if str(x.get("url") or "").startswith("http") else []
+    row2 = [InlineKeyboardButton(text="👎 Не надо", callback_data=f"fl:n:{k}"[:64])]
+    if app_url():
+        row2.append(InlineKeyboardButton(text="🗂 Все объявления", web_app=WebAppInfo(url=app_url())))
+    return InlineKeyboardMarkup(inline_keyboard=[row + [InlineKeyboardButton(text="✍️ Ответ хозяину", callback_data=f"fl:r:{k}"[:64])], row2])
+
+
+def app_kb(text: str = "🗂 Открыть «Аренду»"):
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=text, web_app=WebAppInfo(url=app_url()))]]) if app_url() else None
+
+
+ITEMS_MAX = 400
+
+
+def keep_items(s: dict) -> None:
+    """Храним последние ITEMS_MAX объявлений; отмеченные (★, написал) не выкидываем."""
+    items, mark = s.get("items") or {}, s.get("mark") or {}
+    if len(items) <= ITEMS_MAX:
+        return
+    order = sorted(items, key=lambda k: items[k].get("t") or 0)
+    drop = [k for k in order if mark.get(k) not in ("star", "sent")][:len(items) - ITEMS_MAX]
+    for k in drop:
+        items.pop(k, None)
+        mark.pop(k, None)
+
+
+SEND_NOW = 10  # квартиры и студии сразу в чат, не больше стольких за проверку
 
 
 async def check(uid: int, send) -> int:
-    """Одна проверка: новые объявления → send(text, kb). Первая проверка только запоминает, что уже есть."""
+    """Одна проверка. Всё новое сохраняется в «Аренду» (приложение). В чат сразу: только студии и квартиры.
+    Комнаты копятся тихо, о них вечерняя сводка. Первая проверка источника только запоминает, что уже есть (без пачки в чат)."""
     s = await get(uid)
     if not s.get("on"):
         return 0
     xs, stat = await fetch_all(s)
     old = s.get("seen") or {}
     seen = {k: set(v) for k, v in old.items()}
-    new = []
+    new, quiet = [], []
+    now = int(time.time())
     for x in xs:
         k = key(x)
-        fresh_src = x["src"] not in old  # источник впервые дал объявления: просто запоминаем, не шлём пачкой
+        fresh_src = x["src"] not in old
         bucket = seen.setdefault(x["src"], set())
         if k in bucket:
             continue
         bucket.add(k)
-        if not fresh_src or x.get("push"):
-            new.append(x)
-    s["seen"] = {k: list(v)[-400:] for k, v in seen.items()}
-    s["stat"] = {**stat, "_t": int(time.time())}
-    await translate(new[:15])
+        x["t"] = now
+        (new if not fresh_src or x.get("push") else quiet).append(x)
+    s["seen"] = {k: list(v)[-1500:] for k, v in seen.items()}
+    s["stat"] = {**stat, "_t": now}
+    for i in range(0, min(len(new), 45), 15):
+        await translate(new[i:i + 15])
     items = s.get("items") or {}
-    for x in new[:15]:
+    for x in quiet:
+        x["seed"] = True  # было до включения: в ленте есть, «новым» не считается
+        items.setdefault(key(x), x)
+    for x in new:
         items[key(x)] = x
-    s["items"] = dict(list(items.items())[-120:])
+    s["items"] = items
+    keep_items(s)
     await put(uid, s)
-    for x in new[:15]:
+    flats_ = [x for x in new if not x.get("room")]
+    for x in flats_[:SEND_NOW]:
         try:
             await send(card(x), kb(x))
         except Exception as e:
             logger.error(f"flats send: {e}")
-    if len(new) > 15:
-        await send(f"…и ещё {len(new) - 15} новых. Сузь поиск: /flats", None)
+    if len(flats_) > SEND_NOW:
+        await send(f"…и ещё {len(flats_) - SEND_NOW} студий и квартир. Все в «Аренде».", app_kb())
     return len(new)
+
+
+def day_summary(s: dict) -> str | None:
+    """Вечерняя сводка за сутки. None, если сказать нечего."""
+    items, mark = s.get("items") or {}, s.get("mark") or {}
+    day = int(time.time()) - 86400
+    fresh = [x for x in items.values() if (x.get("t") or 0) > day and not x.get("seed")]
+    if not fresh:
+        return None
+    rooms = sum(1 for x in fresh if x.get("room"))
+    srcs: dict = {}
+    for x in fresh:
+        srcs[x["src"]] = srcs.get(x["src"], 0) + 1
+    sent = sum(1 for v in mark.values() if v == "sent")
+    star = sum(1 for v in mark.values() if v == "star")
+    return (f"🏠 <b>Жильё за день</b>\nНовых: {len(fresh) - rooms} студий и квартир, {rooms} комнат\n"
+            + (f"Написал: {sent}" if sent else "Пока никому не написал") + (f" · ★ {star}" if star else "")
+            + "\n<i>" + " · ".join(f"{k}: {v}" for k, v in srcs.items()) + "</i>")
+
+
+async def ensure_ru(s: dict, limit: int = 20) -> bool:
+    """Догоняем перевод для объявлений без него (те, что пришли тихо). True, если что-то перевели."""
+    xs = [x for x in sorted((s.get("items") or {}).values(), key=lambda x: -(x.get("t") or 0)) if not x.get("ru_title") and not x.get("_tr")][:limit]
+    for x in xs:
+        x["_tr"] = 1
+    for i in range(0, len(xs), 10):
+        await translate(xs[i:i + 10])
+    return bool(xs)
+
+
+def public(s: dict) -> dict:
+    """Что отдаём приложению."""
+    mark = s.get("mark") or {}
+    out = []
+    for k, x in (s.get("items") or {}).items():
+        out.append({"k": k, "src": x.get("src"), "title": x.get("ru_title") or x.get("title"), "orig": x.get("title") if x.get("ru_title") else "",
+                    "price": x.get("price"), "m2": x.get("m2"), "city": x.get("city"), "url": x.get("url"), "img": x.get("img"),
+                    "text": x.get("ru") or x.get("text") or "", "room": bool(x.get("room")), "reg": x.get("reg"), "pair": pair(x),
+                    "age": x.get("age"), "t": x.get("t") or 0, "seed": bool(x.get("seed")), "m": mark.get(k, "")})
+    out.sort(key=lambda o: -o["t"])
+    return {"on": bool(s.get("on")), "max": s.get("max"), "room_max": s.get("room_max", 800), "areas": s.get("areas"),
+            "viewed": s.get("viewed") or 0, "check": (s.get("stat") or {}).get("_t") or 0, "items": out}
 
 
 def status_text(s: dict) -> str:

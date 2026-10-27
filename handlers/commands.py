@@ -74,6 +74,24 @@ async def cmd_flats(message: Message) -> None:
     await message.answer(flats.status_text(s))
 
 
+@router.callback_query(F.data.startswith("fl:n:"))
+async def flats_no(cb: CallbackQuery) -> None:
+    from services import flats
+    s = await flats.get(cb.from_user.id)
+    k = cb.data[5:]
+    mark = s.setdefault("mark", {})
+    mark[k] = "" if mark.get(k) == "no" else "no"
+    await flats.put(cb.from_user.id, s)
+    await cb.answer("Скрыл из «Аренды»" if mark[k] else "Вернул")
+    try:
+        from aiogram.types import InlineKeyboardMarkup
+        rows = [[b.model_copy(update={"text": "↩️ Вернуть" if mark[k] else "👎 Не надо"}) if b.callback_data == cb.data else b for b in row]
+                for row in cb.message.reply_markup.inline_keyboard]
+        await cb.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(inline_keyboard=rows))
+    except Exception:
+        pass
+
+
 @router.callback_query(F.data.startswith("fl:r:"))
 async def flats_reply(cb: CallbackQuery) -> None:
     import html
