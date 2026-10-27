@@ -655,6 +655,12 @@ async def check(uid: int, send) -> int:
     if not s.get("on"):
         return 0
     xs, stat = await fetch_all(s)
+    if not globals().get("_kn_dbg"):  # разовая самопроверка после запуска: что видно на странице объявления Kamernet
+        probe = next((dict(x) for x in xs if x["src"] == "Kamernet" and x.get("url")), None)
+        if probe:
+            async with httpx.AsyncClient(timeout=20, follow_redirects=True) as cl:
+                await kn_detail(cl, probe)
+            logger.warning(f"KNPROBE {probe.get('url')} unfit={unfit(probe)!r}")
     old = s.get("seen") or {}
     seen = {k: set(v) for k, v in old.items()}
     new, quiet = [], []
