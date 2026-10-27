@@ -599,24 +599,52 @@ async def kn_detail(cl: httpx.AsyncClient, x: dict) -> None:
         m = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', r.text, re.S)
         if r.status_code != 200 or not m:
             return
+        data = json.loads(m.group(1))
+        lid = str(x.get("id"))
+        cands: list = []
+
+        def find(o, depth=0):
+            if depth > 14:
+                return
+            if isinstance(o, dict):
+                if str(o.get("listingId") or o.get("id") or "") == lid and len(o) > 8:
+                    cands.append(o)
+                for v in o.values():
+                    find(v, depth + 1)
+            elif isinstance(o, list):
+                for v in o[:80]:
+                    find(v, depth + 1)
+        find(data)
+        if not cands:
+            if not globals().get("_kn_dbg"):
+                globals()["_kn_dbg"] = 1
+                pp = (data.get("props") or {}).get("pageProps") or {}
+                logger.warning(f"KNDETAIL no listing obj; pageProps keys={list(pp)[:40]}")
+            return
+        det = max(cands, key=lambda d: len(json.dumps(d, ensure_ascii=False)))
         bits: list = []
 
-        def walk(o, depth=0):
-            if depth > 12 or len(bits) > 60:
+        def flat(o, pre="", depth=0):
+            if depth > 4 or len(bits) > 80:
                 return
             if isinstance(o, dict):
                 for k, v in o.items():
-                    if _KN_KEYS.search(k) and v not in (None, "", [], {}) and not isinstance(v, dict):
-                        bits.append(f"{k}: {v if not isinstance(v, list) else json.dumps(v, ensure_ascii=False)[:300]}")
-                    walk(v, depth + 1)
+                    if re.search(r"image|photo|url|slug|thumbnail|lat|lng|longitude|latitude|^id$|Id$", k, re.I):
+                        continue
+                    flat(v, f"{pre}{k}.", depth + 1)
             elif isinstance(o, list):
-                for v in o[:50]:
-                    walk(v, depth + 1)
-        walk(json.loads(m.group(1)))
+                if o and all(not isinstance(v, (dict, list)) for v in o):
+                    bits.append(f"{pre[:-1]}: {', '.join(map(str, o))[:200]}")
+                else:
+                    for v in o[:10]:
+                        flat(v, pre, depth + 1)
+            elif o not in (None, "", False):
+                bits.append(f"{pre[:-1]}: {str(o)[:1200]}")
+        flat(det)
         x["full"] = " | ".join(str(b) for b in bits)[:2500]
         if not globals().get("_kn_dbg"):
             globals()["_kn_dbg"] = 1
-            logger.warning("KNDETAIL " + x["full"][:1800])
+            logger.warning("KNDETAIL " + x["full"][:3000])
     except Exception as e:
         logger.warning(f"kamernet detail: {e}")
 
