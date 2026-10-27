@@ -254,6 +254,12 @@ def _walk(o, found: list):
 
 KN_PATTERNS = ["huren/huurwoningen-{c}", "huren/appartement-{c}", "huren/studio-{c}", "en/for-rent/apartments-{c}",
                "en/for-rent/studios-{c}", "en/for-rent/properties-{c}", "huren/kamer-{c}"]
+NEAR = {"gouda", "reeuwijk", "waddinxveen", "boskoop", "bodegraven", "alphen aan den rijn", "zoetermeer", "woerden", "moordrecht",
+        "gouderak", "nieuwerkerk aan den ijssel", "zevenhuizen", "moerkapelle", "capelle aan den ijssel", "rotterdam", "krimpen aan den ijssel",
+        "ouderkerk aan den ijssel", "haastrecht", "oudewater", "schoonhoven", "lekkerkerk", "nieuwegein", "utrecht", "leiden", "leiderdorp",
+        "den haag", "'s-gravenhage", "delft", "pijnacker", "nootdorp", "berkel en rodenrijs", "bleiswijk", "lansingerland", "dordrecht",
+        "zwijndrecht", "papendrecht", "sliedrecht", "alblasserdam", "hendrik-ido-ambacht", "ridderkerk", "barendrecht", "schiedam",
+        "rijswijk", "voorburg", "leidschendam", "maassluis", "vlaardingen", "montfoort", "ijsselstein", "harmelen", "nieuwerbrug"}
 KN_TYPE = {1: "kamer", 2: "appartement", 4: "studio", 8: "anti-kraak", 16: "huis"}
 _kn_ok: dict = {}  # город → шаблоны адресов, которые реально отвечают
 
@@ -289,6 +295,9 @@ async def src_kamernet(cl: httpx.AsyncClient, s: dict) -> list[dict]:
                     url2 = f"https://kamernet.nl/huren/{kt}-{x['citySlug']}/{x['streetSlug']}/{kt}-{lid}"
                 if url2 and not url2.startswith("http"):
                     url2 = "https://kamernet.nl" + (url2 if url2.startswith("/") else "/" + url2)
+                kc = str(x.get("city") or "").lower()
+                if kc and kc not in NEAR and kc not in s["areas"]:
+                    continue  # Kamernet иногда подсовывает всю страну (Гронинген и т.п.)
                 out.append({"src": "Kamernet", "id": lid, "title": ("Kamer " if is_room else "") + f"{x.get('street') or ''}, {x.get('city') or city.title()}".strip(", "),
                             "price": _num(x.get("totalRentalPrice") or x.get("rent")), "city": x.get("city") or city.title(),
                             "m2": _num(x.get("surfaceArea") or x.get("surface")), "url": url2 or url, "text": "",
