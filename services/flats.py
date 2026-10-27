@@ -176,7 +176,7 @@ async def src_marktplaats(cl: httpx.AsyncClient, s: dict) -> list[dict]:
         pc = POSTCODES.get(city.lower())
         if pc:
             for q in ("huurwoning", "studio te huur", "appartement te huur"):
-                jobs.append((city, f"https://www.marktplaats.nl/lrp/api/search?query={quote(q)}&postcode={pc}&distanceMeters=10000"
+                jobs.append((city, f"https://www.marktplaats.nl/lrp/api/search?query={quote(q)}&l1CategoryId=1032&postcode={pc}&distanceMeters=10000"
                                    f"&priceTo={int(s['max']) * 100}&limit=30&offset=0&sortBy=SORT_INDEX&sortOrder=DECREASING&viewOptions=list-view"))
     sem = asyncio.Semaphore(5)
 
@@ -191,18 +191,19 @@ async def src_marktplaats(cl: httpx.AsyncClient, s: dict) -> list[dict]:
     for (city, _), lst in zip(jobs, res):
         if isinstance(lst, Exception):
             continue
-        if not globals().get("_dbg_mp") and lst:
-            globals()["_dbg_mp"] = 1
-            for it in lst[:30]:
-                logger.warning("DBGMP " + json.dumps({k: it.get(k) for k in ("title", "date", "location", "categoryId", "priorityProduct", "vipUrl", "attributes", "extendedAttributes", "verticals", "sellerInformation")}, ensure_ascii=False)[:700])
         for it in lst:
             iid = str(it.get("itemId") or it.get("id") or "")
             if not iid or iid in seen:
                 continue
             seen.add(iid)
+            loc = it.get("location") or {}
+            vert = " ".join(it.get("verticals") or [])
+            if loc.get("abroad") or (loc.get("countryName") or "Nederland") != "Nederland" or "business" in vert or (loc.get("distanceMeters") or 0) > 15000:
+                continue  # заграница, бизнес-недвижимость
+            if age_days(it.get("date")) is None:
+                continue  # без понятной даты не берём (там висят объявления годами)
             pi = it.get("priceInfo") or {}
             price = (pi.get("priceCents") or 0) / 100 or None
-            loc = it.get("location") or {}
             link = it.get("vipUrl") or it.get("selfLink") or ""
             out.append({"src": "Marktplaats", "id": iid, "title": it.get("title") or "", "price": price,
                         "city": loc.get("cityName") or city.title(), "m2": None,
@@ -253,6 +254,7 @@ def _walk(o, found: list):
 
 KN_PATTERNS = ["huren/huurwoningen-{c}", "huren/appartement-{c}", "huren/studio-{c}", "en/for-rent/apartments-{c}",
                "en/for-rent/studios-{c}", "en/for-rent/properties-{c}", "huren/kamer-{c}"]
+KN_TYPE = {1: "kamer", 2: "appartement", 4: "studio", 8: "anti-kraak", 16: "huis"}
 _kn_ok: dict = {}  # город → шаблоны адресов, которые реально отвечают
 
 
@@ -274,9 +276,6 @@ async def src_kamernet(cl: httpx.AsyncClient, s: dict) -> list[dict]:
             _walk(json.loads(m.group(1)), found)
             if found:
                 good.append(pat)
-                if not globals().get("_dbg_kn"):
-                    globals()["_dbg_kn"] = 1
-                    logger.warning("DBGKN " + json.dumps(found[0], ensure_ascii=False)[:2500])
             for x in found:
                 lid = str(x.get("listingId"))
                 if lid in seen:
@@ -285,6 +284,9 @@ async def src_kamernet(cl: httpx.AsyncClient, s: dict) -> list[dict]:
                 typ = str(x.get("listingType") or x.get("roomType") or "")
                 is_room = typ.lower() in ("room", "kamer", "1")
                 url2 = x.get("url") or x.get("detailUrl") or x.get("urlKey") or x.get("detailPageUrl") or ""
+                if not url2 and x.get("citySlug") and x.get("streetSlug"):
+                    kt = KN_TYPE.get(int(x.get("listingType") or 0), "appartement")
+                    url2 = f"https://kamernet.nl/huren/{kt}-{x['citySlug']}/{x['streetSlug']}/{kt}-{lid}"
                 if url2 and not url2.startswith("http"):
                     url2 = "https://kamernet.nl" + (url2 if url2.startswith("/") else "/" + url2)
                 out.append({"src": "Kamernet", "id": lid, "title": ("Kamer " if is_room else "") + f"{x.get('street') or ''}, {x.get('city') or city.title()}".strip(", "),
