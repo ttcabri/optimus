@@ -644,7 +644,7 @@ async def kn_detail(cl: httpx.AsyncClient, x: dict) -> None:
         x["full"] = " | ".join(str(b) for b in bits)[:2500]
         if not globals().get("_kn_dbg"):
             globals()["_kn_dbg"] = 1
-            logger.warning("KNDETAIL " + x["full"][:3000])
+            logger.warning("KNDETAIL " + re.sub(r"\s+", " ", x["full"])[-1500:])
     except Exception as e:
         logger.warning(f"kamernet detail: {e}")
 
