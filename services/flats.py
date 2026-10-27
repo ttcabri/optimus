@@ -38,6 +38,10 @@ OLD_AREAS = [["gouda", "waddinxveen", "alphen aan den rijn", "zoetermeer", "bode
 DEFAULT = {"on": False, "areas": ["gouda", "waddinxveen", "bodegraven", "alphen aan den rijn", "zoetermeer", "woerden", "nieuwerkerk aan den ijssel", "dordrecht"],
            "max": 1000, "room_max": 800, "fresh_days": 21, "min_m2": 0, "kitchen": True, "about": "", "seen": {}, "items": {}, "stat": {}}
 
+ABOUT0 = ("Андрей Ковалёв, 30 лет, из Украины, в Нидерландах с мая 2022. Последние 2 года работал на производстве паллет в Кампене, "
+          "бруто около €3000 в месяц, расчётки есть. Сейчас ищу работу в районе Гауды. Живу один, не курю, без животных, есть машина. "
+          "Говорю по-английски. Могу заплатить 3 месяца аренды вперёд. Въехать могу быстро.")
+
 BAD = re.compile(r"gezocht|zoek(?:t|en)?\b|ruil|te koop|koopwoning|garage|parkeer|berging|bedrijfsruimte|kantoor|vakantie", re.I)
 
 
@@ -68,6 +72,11 @@ async def get(uid: int) -> dict:
         if "dordrecht" not in out["areas"]:
             out["areas"] = out["areas"] + ["dordrecht"]
         out["mdord"] = True
+    if not out.get("mabout") and not out.get("about"):
+        from config import TELEGRAM_USER_ID
+        if uid == TELEGRAM_USER_ID:
+            out["about"] = ABOUT0
+        out["mabout"] = True
     return out
 
 
