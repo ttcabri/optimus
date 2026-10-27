@@ -641,6 +641,24 @@ async def kn_detail(cl: httpx.AsyncClient, x: dict) -> None:
             elif o not in (None, "", False):
                 bits.append(f"{pre[:-1]}: {str(o)[:1200]}")
         flat(det)
+        # полезные поля прямо из объявления
+        if det.get("publishDate"):
+            x["date"] = str(det["publishDate"])[:10]
+            x["age"] = age_days(x["date"])
+        n = det.get("suitableForNumberOfPersons")
+        if isinstance(n, int) and n in (1, 2):
+            x["pp"] = str(n)
+        for b in bits:
+            k, _, v = b.partition(": ")
+            kl = k.lower()
+            if "age" in kl and re.search(r"max|to$|until", kl) and v.strip().isdigit() and 18 <= int(v) < ME_AGE:
+                x["ux"] = f"до {int(v)} лет"
+            elif "age" in kl and re.search(r"min|from", kl) and v.strip().isdigit() and int(v) > ME_AGE + 5:
+                x["ux"] = f"от {int(v)} лет"
+            elif "gender" in kl and re.fullmatch(r"\s*(female|vrouw|women|woman|2)\s*", v, re.I) and "landlord" not in kl:
+                x["ux"] = "только женщины"
+        extra = [f"Залог €{det['deposit']}" if det.get("deposit") else "", f"с {str(det['availabilityStartDate'])[:10]}" if det.get("availabilityStartDate") else ""]
+        x["text"] = (" · ".join(e for e in extra if e) + ". " + str(det.get("englishDescription") or det.get("dutchDescription") or det.get("description") or "")).strip(". ")[:1500]
         x["full"] = " | ".join(str(b) for b in bits)[:2500]
         if not globals().get("_kn_dbg"):
             globals()["_kn_dbg"] = 1
