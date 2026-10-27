@@ -31,11 +31,11 @@ POSTCODES = {"gouda": "2801", "waddinxveen": "2741", "bodegraven": "2411", "alph
              "leiden": "2311", "utrecht": "3511", "woerden": "3441", "nieuwerkerk aan den ijssel": "2911",
              "capelle aan den ijssel": "2901", "rijswijk": "2281", "leidschendam": "2265", "voorburg": "2271",
              "schiedam": "3111", "pijnacker": "2641", "nootdorp": "2631", "wateringen": "2291", "lelystad": "8232", "almere": "1315", "dronten": "8251",
-             "zwolle": "8011", "kampen": "8261", "harderwijk": "3841", "amsterdam": "1012", "delft": "2611"}
+             "zwolle": "8011", "kampen": "8261", "harderwijk": "3841", "amsterdam": "1012", "delft": "2611", "dordrecht": "3311"}
 
 OLD_AREAS = [["gouda", "waddinxveen", "alphen aan den rijn", "zoetermeer", "bodegraven"],
              ["rijswijk", "den haag", "delft", "zoetermeer", "leidschendam", "leiden", "rotterdam"]]
-DEFAULT = {"on": False, "areas": ["gouda", "waddinxveen", "bodegraven", "alphen aan den rijn", "zoetermeer", "woerden", "nieuwerkerk aan den ijssel"],
+DEFAULT = {"on": False, "areas": ["gouda", "waddinxveen", "bodegraven", "alphen aan den rijn", "zoetermeer", "woerden", "nieuwerkerk aan den ijssel", "dordrecht"],
            "max": 1000, "room_max": 800, "fresh_days": 21, "min_m2": 0, "kitchen": True, "about": "", "seen": {}, "items": {}, "stat": {}}
 
 BAD = re.compile(r"gezocht|zoek(?:t|en)?\b|ruil|te koop|koopwoning|garage|parkeer|berging|bedrijfsruimte|kantoor|vakantie", re.I)
@@ -64,6 +64,10 @@ async def get(uid: int) -> dict:
         out.update(areas=DEFAULT["areas"], max=DEFAULT["max"], seen={})
     if not out.get("m1000"):  # разово: потолок €1000 (доход 2720 бруто, ×3 правило)
         out.update(max=1000, m1000=True)
+    if not out.get("mdord"):  # разово: добавить Dordrecht
+        if "dordrecht" not in out["areas"]:
+            out["areas"] = out["areas"] + ["dordrecht"]
+        out["mdord"] = True
     return out
 
 
