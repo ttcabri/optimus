@@ -72,6 +72,13 @@ async def get(uid: int) -> dict:
         if "dordrecht" not in out["areas"]:
             out["areas"] = out["areas"] + ["dordrecht"]
         out["mdord"] = True
+    if not out.get("mclean"):  # разово 27.10: чистая база, остаются только отмеченные (★ и «написал»), дальше только новое
+        mark = out.get("mark") or {}
+        keep = {k for k, v in mark.items() if v in ("star", "sent")}
+        out["items"] = {k: v for k, v in (out.get("items") or {}).items() if k in keep}
+        out["mark"] = {k: v for k, v in mark.items() if k in keep}
+        out["viewed"] = int(time.time())
+        out["mclean"] = True
     if not out.get("mabout") and not out.get("about"):
         from config import TELEGRAM_USER_ID
         if uid == TELEGRAM_USER_ID:
@@ -108,6 +115,37 @@ def _num(v) -> float | None:
         return float(t)
     except ValueError:
         return None
+
+
+ME_AGE = 30  # возраст владельца для фильтра «до N лет»
+STUDENT = re.compile(r"(alleen|uitsluitend|enkel|only|exclusively)\s+(voor\s+|for\s+)?(\w+\s+)?student|students?\s+only|studentenhuis|studentenwoning|studentenkamer|student\s*(housing|house|room|campus)|campus|"
+                     r"(must|need to|have to)\s+be\s+(a\s+)?(full[- ]time\s+)?student|ingeschreven\s+(bij|aan)\s+(een\s+)?(hogeschool|universiteit|onderwijs)|studiefinanciering|\bDUO\b|bewijs van inschrijving", re.I)
+WOMEN = re.compile(r"(alleen|only|uitsluitend)\s+(voor\s+|for\s+)?(vrouw|dame|meisje|female|wom[ae]n|girl)|female\s+(only|tenant)|vrouwelijke\s+(huurder|student)|(dames|meiden)huis", re.I)
+AGE_MAX = re.compile(r"(?:\b1[6-9]|\b2\d)\s*(?:[-–]|t/?m|tot|to|and)\s*(\d{2})\s*(?:jaar|years|yrs|y\.?o\.?|jr)|(?:tot|t/?m|max(?:imaal|imum)?|under|younger than|jonger dan|up to|not older than|niet ouder dan)\s*(?:de\s+leeftijd\s+van\s+|age\s+(?:of\s+)?)?(\d{2})\s*(?:jaar|years|yrs|jr)?|(?:leeftijd|age)\s*:?\s*(?:1[6-9]|2\d)\s*[-–]\s*(\d{2})", re.I)
+AGE_MIN = re.compile(r"\b(\d{2})\s*\+|(?:vanaf|minimaal|minimum(?: age)?|ouder dan|older than|at least)\s*(\d{2})\s*(?:jaar|years|jr)|senior|55-plus|65-plus", re.I)
+YOUTH = re.compile(r"jongerencontract|jongerenhuisvesting|jongeren(woning|huisvesting|wonen)|youth (contract|housing)|campuscontract", re.I)
+
+
+def unfit(x: dict) -> str:
+    """Причина, почему Андрей не подходит (студенты, возраст, только женщины). Пусто: подходит или не сказано."""
+    t = f"{x.get('title') or ''} {x.get('text') or ''} {x.get('full') or ''}"
+    if x.get("student"):
+        return "только студенты"
+    if STUDENT.search(t):
+        return "только студенты"
+    if WOMEN.search(t):
+        return "только женщины"
+    if YOUTH.search(t):
+        return "молодёжный договор (до 28)"
+    for m in AGE_MAX.finditer(t):
+        n = next((int(g) for g in m.groups() if g), None)
+        if n and 18 <= n < ME_AGE:
+            return f"до {n} лет"
+    for m in AGE_MIN.finditer(t):
+        g = next((g for g in m.groups() if g), None)
+        if g is None or (g.isdigit() and int(g) > ME_AGE + 5 and int(g) < 100):
+            return "для пожилых" if g is None or int(g) >= 50 else f"от {g} лет"
+    return str(x.get("ux") or "")
 
 
 ROOM = re.compile(r"\bkamer\b|\broom\b|onzelfstandig|gedeelde (keuken|badkamer)|shared", re.I)
@@ -158,6 +196,8 @@ def _ok(x: dict, s: dict) -> bool:
     if x["age"] is not None and x["age"] > s.get("fresh_days", 21):  # старые висяки: скорее всего уже сдано
         return False
     p = x.get("price")
+    if unfit(x):  # студенты, возраст, только женщины
+        return False
     if x.get("reg") == "no":  # без прописки не берём: BRP по месту жительства обязателен
         return False
     lim = s.get("room_max", 800) if x.get("room") else s["max"]
@@ -302,6 +342,7 @@ async def src_kamernet(cl: httpx.AsyncClient, s: dict) -> list[dict]:
                             "price": _num(x.get("totalRentalPrice") or x.get("rent")), "city": x.get("city") or city.title(),
                             "m2": _num(x.get("surfaceArea") or x.get("surface")), "url": url2 or url, "text": "",
                             "img": x.get("resizedFullPreviewImageUrl") or x.get("thumbnailUrl"),
+                            "student": bool(x.get("isStudentHouseAdvert") or x.get("studentHouseId")),
                             "date": str(x.get("publishDate") or x.get("createdAt") or x.get("activatedAt") or "")})
         if good:
             _kn_ok[city] = [p for p in good if "kamer-" not in p] or good
@@ -435,7 +476,7 @@ async def src_mail(cl: httpx.AsyncClient, s: dict) -> list[dict]:
 
 
 # Pararius и Funda напрямую режут серверы (403 / обрыв), поэтому идут через почту
-SOURCES = {"Почта (Pararius+Funda)": src_mail, "Kamernet": src_kamernet, "Marktplaats": src_marktplaats}
+SOURCES = {"Почта (Pararius+Funda)": src_mail, "Kamernet": src_kamernet}  # Marktplaats убран 27.10: почти нет квартир, одни висяки
 
 
 async def fetch_all(s: dict) -> tuple[list[dict], dict]:
@@ -491,20 +532,24 @@ async def translate(xs: list[dict]) -> None:
     if not xs:
         return
     from services import claude
-    data = [{"i": i, "t": x.get("title") or "", "d": (x.get("text") or "")[:700]} for i, x in enumerate(xs)]
+    data = [{"i": i, "t": x.get("title") or "", "d": ((x.get("text") or "") + " " + (x.get("full") or ""))[:1500]} for i, x in enumerate(xs)]
     try:
         r = await claude.client.messages.create(model=claude.FALLBACK_MODEL, max_tokens=2000, messages=[{"role": "user", "content":
             "Переведи объявления об аренде жилья с голландского на русский. Коротко и понятно, суммы и м² не меняй, "
             "в описании оставь главное (что за жильё, кухня, мебель, с какого числа, условия) в 1-2 предложениях. "
             "Поле p: \"1\" если сказано, что жильё только для одного человека (1 persoon, geen stellen), "
             "\"2\" если прямо можно вдвоём или паре (2 personen, stel), иначе \"\". Не угадывай. "
-            "Ответ строго JSON-массив [{\"i\": 0, \"t\": \"заголовок\", \"d\": \"описание\", \"p\": \"\"}]:\n" + json.dumps(data, ensure_ascii=False)}])
+            "Поле x: жилец мужчина 30 лет, работает, не студент. Если в тексте прямо сказано, что он не подходит "
+            "(только студенты, возраст до 29 или старше 35, только женщины, только для пар/семей, только для экспатов компании X), "
+            "напиши причину по-русски в 2-4 слова, иначе \"\". Не угадывай. "
+            "Ответ строго JSON-массив [{\"i\": 0, \"t\": \"заголовок\", \"d\": \"описание\", \"p\": \"\", \"x\": \"\"}]:\n" + json.dumps(data, ensure_ascii=False)}])
         t = "".join(b.text for b in r.content if b.type == "text")
         m = re.search(r"\[.*\]", t, re.S)
         for o in json.loads(m.group(0)) if m else []:
             x = xs[int(o["i"])]
             x["ru_title"], x["ru"] = str(o.get("t") or "")[:120], str(o.get("d") or "")[:400]
             x["pp"] = str(o.get("p") or "")
+            x["ux"] = str(o.get("x") or "")[:40]
     except Exception as e:
         logger.warning(f"flats translate: {e}")
 
@@ -544,6 +589,62 @@ def keep_items(s: dict) -> None:
         mark.pop(k, None)
 
 
+_KN_KEYS = re.compile(r"descr|age|student|tenant|gender|prefer|suitab|candidate|occupa|requirement|condition|household", re.I)
+
+
+async def kn_detail(cl: httpx.AsyncClient, x: dict) -> None:
+    """Страница объявления Kamernet: описание и пожелания к жильцу (возраст, пол, статус) в x['full']."""
+    try:
+        r = await cl.get(x["url"], headers=HEAD)
+        m = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', r.text, re.S)
+        if r.status_code != 200 or not m:
+            return
+        bits: list = []
+
+        def walk(o, depth=0):
+            if depth > 12 or len(bits) > 60:
+                return
+            if isinstance(o, dict):
+                for k, v in o.items():
+                    if _KN_KEYS.search(k) and v not in (None, "", [], {}) and not isinstance(v, dict):
+                        bits.append(f"{k}: {v if not isinstance(v, list) else json.dumps(v, ensure_ascii=False)[:300]}")
+                    walk(v, depth + 1)
+            elif isinstance(o, list):
+                for v in o[:50]:
+                    walk(v, depth + 1)
+        walk(json.loads(m.group(1)))
+        x["full"] = " | ".join(str(b) for b in bits)[:2500]
+        if not globals().get("_kn_dbg"):
+            globals()["_kn_dbg"] = 1
+            logger.warning("KNDETAIL " + x["full"][:1800])
+    except Exception as e:
+        logger.warning(f"kamernet detail: {e}")
+
+
+async def screen(new: list) -> list:
+    """Новые объявления: детали Kamernet, перевод, отсев по условиям (студенты, возраст, только женщины). Возвращает подходящие."""
+    kn = [x for x in new if x["src"] == "Kamernet" and x.get("url")][:40]
+    if kn:
+        sem = asyncio.Semaphore(4)
+        async with httpx.AsyncClient(timeout=20, follow_redirects=True) as cl:
+            async def one(x):
+                async with sem:
+                    await kn_detail(cl, x)
+            await asyncio.gather(*(one(x) for x in kn))
+    new = [x for x in new if not unfit(x)]
+    for i in range(0, min(len(new), 60), 15):
+        await translate(new[i:i + 15])
+    out = []
+    for x in new:
+        why = unfit(x)
+        if why:
+            logger.info(f"flats skip ({why}): {x.get('title')}")
+        else:
+            x.pop("full", None)
+            out.append(x)
+    return out
+
+
 SEND_NOW = 10  # квартиры и студии сразу в чат, не больше стольких за проверку
 
 
@@ -569,12 +670,8 @@ async def check(uid: int, send) -> int:
         (new if not fresh_src or x.get("push") else quiet).append(x)
     s["seen"] = {k: list(v)[-1500:] for k, v in seen.items()}
     s["stat"] = {**stat, "_t": now}
-    for i in range(0, min(len(new), 45), 15):
-        await translate(new[i:i + 15])
+    new = await screen(new)
     items = s.get("items") or {}
-    for x in quiet:
-        x["seed"] = True  # было до включения: в ленте есть, «новым» не считается
-        items.setdefault(key(x), x)
     for x in new:
         items[key(x)] = x
     s["items"] = items
