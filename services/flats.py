@@ -191,6 +191,10 @@ async def src_marktplaats(cl: httpx.AsyncClient, s: dict) -> list[dict]:
     for (city, _), lst in zip(jobs, res):
         if isinstance(lst, Exception):
             continue
+        if not globals().get("_dbg_mp") and lst:
+            globals()["_dbg_mp"] = 1
+            for it in lst[:30]:
+                logger.warning("DBGMP " + json.dumps({k: it.get(k) for k in ("title", "date", "location", "categoryId", "priorityProduct", "vipUrl", "attributes", "extendedAttributes", "verticals", "sellerInformation")}, ensure_ascii=False)[:700])
         for it in lst:
             iid = str(it.get("itemId") or it.get("id") or "")
             if not iid or iid in seen:
@@ -270,6 +274,9 @@ async def src_kamernet(cl: httpx.AsyncClient, s: dict) -> list[dict]:
             _walk(json.loads(m.group(1)), found)
             if found:
                 good.append(pat)
+                if not globals().get("_dbg_kn"):
+                    globals()["_dbg_kn"] = 1
+                    logger.warning("DBGKN " + json.dumps(found[0], ensure_ascii=False)[:2500])
             for x in found:
                 lid = str(x.get("listingId"))
                 if lid in seen:
