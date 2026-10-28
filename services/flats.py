@@ -691,6 +691,83 @@ async def screen(new: list) -> list:
     return out
 
 
+GONE_TXT = re.compile(r"verhuurd|niet meer beschikbaar|no longer available|is rented|rented out|onder optie|deze advertentie is (niet )?(meer )?(actief|offline)|advertentie verlopen", re.I)
+
+
+async def alive(cl: httpx.AsyncClient, x: dict) -> bool | None:
+    """Объявление ещё висит? True / False (снято) / None (не удалось понять: сайт не пустил)."""
+    url = str(x.get("url") or "")
+    if not url.startswith("http"):
+        return None
+    try:
+        r = await cl.get(url, headers=HEAD)
+    except Exception:
+        return None
+    if r.status_code in (404, 410):
+        return False
+    if r.status_code != 200:
+        return None
+    if x.get("src") == "Kamernet":
+        lid = str(x.get("id"))
+        if lid not in str(r.url):
+            return False  # перекинуло на поиск: объявления нет
+        m = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', r.text, re.S)
+        if m:
+            found: list = []
+
+            def find(o, d=0):
+                if d > 14:
+                    return
+                if isinstance(o, dict):
+                    if str(o.get("listingId") or "") == lid and "isActive" in o:
+                        found.append(o)
+                    for v in o.values():
+                        find(v, d + 1)
+                elif isinstance(o, list):
+                    for v in o[:80]:
+                        find(v, d + 1)
+            find(json.loads(m.group(1)))
+            if found:
+                return bool(found[0].get("isActive"))
+        return None
+    return False if GONE_TXT.search(r.text[:200000]) else True
+
+
+async def sweep(uid: int) -> list[str]:
+    """Утро: проверяем, какие объявления из «Аренды» сняли с сайтов. Снятые удаляем (★ тоже),
+    «написал» оставляем с пометкой «снято». Возвращает названия снятых из ★ и «написал»."""
+    s = await get(uid)
+    items, mark = s.get("items") or {}, s.get("mark") or {}
+    todo = [k for k, x in items.items() if not x.get("gone")][:150]
+    res: dict = {}
+    sem = asyncio.Semaphore(3)
+    async with httpx.AsyncClient(timeout=20, follow_redirects=True) as cl:
+        async def one(k):
+            async with sem:
+                res[k] = await alive(cl, items[k])
+        await asyncio.gather(*(one(k) for k in todo))
+    s = await get(uid)  # свежая версия: за время проверки могли поставить отметки
+    items, mark = s.get("items") or {}, s.get("mark") or {}
+    lost = []
+    for k, ok in res.items():
+        if ok is not False or k not in items:
+            continue
+        x = items[k]
+        if mark.get(k) in ("star", "sent"):
+            lost.append(("★ " if mark[k] == "star" else "✉️ ") + str(x.get("ru_title") or x.get("title") or "")[:60])
+        if mark.get(k) == "sent":
+            x["gone"] = 1
+        else:
+            items.pop(k, None)
+            mark.pop(k, None)
+    s["items"], s["mark"] = items, mark
+    s["sweep"] = {"t": int(time.time()), "checked": len(res), "gone": sum(1 for v in res.values() if v is False),
+                  "unknown": sum(1 for v in res.values() if v is None)}
+    await put(uid, s)
+    logger.info(f"flats sweep: {s['sweep']}")
+    return lost
+
+
 SEND_NOW = 10  # квартиры и студии сразу в чат, не больше стольких за проверку
 
 
@@ -776,7 +853,7 @@ def public(s: dict) -> dict:
         out.append({"k": k, "src": x.get("src"), "title": x.get("ru_title") or x.get("title"), "orig": x.get("title") if x.get("ru_title") else "",
                     "price": x.get("price"), "m2": x.get("m2"), "city": x.get("city"), "url": x.get("url"), "img": x.get("img"),
                     "text": x.get("ru") or x.get("text") or "", "room": bool(x.get("room")), "reg": x.get("reg"), "pair": pair(x),
-                    "age": x.get("age"), "t": x.get("t") or 0, "seed": bool(x.get("seed")), "m": mark.get(k, "")})
+                    "age": x.get("age"), "t": x.get("t") or 0, "seed": bool(x.get("seed")), "m": mark.get(k, ""), "gone": bool(x.get("gone"))})
     out.sort(key=lambda o: -o["t"])
     return {"on": bool(s.get("on")), "max": s.get("max"), "room_max": s.get("room_max", 800), "areas": s.get("areas"),
             "viewed": s.get("viewed") or 0, "check": (s.get("stat") or {}).get("_t") or 0, "items": out}

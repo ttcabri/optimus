@@ -152,6 +152,21 @@ async def send_flats(bot: Bot, uid: int = TELEGRAM_USER_ID) -> None:
         logger.error(f"flats: {e}")
 
 
+async def send_flats_sweep(bot: Bot, uid: int = TELEGRAM_USER_ID) -> None:
+    """08:40 — чистка «Аренды»: снятые с сайтов объявления убираем, про избранные сообщаем."""
+    from services import flats
+    try:
+        s = await flats.get(uid)
+        if not s.get("items"):
+            return
+        lost = await flats.sweep(uid)
+        if lost:
+            await bot.send_message(uid, "🧹 <b>Сняли с сайтов</b>, убрал из «Аренды»:\n" + "\n".join(html.escape(t) for t in lost[:15])
+                                   + ("\n\n«Написал» оставил с пометкой «снято»." if any(t.startswith("✉️") for t in lost) else ""))
+    except Exception as e:
+        logger.error(f"flats sweep: {e}")
+
+
 async def send_flats_day(bot: Bot, uid: int = TELEGRAM_USER_ID) -> None:
     """20:00 — сводка по жилью за сутки (если поиск включён и было что-то новое)."""
     from services import flats
@@ -373,6 +388,7 @@ def setup_scheduler(bot: Bot) -> AsyncIOScheduler:
     scheduler.add_job(each(send_reminders), "cron", minute="*", kwargs={"bot": bot})
     scheduler.add_job(each(send_flats), "cron", minute="*/5", second=40, kwargs={"bot": bot})
     scheduler.add_job(each(send_flats_day), "cron", hour=20, minute=0, second=50, kwargs={"bot": bot})
+    scheduler.add_job(each(send_flats_sweep), "cron", hour=8, minute=40, second=10, kwargs={"bot": bot})
     scheduler.add_job(each(send_step_timer), "cron", minute="*", second=20, kwargs={"bot": bot})
     scheduler.add_job(each(send_quest_night), "cron", hour=22, minute=30, kwargs={"bot": bot})
     scheduler.add_job(each(send_quest_week), "cron", day_of_week="sun", hour=21, minute=0, kwargs={"bot": bot})

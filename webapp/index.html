@@ -1259,7 +1259,7 @@ function flSet(v){FL=v;if(tab==="home")render();if(W&&W.step==="flat")renderShee
 const flNew=x=>!x.seed&&x.m!=="no"&&FLV!=null&&x.t>FLV;
 const flPrice=x=>x.price?"€"+Math.round(x.price):"цена ?";
 function flAge(x){const d=x.age!=null?x.age:x.t?Math.floor((Date.now()/1000-x.t)/86400):null;return d==null?"":d===0?"сегодня":d===1?"вчера":d+" дн."}
-function flTags(x,sh){return (x.m&&FLM[x.m]&&x.m!=="no"&&!sh?`<i class="g">${FLM[x.m]}</i>`:"")+(x.reg==="yes"?'<i class="g">✅ прописка</i>':x.reg==="?"?"<i>❔ прописка</i>":"")+(x.pair==="yes"?'<i class="g">👫 вдвоём</i>':x.pair==="no"?'<i class="r">⚠️ только один</i>':"")+(sh?"":(flAge(x)?`<i>${flAge(x)}</i>`:"")+`<i>${esc(x.src||"")}</i>`)}
+function flTags(x,sh){return (x.gone?'<i class="r">снято с сайта</i>':"")+(x.m&&FLM[x.m]&&x.m!=="no"&&!sh?`<i class="g">${FLM[x.m]}</i>`:"")+(x.reg==="yes"?'<i class="g">✅ прописка</i>':x.reg==="?"?"<i>❔ прописка</i>":"")+(x.pair==="yes"?'<i class="g">👫 вдвоём</i>':x.pair==="no"?'<i class="r">⚠️ только один</i>':"")+(sh?"":(flAge(x)?`<i>${flAge(x)}</i>`:"")+`<i>${esc(x.src||"")}</i>`)}
 const FLM={sent:"✉️ написал",star:"★",no:"скрыто"};
 function viewRent(head){
   if(FL===null){loadFlats();return head("Аренда","")+`<p class="empty" style="padding:4px 20px">${flErr?"Не загрузилось: "+esc(flErr):"Загружаю объявления…"}</p>`}
