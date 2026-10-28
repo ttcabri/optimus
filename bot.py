@@ -76,6 +76,16 @@ async def main() -> None:
     scheduler = setup_scheduler(bot)
     scheduler.start()
 
+    async def _sweep0():  # после запуска: тихая чистка «Аренды» (результат в логах)
+        await asyncio.sleep(30)
+        try:
+            from services import flats as _fl
+            lost = await _fl.sweep(TELEGRAM_USER_ID)
+            logging.warning(f"FLSWEEP lost={lost} {(await _fl.get(TELEGRAM_USER_ID)).get('sweep')}")
+        except Exception as e:
+            logging.warning(f"FLSWEEP fail {e}")
+    asyncio.get_event_loop().create_task(_sweep0())
+
     import webserver
     webserver.BOT = bot
     await start_web()
