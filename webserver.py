@@ -298,12 +298,24 @@ async def post_flats(request: web.Request) -> web.Response:
     elif op == "undo":
         flats.undrop(s, k)
     elif op == "mark":
-        v = body.get("v") if body.get("v") in ("", "star", "sent") else ""
+        v = body.get("v") if body.get("v") in ("", "star", "sent", "view") else ""
         mark = s.setdefault("mark", {})
         if v:
             mark[k] = v
         else:
             mark.pop(k, None)
+    elif op == "note":
+        notes = s.setdefault("note", {})
+        t = str(body.get("t") or "").strip()[:500]
+        if t:
+            notes[k] = t
+        else:
+            notes.pop(k, None)
+    elif op == "detail":
+        try:
+            await flats.detail(s, k)
+        except Exception as e:
+            logger.warning(f"flats detail: {e}")
     elif op == "viewed":
         s["viewed"] = int(__import__("time").time())
     elif op == "letter":

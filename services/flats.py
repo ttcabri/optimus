@@ -74,7 +74,7 @@ async def get(uid: int) -> dict:
         out["mdord"] = True
     if not out.get("mclean"):  # разово 27.10: чистая база, остаются только отмеченные (★ и «написал»), дальше только новое
         mark = out.get("mark") or {}
-        keep = {k for k, v in mark.items() if v in ("star", "sent")}
+        keep = {k for k, v in mark.items() if v in ("star", "sent", "view")}
         out["items"] = {k: v for k, v in (out.get("items") or {}).items() if k in keep}
         out["mark"] = {k: v for k, v in mark.items() if k in keep}
         out["viewed"] = int(time.time())
@@ -85,7 +85,7 @@ async def get(uid: int) -> dict:
         seenfp: dict = {}
         for k, x in sorted((out.get("items") or {}).items(), key=lambda kv: -(kv[1].get("t") or 0)):
             f = fp(x)
-            if f and f in seenfp and (out.get("mark") or {}).get(k) not in ("star", "sent"):
+            if f and f in seenfp and (out.get("mark") or {}).get(k) not in ("star", "sent", "view"):
                 out["items"].pop(k, None)
             elif f:
                 seenfp[f] = k
@@ -612,7 +612,7 @@ def keep_items(s: dict) -> None:
     if len(items) <= ITEMS_MAX:
         return
     order = sorted(items, key=lambda k: items[k].get("t") or 0)
-    drop = [k for k in order if mark.get(k) not in ("star", "sent")][:len(items) - ITEMS_MAX]
+    drop = [k for k in order if mark.get(k) not in ("star", "sent", "view")][:len(items) - ITEMS_MAX]
     for k in drop:
         items.pop(k, None)
         mark.pop(k, None)
@@ -687,6 +687,30 @@ async def kn_detail(cl: httpx.AsyncClient, x: dict) -> None:
             elif "gender" in kl and re.fullmatch(r"\s*(female|vrouw|women|woman|2)\s*", v, re.I) and "landlord" not in kl:
                 x["ux"] = "только женщины"
         extra = [f"Залог €{det['deposit']}" if det.get("deposit") else "", f"с {str(det['availabilityStartDate'])[:10]}" if det.get("availabilityStartDate") else ""]
+        raw = json.dumps(det)
+        ph, seen_u = [], set()
+        for u in re.findall(r"https://resources\.kamernet\.nl/image/([0-9a-f-]{36})", raw):
+            if u not in seen_u:
+                seen_u.add(u)
+                ph.append(f"https://resources.kamernet.nl/image/{u}")
+        if ph:
+            x["photos"] = ph[:20]
+            x["big"] = x.get("big") or ph[0]
+            x["img"] = x.get("img") or ph[0]
+        def d10(v):
+            v = str(v or "")[:10]
+            return f"{v[8:10]}.{v[5:7]}.{v[:4]}" if re.match(r"\d{4}-\d\d-\d\d", v) else ""
+        fx = {"Залог": f"€{det['deposit']:g}" if isinstance(det.get("deposit"), (int, float)) and det["deposit"] else "",
+              "Свободно с": d10(det.get("availabilityStartDate")),
+              "До": d10(det.get("availabilityEndDate")) or "бессрочно" if det.get("availabilityStartDate") else "",
+              "Коммуналка": "включена" if det.get("utilitiesIncluded") is True else "не включена" if det.get("utilitiesIncluded") is False else "",
+              "Человек": str(det.get("suitableForNumberOfPersons") or ""),
+              "Хозяин": str(det.get("landlordDisplayName") or "")[:30],
+              "Отвечает": str(det.get("responseRateText") or ""),
+              "На сайте с": d10(det.get("publishDate")),
+              "Индекс": str(det.get("postalCode") or "")}
+        x["facts"] = {k: v for k, v in fx.items() if v}
+        x["street"] = str(det.get("computedStreetName") or det.get("street") or "")
         x["text"] = (" · ".join(e for e in extra if e) + ". " + str(det.get("englishDescription") or det.get("dutchDescription") or det.get("description") or "")).strip(". ")[:1500]
         x["full"] = " | ".join(str(b) for b in bits)[:2500]
         if not globals().get("_kn_dbg"):
@@ -716,6 +740,8 @@ async def screen(new: list) -> list:
             logger.info(f"flats skip ({why}): {x.get('title')}")
         else:
             x.pop("full", None)
+            if x["src"] == "Kamernet":
+                x["det"] = 1
             out.append(x)
     return out
 
@@ -782,9 +808,9 @@ async def sweep(uid: int) -> list[str]:
         if ok is not False or k not in items:
             continue
         x = items[k]
-        if mark.get(k) in ("star", "sent"):
-            lost.append(("★ " if mark[k] == "star" else "✉️ ") + str(x.get("ru_title") or x.get("title") or "")[:60])
-        if mark.get(k) == "sent":
+        if mark.get(k) in ("star", "sent", "view"):
+            lost.append({"star": "★ ", "sent": "✉️ ", "view": "📅 "}[mark[k]] + str(x.get("ru_title") or x.get("title") or "")[:60])
+        if mark.get(k) in ("sent", "view"):
             x["gone"] = 1
         else:
             items.pop(k, None)
@@ -812,7 +838,7 @@ async def check(uid: int, send) -> int:
         if probe:
             async with httpx.AsyncClient(timeout=20, follow_redirects=True) as cl:
                 await kn_detail(cl, probe)
-            logger.warning(f"KNPROBE {probe.get('url')} unfit={unfit(probe)!r}")
+            logger.warning(f"KNPROBE {probe.get('url')} unfit={unfit(probe)!r} photos={len(probe.get('photos') or [])} facts={probe.get('facts')}")
     old = s.get("seen") or {}
     seen = {k: set(v) for k, v in old.items()}
     fps = set(s.get("fp") or []) | {fp(x) for x in (s.get("items") or {}).values()}
@@ -886,6 +912,18 @@ async def ensure_ru(s: dict, limit: int = 20) -> bool:
     return bool(xs)
 
 
+async def detail(s: dict, k: str) -> bool:
+    """Подробности по объявлению по запросу из приложения (фото, факты). True, если что-то обновили."""
+    x = (s.get("items") or {}).get(k)
+    if not x or x.get("det") or x.get("src") != "Kamernet":
+        return False
+    async with httpx.AsyncClient(timeout=20, follow_redirects=True) as cl:
+        await kn_detail(cl, x)
+    x.pop("full", None)
+    x["det"] = 1
+    return True
+
+
 def drop(s: dict, k: str) -> None:
     """«Не надо»: убрать из «Аренды» насовсем (и больше не присылать). Держим в корзине для «Вернуть»."""
     x = (s.get("items") or {}).pop(k, None)
@@ -918,7 +956,9 @@ def public(s: dict) -> dict:
         out.append({"k": k, "src": x.get("src"), "title": x.get("ru_title") or x.get("title"), "orig": x.get("title") if x.get("ru_title") else "",
                     "price": x.get("price"), "m2": x.get("m2"), "city": x.get("city"), "url": x.get("url"), "img": x.get("img"), "big": x.get("big") or x.get("img"),
                     "text": x.get("ru") or x.get("text") or "", "room": bool(x.get("room")), "reg": x.get("reg"), "pair": pair(x),
-                    "age": x.get("age"), "t": x.get("t") or 0, "seed": bool(x.get("seed")), "m": mark.get(k, ""), "gone": bool(x.get("gone"))})
+                    "age": x.get("age"), "t": x.get("t") or 0, "seed": bool(x.get("seed")), "m": mark.get(k, ""), "gone": bool(x.get("gone")),
+                    "photos": x.get("photos") or ([x["big"]] if x.get("big") else []), "facts": x.get("facts") or {},
+                    "street": x.get("street") or "", "note": (s.get("note") or {}).get(k, ""), "det": bool(x.get("det"))})
     out.sort(key=lambda o: -o["t"])
     return {"on": bool(s.get("on")), "max": s.get("max"), "room_max": s.get("room_max", 800), "areas": s.get("areas"),
             "viewed": s.get("viewed") or 0, "check": (s.get("stat") or {}).get("_t") or 0, "items": out}
