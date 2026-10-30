@@ -79,6 +79,17 @@ async def get(uid: int) -> dict:
         out["mark"] = {k: v for k, v in mark.items() if k in keep}
         out["viewed"] = int(time.time())
         out["mclean"] = True
+    if not out.get("mno"):  # разово 30.10: «Не надо» теперь удаляет; старые скрытые убираем, дубли склеиваем
+        for k in [k for k, v in (out.get("mark") or {}).items() if v == "no"]:
+            drop(out, k)
+        seenfp: dict = {}
+        for k, x in sorted((out.get("items") or {}).items(), key=lambda kv: -(kv[1].get("t") or 0)):
+            f = fp(x)
+            if f and f in seenfp and (out.get("mark") or {}).get(k) not in ("star", "sent"):
+                out["items"].pop(k, None)
+            elif f:
+                seenfp[f] = k
+        out["mno"] = True
     if not out.get("mabout") and not out.get("about"):
         from config import TELEGRAM_USER_ID
         if uid == TELEGRAM_USER_ID:
@@ -342,6 +353,7 @@ async def src_kamernet(cl: httpx.AsyncClient, s: dict) -> list[dict]:
                             "price": _num(x.get("totalRentalPrice") or x.get("rent")), "city": x.get("city") or city.title(),
                             "m2": _num(x.get("surfaceArea") or x.get("surface")), "url": url2 or url, "text": "",
                             "img": x.get("resizedFullPreviewImageUrl") or x.get("thumbnailUrl"),
+                            "big": x.get("fullPreviewImageUrl") or x.get("resizedFullPreviewImageUrl"),
                             "student": bool(x.get("isStudentHouseAdvert") or x.get("studentHouseId")),
                             "date": str(x.get("publishDate") or x.get("createdAt") or x.get("activatedAt") or "")})
         if good:
@@ -495,6 +507,23 @@ async def fetch_all(s: dict) -> tuple[list[dict], dict]:
                 return []
         res = await asyncio.gather(*(one(n, f) for n, f in SOURCES.items()))
     return [x for xs in res for x in xs], stat
+
+
+_FP_DROP = re.compile(r"\b(kamer|room|studio|appartement|apartment|flat|huis|house|woning|bovenwoning|benedenwoning|te huur|for rent|huren|"
+                      r"комната|студия|квартира|дом|in|aan|de|het|van|op|te|the|a)\b", re.I)
+
+
+def fp(x: dict) -> str:
+    """Отпечаток квартиры для склейки дублей: улица/название без типа жилья + город + цена (до €10)."""
+    t = f"{x.get('title') or ''}".split(",")[0].lower()
+    for c0 in [str(x.get("city") or "").lower()] + list(POSTCODES):
+        if c0 and len(c0) > 3:
+            t = t.replace(c0, " ")
+    t = _FP_DROP.sub(" ", t)
+    t = re.sub(r"[^a-zа-я0-9]+", "", t)[:24]
+    c = re.sub(r"[^a-z]+", "", str(x.get("city") or "").lower())[:12]
+    p = int(round((x.get("price") or 0) / 10))
+    return f"{t}|{c}|{p}" if t else ""
 
 
 def key(x: dict) -> str:
@@ -786,7 +815,8 @@ async def check(uid: int, send) -> int:
             logger.warning(f"KNPROBE {probe.get('url')} unfit={unfit(probe)!r}")
     old = s.get("seen") or {}
     seen = {k: set(v) for k, v in old.items()}
-    new, quiet = [], []
+    fps = set(s.get("fp") or []) | {fp(x) for x in (s.get("items") or {}).values()}
+    new = []
     now = int(time.time())
     for x in xs:
         k = key(x)
@@ -795,17 +825,28 @@ async def check(uid: int, send) -> int:
         if k in bucket:
             continue
         bucket.add(k)
+        f = fp(x)
+        if f and f in fps:
+            continue  # та же квартира уже была (с другого сайта или из другого письма)
+        if f:
+            fps.add(f)
         x["t"] = now
-        (new if not fresh_src or x.get("push") else quiet).append(x)
-    s["seen"] = {k: list(v)[-1500:] for k, v in seen.items()}
-    s["stat"] = {**stat, "_t": now}
+        if not fresh_src or x.get("push"):
+            new.append(x)
     new = await screen(new)
-    items = s.get("items") or {}
+    # сохраняем поверх свежей версии: пока шла проверка, могли нажать «Не надо», ★ и т.п.
+    s2 = await get(uid)
+    s2["seen"] = {k: list(v)[-1500:] for k, v in seen.items()}
+    s2["fp"] = list(fps)[-3000:]
+    s2["stat"] = {**stat, "_t": now}
+    items = s2.get("items") or {}
+    gone = set(s2.get("no") or [])
+    new = [x for x in new if key(x) not in gone]
     for x in new:
         items[key(x)] = x
-    s["items"] = items
-    keep_items(s)
-    await put(uid, s)
+    s2["items"] = items
+    keep_items(s2)
+    await put(uid, s2)
     flats_ = [x for x in new if not x.get("room")]
     for x in flats_[:SEND_NOW]:
         try:
@@ -845,13 +886,37 @@ async def ensure_ru(s: dict, limit: int = 20) -> bool:
     return bool(xs)
 
 
+def drop(s: dict, k: str) -> None:
+    """«Не надо»: убрать из «Аренды» насовсем (и больше не присылать). Держим в корзине для «Вернуть»."""
+    x = (s.get("items") or {}).pop(k, None)
+    (s.get("mark") or {}).pop(k, None)
+    no = s.setdefault("no", [])
+    if k not in no:
+        no.append(k)
+    s["no"] = no[-2000:]
+    if x:
+        if fp(x):
+            s.setdefault("fp", []).append(fp(x))
+        tr = s.setdefault("trash", {})
+        tr[k] = x
+        s["trash"] = dict(list(tr.items())[-60:])
+
+
+def undrop(s: dict, k: str) -> bool:
+    x = (s.get("trash") or {}).pop(k, None)
+    s["no"] = [n for n in s.get("no") or [] if n != k]
+    if x:
+        s.setdefault("items", {})[k] = x
+    return bool(x)
+
+
 def public(s: dict) -> dict:
     """Что отдаём приложению."""
     mark = s.get("mark") or {}
     out = []
     for k, x in (s.get("items") or {}).items():
         out.append({"k": k, "src": x.get("src"), "title": x.get("ru_title") or x.get("title"), "orig": x.get("title") if x.get("ru_title") else "",
-                    "price": x.get("price"), "m2": x.get("m2"), "city": x.get("city"), "url": x.get("url"), "img": x.get("img"),
+                    "price": x.get("price"), "m2": x.get("m2"), "city": x.get("city"), "url": x.get("url"), "img": x.get("img"), "big": x.get("big") or x.get("img"),
                     "text": x.get("ru") or x.get("text") or "", "room": bool(x.get("room")), "reg": x.get("reg"), "pair": pair(x),
                     "age": x.get("age"), "t": x.get("t") or 0, "seed": bool(x.get("seed")), "m": mark.get(k, ""), "gone": bool(x.get("gone"))})
     out.sort(key=lambda o: -o["t"])

@@ -302,16 +302,18 @@ button.hrow{width:100%;border:none;color:inherit;font:inherit;text-align:left}
 .flt{display:flex;gap:6px;overflow-x:auto;padding:0 16px 8px;scrollbar-width:none}.flt::-webkit-scrollbar{display:none}
 .flt .chip{flex-shrink:0;white-space:nowrap}.flt .chip b{color:var(--fg);margin-left:3px}.flt .chip[aria-pressed=true]{border-color:var(--gold);color:var(--gold);background:#3a2416}
 .fls{display:flex;flex-direction:column;gap:8px;padding:0 16px}
-.flc{position:relative;display:grid;grid-template-columns:88px minmax(0,1fr);gap:10px;padding:8px;border-radius:16px;background:var(--panel);border:none;color:inherit;font:inherit;text-align:left;width:100%;overflow:hidden}
-.flc.nw::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--gold)}
-.flc.dim{opacity:.45}
-.flc .im{width:88px;height:88px;border-radius:11px;background:var(--panel2);display:grid;place-items:center;font-size:30px;overflow:hidden}.flc .im img{width:100%;height:100%;object-fit:cover}
-.flc .bd{min-width:0;display:flex;flex-direction:column;gap:2px}
-.flc b{font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.flc .pr{font-weight:800;color:var(--gold);font-size:15px}.flc .pr small{color:var(--muted);font-weight:700;font-size:12px}
+.flc{position:relative;display:flex;flex-direction:column;padding:0;border-radius:18px;background:var(--panel);border:none;color:inherit;font:inherit;text-align:left;width:100%;overflow:hidden}
+.flc.nw{box-shadow:inset 0 0 0 2px var(--gold)}
+.flc .im{position:relative;width:100%;aspect-ratio:16/10;max-width:100%;background:var(--panel2);display:grid;place-items:center;font-size:44px;overflow:hidden}.flc .im img{width:100%;height:100%;object-fit:cover;display:block}
+.flc .im .pb{position:absolute;left:10px;bottom:10px;padding:5px 10px;border-radius:10px;background:rgba(23,17,14,.85);color:var(--gold);font-weight:800;font-size:17px}
+.flc .im .nb{position:absolute;left:10px;top:10px;padding:3px 8px;border-radius:8px;background:var(--gold);color:var(--ink);font-weight:800;font-size:11px}
+.flc .im .st{position:absolute;right:10px;top:10px;padding:3px 8px;border-radius:8px;background:rgba(23,17,14,.85);color:var(--okl);font-weight:800;font-size:12px}
+.flc .bd{min-width:0;display:flex;flex-direction:column;gap:3px;padding:10px 12px 12px}
+.flc b{font-size:15.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.flc .pr{font-weight:700;color:var(--muted);font-size:13px}
 .fltg{display:flex;gap:4px;flex-wrap:wrap;margin-top:2px}.fltg i{font-style:normal;font-size:11px;font-weight:800;padding:3px 7px;border-radius:8px;background:var(--panel2);color:var(--muted)}.fltg i.g{color:var(--okl)}.fltg i.r{color:var(--red)}
 .flc .mk{position:absolute;right:8px;top:8px;font-size:11px;font-weight:800;color:var(--okl)}
-.flbig{height:190px;border-radius:16px;background:var(--panel);display:grid;place-items:center;font-size:44px;overflow:hidden}.flbig img{width:100%;height:100%;object-fit:cover}
+.flbig{height:auto;aspect-ratio:4/3;max-width:100%;border-radius:16px;background:var(--panel);display:grid;place-items:center;font-size:44px;overflow:hidden}.flbig img{width:100%;height:100%;object-fit:cover}
 .flmeta{display:flex;gap:10px;flex-wrap:wrap;font-size:13px;font-weight:700;color:var(--muted)}.flmeta .p{color:var(--gold)}
 .fltx{font-size:13.5px;line-height:1.45;background:var(--panel);border-radius:12px;padding:10px 12px;margin:0}.fltx small{display:block;color:var(--dim);font-size:11.5px;margin-top:6px}
 .flbt{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.flbt .chip{min-height:44px;justify-content:center;text-align:center}.flbt .chip[aria-pressed=true]{border-color:var(--gold);color:var(--gold);background:#3a2416}
@@ -1268,7 +1270,7 @@ function viewRent(head){
   const F={all:["Все",vis],new:["Новые",vis.filter(flNew)],flat:["Квартиры",vis.filter(x=>!x.room)],room:["Комнаты",vis.filter(x=>x.room)],star:["★",all.filter(x=>x.m==="star")],sent:["Написал",all.filter(x=>x.m==="sent")],no:["Скрытые",all.filter(x=>x.m==="no")]};
   if(!F[flTab])flTab="all";
   const chk=FL.check?new Date(FL.check*1000).toTimeString().slice(0,5):"";
-  const card=x=>`<button type="button" class="flc${flNew(x)?" nw":""}${x.m==="no"&&flTab!=="no"?" dim":""}" data-fl="${esc(x.k)}"><span class="im">${x.img?`<img src="${esc(x.img)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:(x.room?"🛏":"🏠")}</span><span class="bd"><b>${x.room?"🛏 ":""}${esc(x.title||"Объявление")}</b><span class="pr">${flPrice(x)} <small>${x.m2?" · "+Math.round(x.m2)+" м²":""} · ${esc(x.city||"")}</small></span><span class="fltg">${flTags(x)}</span></span></button>`;
+  const card=x=>`<button type="button" class="flc${flNew(x)?" nw":""}" data-fl="${esc(x.k)}"><span class="im">${x.img?`<img src="${esc(x.img)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:(x.room?"🛏":"🏠")}<span class="pb">${flPrice(x)}</span>${flNew(x)?'<span class="nb">НОВОЕ</span>':""}${x.m==="star"?'<span class="st">★</span>':x.m==="sent"?'<span class="st">✉️ написал</span>':""}</span><span class="bd"><b>${x.room?"🛏 ":""}${esc(x.title||"Объявление")}</b><span class="pr">${[x.m2?Math.round(x.m2)+" м²":"",esc(x.city||""),esc(x.src||"")].filter(Boolean).join(" · ")}</span><span class="fltg">${flTags(x,1)}${flAge(x)?`<i>${flAge(x)}</i>`:""}</span></span></button>`;
   const list=F[flTab][1];
   return head("Аренда","")+`<p class="rhint" style="padding:0 20px 8px">${FL.on?"Поиск включён":"Поиск выключен"} · до €${FL.max}, комнаты до €${FL.room_max}${chk?" · проверка "+chk:""}</p>`
     +`<div class="flt">${Object.entries(F).filter(([k,[_,a]])=>k==="all"||a.length).map(([k,[t,a]])=>`<button type="button" class="chip" data-flt="${k}" aria-pressed="${flTab===k}">${t}<b>${a.length}</b></button>`).join("")}</div>`
@@ -1802,7 +1804,7 @@ function renderSheet(){
   const dele=(a,tx)=>`<button type="button" class="dellink" data-w="${a}">${tx}</button>`;
   if(W.step==="flat"){const x=FL&&FL.items.find(o=>o.k===W.k);
     if(!x)body=`<h2>Объявление</h2><p class="empty">Не нашёл, обнови список.</p>`;
-    else body=`<div class="flbig">${x.img?`<img src="${esc(x.img)}" alt="" referrerpolicy="no-referrer">`:(x.room?"🛏":"🏠")}</div>
+    else body=`<div class="flbig">${x.big||x.img?`<img src="${esc(x.big||x.img)}" alt="" referrerpolicy="no-referrer">`:(x.room?"🛏":"🏠")}</div>
       <h2 style="margin:0">${x.room?"🛏 ":""}${esc(x.title||"Объявление")}</h2>
       <div class="flmeta"><span class="p">${flPrice(x)}</span>${x.m2?`<span>${Math.round(x.m2)} м²</span>`:""}<span>${esc(x.city||"")}</span><span>${esc(x.src||"")}</span>${flAge(x)?`<span>${flAge(x)}</span>`:""}</div>
       <div class="fltg">${flTags(x,1)}</div>
@@ -2005,8 +2007,8 @@ $("sheet").addEventListener("click",e=>{
   const b=e.target.closest("[data-w]");if(!b)return;e.stopPropagation();const a=b.dataset.w;
   if(a==="close")return closeSheet();
   if(W&&W.step==="flat"&&a.startsWith("fl")){const x=FL&&FL.items.find(o=>o.k===W.k);if(!x)return;
-    if(a.startsWith("flm:")){const v=a.slice(4)===x.m?"":a.slice(4),w0=W;x.m=v;renderSheet();render();
-      fetchFlats("mark",{k:x.k,v}).then(r=>{flSet(r);if(v==="no"&&W===w0){closeSheet();toast("Скрыл. Найдёшь во вкладке «Скрытые»")}}).catch(e=>toast(String(e.message||"Не получилось")));return}
+    if(a.startsWith("flm:")){const v=a.slice(4)===x.m?"":a.slice(4),w0=W;x.m=v;if(v==="no"){FL.items=FL.items.filter(o=>o!==x);closeSheet();toast("Убрал из «Аренды». Больше не пришлю")}else renderSheet();render();
+      fetchFlats("mark",{k:x.k,v}).then(r=>{flSet(r);if(v==="no"&&W===w0){closeSheet();toast("Убрал из «Аренды». Больше не пришлю")}}).catch(e=>toast(String(e.message||"Не получилось")));return}
     if(a==="flopen"){const T=window.Telegram&&Telegram.WebApp;try{T&&T.openLink?T.openLink(x.url):window.open(x.url,"_blank")}catch(e){window.open(x.url,"_blank")}return}
     if(a==="flletter"){const w0=W;W.busy=true;renderSheet();
       fetchFlats("letter",{k:x.k}).then(r=>{w0.busy=false;w0.letter=r;if(W===w0)renderSheet()}).catch(e=>{w0.busy=false;if(W===w0)renderSheet();toast(String(e.message||"Не получилось"))});return}

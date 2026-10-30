@@ -79,10 +79,14 @@ async def flats_no(cb: CallbackQuery) -> None:
     from services import flats
     s = await flats.get(cb.from_user.id)
     k = cb.data[5:]
-    mark = s.setdefault("mark", {})
-    mark[k] = "" if mark.get(k) == "no" else "no"
+    gone_now = k not in (s.get("no") or [])
+    if gone_now:
+        flats.drop(s, k)
+    else:
+        flats.undrop(s, k)
     await flats.put(cb.from_user.id, s)
-    await cb.answer("Скрыл из «Аренды»" if mark[k] else "Вернул")
+    mark = {k: "no" if gone_now else ""}
+    await cb.answer("Убрал из «Аренды», больше не пришлю" if gone_now else "Вернул в «Аренду»")
     try:
         from aiogram.types import InlineKeyboardMarkup
         rows = [[b.model_copy(update={"text": "↩️ Вернуть" if mark[k] else "👎 Не надо"}) if b.callback_data == cb.data else b for b in row]

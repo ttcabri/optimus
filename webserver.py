@@ -293,8 +293,12 @@ async def post_flats(request: web.Request) -> web.Response:
         body = {}
     s = await flats.get(uid)
     op, k = body.get("op"), str(body.get("k") or "")
-    if op == "mark":
-        v = body.get("v") if body.get("v") in ("", "no", "star", "sent") else ""
+    if op == "mark" and body.get("v") == "no":
+        flats.drop(s, k)
+    elif op == "undo":
+        flats.undrop(s, k)
+    elif op == "mark":
+        v = body.get("v") if body.get("v") in ("", "star", "sent") else ""
         mark = s.setdefault("mark", {})
         if v:
             mark[k] = v
