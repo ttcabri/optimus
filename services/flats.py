@@ -79,6 +79,12 @@ async def get(uid: int) -> dict:
         out["mark"] = {k: v for k, v in mark.items() if k in keep}
         out["viewed"] = int(time.time())
         out["mclean"] = True
+    if not out.get("mph"):  # разово 31.10: фото старых объявлений Kamernet были с «похожих», перечитываем
+        for x in (out.get("items") or {}).values():
+            if x.get("src") == "Kamernet":
+                for f in ("photos", "det", "big", "facts"):
+                    x.pop(f, None)
+        out["mph"] = True
     if not out.get("mno"):  # разово 30.10: «Не надо» теперь удаляет; старые скрытые убираем, дубли склеиваем
         for k in [k for k, v in (out.get("mark") or {}).items() if v == "no"]:
             drop(out, k)
@@ -650,7 +656,15 @@ async def kn_detail(cl: httpx.AsyncClient, x: dict) -> None:
                 pp = (data.get("props") or {}).get("pageProps") or {}
                 logger.warning(f"KNDETAIL no listing obj; pageProps keys={list(pp)[:40]}")
             return
-        det = max(cands, key=lambda d: len(json.dumps(d, ensure_ascii=False)))
+        def strip(o):  # без «похожих объявлений»: иначе их фото и данные лезут в это
+            if isinstance(o, dict):
+                return {k: strip(v) for k, v in o.items() if not re.search(r"suggest|similar|recommend|related|other|nearby|more", k, re.I)}
+            if isinstance(o, list):
+                return [strip(v) for v in o]
+            return o
+        cands = [strip(c) for c in cands]
+        own = [c for c in cands if str(c.get("listingId") or "") == lid] or cands
+        det = max(own, key=lambda d: len(json.dumps(d, ensure_ascii=False)))
         bits: list = []
 
         def flat(o, pre="", depth=0):
