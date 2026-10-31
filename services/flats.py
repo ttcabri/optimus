@@ -673,7 +673,9 @@ async def kn_detail(cl: httpx.AsyncClient, x: dict) -> None:
                     paths.append(pth[-90:])
             wp(data, "")
             html_u = set(re.findall(r"resources\.kamernet\.nl/image/([0-9a-f-]{36})", re.sub(r'<script id="__NEXT_DATA__".*?</script>', "", r.text, flags=re.S)))
-            logger.warning("KNPHPATH lid=" + lid + f" html_imgs={len(html_u)} " + " | ".join(paths[:3]))
+            apis = sorted(set(re.findall(r'["\'](/?(?:[a-z0-9_.-]+/)*(?:api|services)/[A-Za-z0-9_/{}.-]{3,80})["\']', r.text)))[:25]
+            js = sorted(set(re.findall(r'src="(/_next/static/[^"]+\.js)"', r.text)))[:40]
+            logger.warning("KNPHPATH lid=" + lid + f" html_imgs={len(html_u)} apis={apis} js={[j for j in js if 'listing' in j.lower() or 'detail' in j.lower() or 'huren' in j.lower()]}")
         def strip(o):  # без «похожих объявлений»: иначе их фото и данные лезут в это
             if isinstance(o, dict):
                 return {k: strip(v) for k, v in o.items() if not re.search(r"suggest|similar|recommend|related|other|nearby|more", k, re.I)}
@@ -728,6 +730,8 @@ async def kn_detail(cl: httpx.AsyncClient, x: dict) -> None:
             if u not in seen_u:
                 seen_u.add(u)
                 ph.append(f"https://resources.kamernet.nl/image/{u}")
+        if not ph and (x.get("big") or x.get("img")):
+            ph = [x.get("big") or x.get("img")]  # своё главное фото из поиска (остальные сайт подгружает скриптом)
         if ph:
             x["photos"] = ph[:20]
             x["big"] = x.get("big") or ph[0]
