@@ -656,6 +656,23 @@ async def kn_detail(cl: httpx.AsyncClient, x: dict) -> None:
                 pp = (data.get("props") or {}).get("pageProps") or {}
                 logger.warning(f"KNDETAIL no listing obj; pageProps keys={list(pp)[:40]}")
             return
+        if not globals().get("_kn_ph_dbg"):
+            globals()["_kn_ph_dbg"] = 1
+            paths: list = []
+
+            def wp(o, pth):
+                if len(paths) > 25:
+                    return
+                if isinstance(o, dict):
+                    for k2, v2 in o.items():
+                        wp(v2, pth + "." + str(k2))
+                elif isinstance(o, list):
+                    for i2, v2 in enumerate(o[:30]):
+                        wp(v2, pth + f"[{i2}]")
+                elif isinstance(o, str) and "kamernet.nl/image/" in o:
+                    paths.append(pth[-90:])
+            wp(data, "")
+            logger.warning("KNPHPATH lid=" + lid + " " + " | ".join(paths))
         def strip(o):  # без «похожих объявлений»: иначе их фото и данные лезут в это
             if isinstance(o, dict):
                 return {k: strip(v) for k, v in o.items() if not re.search(r"suggest|similar|recommend|related|other|nearby|more", k, re.I)}
