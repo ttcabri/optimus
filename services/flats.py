@@ -672,7 +672,8 @@ async def kn_detail(cl: httpx.AsyncClient, x: dict) -> None:
                 elif isinstance(o, str) and "kamernet.nl/image/" in o:
                     paths.append(pth[-90:])
             wp(data, "")
-            logger.warning("KNPHPATH lid=" + lid + " " + " | ".join(paths))
+            html_u = set(re.findall(r"resources\.kamernet\.nl/image/([0-9a-f-]{36})", re.sub(r'<script id="__NEXT_DATA__".*?</script>', "", r.text, flags=re.S)))
+            logger.warning("KNPHPATH lid=" + lid + f" html_imgs={len(html_u)} " + " | ".join(paths[:3]))
         def strip(o):  # без «похожих объявлений»: иначе их фото и данные лезут в это
             if isinstance(o, dict):
                 return {k: strip(v) for k, v in o.items() if not re.search(r"suggest|similar|recommend|related|other|nearby|more", k, re.I)}
@@ -718,9 +719,12 @@ async def kn_detail(cl: httpx.AsyncClient, x: dict) -> None:
             elif "gender" in kl and re.fullmatch(r"\s*(female|vrouw|women|woman|2)\s*", v, re.I) and "landlord" not in kl:
                 x["ux"] = "только женщины"
         extra = [f"Залог €{det['deposit']}" if det.get("deposit") else "", f"с {str(det['availabilityStartDate'])[:10]}" if det.get("availabilityStartDate") else ""]
-        raw = json.dumps(det)
-        ph, seen_u = [], set()
-        for u in re.findall(r"https://resources\.kamernet\.nl/image/([0-9a-f-]{36})", raw):
+        # фото самого объявления в данных страницы нет (там только «похожие»): берём из HTML всё, кроме фото «похожих»
+        UU = r"resources\.kamernet\.nl/image/([0-9a-f-]{36})"
+        other = set(re.findall(UU, json.dumps(data.get("props", {}).get("pageProps", {}).get("targetPageProps", {}).get("listingDetails", {}).get("suggestedListingResult") or [])))
+        raw = re.sub(r'<script id="__NEXT_DATA__".*?</script>', "", r.text, flags=re.S) + json.dumps(det)
+        ph, seen_u = [], set(other)
+        for u in re.findall(UU, raw):
             if u not in seen_u:
                 seen_u.add(u)
                 ph.append(f"https://resources.kamernet.nl/image/{u}")
