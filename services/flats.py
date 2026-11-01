@@ -79,6 +79,14 @@ async def get(uid: int) -> dict:
         out["mark"] = {k: v for k, v in mark.items() if k in keep}
         out["viewed"] = int(time.time())
         out["mclean"] = True
+    if not out.get("mph2"):  # разово 1.11: в фото попадали аватарки людей со страницы; оставляем только своё фото из поиска
+        for x in (out.get("items") or {}).values():
+            if x.get("src") == "Kamernet":
+                own = x.get("img") if "kamernet.nl/image/" in str(x.get("img") or "") else None
+                x["photos"] = [re.sub(r"/resize/.*$", "", own)] if own else []
+                x["big"] = x["photos"][0] if own else None
+        out["mph2"] = True
+        out["mph"] = True
     if not out.get("mph"):  # разово 31.10: фото старых объявлений Kamernet были с «похожих», перечитываем
         for x in (out.get("items") or {}).values():
             if x.get("src") == "Kamernet":
@@ -656,26 +664,6 @@ async def kn_detail(cl: httpx.AsyncClient, x: dict) -> None:
                 pp = (data.get("props") or {}).get("pageProps") or {}
                 logger.warning(f"KNDETAIL no listing obj; pageProps keys={list(pp)[:40]}")
             return
-        if not globals().get("_kn_ph_dbg"):
-            globals()["_kn_ph_dbg"] = 1
-            paths: list = []
-
-            def wp(o, pth):
-                if len(paths) > 25:
-                    return
-                if isinstance(o, dict):
-                    for k2, v2 in o.items():
-                        wp(v2, pth + "." + str(k2))
-                elif isinstance(o, list):
-                    for i2, v2 in enumerate(o[:30]):
-                        wp(v2, pth + f"[{i2}]")
-                elif isinstance(o, str) and "kamernet.nl/image/" in o:
-                    paths.append(pth[-90:])
-            wp(data, "")
-            html_u = set(re.findall(r"resources\.kamernet\.nl/image/([0-9a-f-]{36})", re.sub(r'<script id="__NEXT_DATA__".*?</script>', "", r.text, flags=re.S)))
-            apis = sorted(set(re.findall(r'["\'](/?(?:[a-z0-9_.-]+/)*(?:api|services)/[A-Za-z0-9_/{}.-]{3,80})["\']', r.text)))[:25]
-            js = sorted(set(re.findall(r'src="(/_next/static/[^"]+\.js)"', r.text)))[:40]
-            logger.warning("KNPHPATH lid=" + lid + f" html_imgs={len(html_u)} apis={apis} js={[j for j in js if 'listing' in j.lower() or 'detail' in j.lower() or 'huren' in j.lower()]}")
         def strip(o):  # без «похожих объявлений»: иначе их фото и данные лезут в это
             if isinstance(o, dict):
                 return {k: strip(v) for k, v in o.items() if not re.search(r"suggest|similar|recommend|related|other|nearby|more", k, re.I)}
@@ -718,24 +706,28 @@ async def kn_detail(cl: httpx.AsyncClient, x: dict) -> None:
                 x["ux"] = f"до {int(v)} лет"
             elif "age" in kl and re.search(r"min|from", kl) and v.strip().isdigit() and int(v) > ME_AGE + 5:
                 x["ux"] = f"от {int(v)} лет"
-            elif "gender" in kl and re.fullmatch(r"\s*(female|vrouw|women|woman|2)\s*", v, re.I) and "landlord" not in kl:
+            elif "gender" in kl and re.fullmatch(r"\s*(female|vrouw|women|woman|vrouwen)\s*", v, re.I) and "landlord" not in kl:
                 x["ux"] = "только женщины"
         extra = [f"Залог €{det['deposit']}" if det.get("deposit") else "", f"с {str(det['availabilityStartDate'])[:10]}" if det.get("availabilityStartDate") else ""]
-        # фото самого объявления в данных страницы нет (там только «похожие»): берём из HTML всё, кроме фото «похожих»
-        UU = r"resources\.kamernet\.nl/image/([0-9a-f-]{36})"
-        other = set(re.findall(UU, json.dumps(data.get("props", {}).get("pageProps", {}).get("targetPageProps", {}).get("listingDetails", {}).get("suggestedListingResult") or [])))
-        raw = re.sub(r'<script id="__NEXT_DATA__".*?</script>', "", r.text, flags=re.S) + json.dumps(det)
-        ph, seen_u = [], set(other)
-        for u in re.findall(UU, raw):
-            if u not in seen_u:
-                seen_u.add(u)
-                ph.append(f"https://resources.kamernet.nl/image/{u}")
-        if not ph and (x.get("big") or x.get("img")):
-            ph = [x.get("big") or x.get("img")]  # своё главное фото из поиска (остальные сайт подгружает скриптом)
+        # фото: только своё объявление (картинка из поиска + поля картинок в самом объекте объявления).
+        # Из HTML не берём: там аватарки людей и фото «похожих».
+        ph: list = []
+        for u in [x.get("big"), x.get("img")] + [v for k, v in det.items() if isinstance(v, str) and re.search(r"image|photo", k, re.I)]:
+            if isinstance(u, str) and u.startswith("http") and "kamernet.nl/image/" in u:
+                base = re.sub(r"/resize/.*$", "", u)
+                if base not in ph:
+                    ph.append(base)
+        for v in det.values():
+            if isinstance(v, list):
+                for it in v:
+                    u = it if isinstance(it, str) else (it.get("url") or it.get("imageUrl") or it.get("fullPreviewImageUrl") or "") if isinstance(it, dict) else ""
+                    if isinstance(u, str) and "kamernet.nl/image/" in u:
+                        base = re.sub(r"/resize/.*$", "", u)
+                        if base not in ph:
+                            ph.append(base)
         if ph:
             x["photos"] = ph[:20]
-            x["big"] = x.get("big") or ph[0]
-            x["img"] = x.get("img") or ph[0]
+            x["big"] = ph[0]
         def d10(v):
             v = str(v or "")[:10]
             return f"{v[8:10]}.{v[5:7]}.{v[:4]}" if re.match(r"\d{4}-\d\d-\d\d", v) else ""
@@ -752,9 +744,6 @@ async def kn_detail(cl: httpx.AsyncClient, x: dict) -> None:
         x["street"] = str(det.get("computedStreetName") or det.get("street") or "")
         x["text"] = (" · ".join(e for e in extra if e) + ". " + str(det.get("englishDescription") or det.get("dutchDescription") or det.get("description") or "")).strip(". ")[:1500]
         x["full"] = " | ".join(str(b) for b in bits)[:2500]
-        if not globals().get("_kn_dbg"):
-            globals()["_kn_dbg"] = 1
-            logger.warning("KNDETAIL " + re.sub(r"\s+", " ", x["full"])[-1500:])
     except Exception as e:
         logger.warning(f"kamernet detail: {e}")
 
@@ -873,11 +862,12 @@ async def check(uid: int, send) -> int:
         return 0
     xs, stat = await fetch_all(s)
     if not globals().get("_kn_dbg"):  # разовая самопроверка после запуска: что видно на странице объявления Kamernet
+        globals()["_kn_dbg"] = 1
         probe = next((dict(x) for x in xs if x["src"] == "Kamernet" and x.get("url")), None)
         if probe:
             async with httpx.AsyncClient(timeout=20, follow_redirects=True) as cl:
                 await kn_detail(cl, probe)
-            logger.warning(f"KNPROBE {probe.get('url')} unfit={unfit(probe)!r} photos={len(probe.get('photos') or [])} facts={probe.get('facts')}")
+            logger.warning(f"KNPROBE {probe.get('url')} unfit={unfit(probe)!r} photos={probe.get('photos')} facts={probe.get('facts')}")
     old = s.get("seen") or {}
     seen = {k: set(v) for k, v in old.items()}
     fps = set(s.get("fp") or []) | {fp(x) for x in (s.get("items") or {}).values()}
