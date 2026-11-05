@@ -64,6 +64,17 @@ async def main() -> None:
             st["reminders"] = rem
             changed = True
             open(_flag2, "w").write("1")
+        _flag3 = _os.path.join(_os.path.dirname(_os.path.abspath(_DBP)), "mig_btw2")
+        if not _os.path.exists(_flag3):  # + конец декабря (декларация появляется в кабинете в конце декабря)
+            _t2 = ("🔴‼️ BTW-ДЕКЛАРАЦИЯ УЖЕ ДОЛЖНА ПОЯВИТЬСЯ ‼️🔴\n"
+                   "Зайди: belastingdienst.nl → Mijn Belastingdienst Zakelijk → DigiD. Если btw-aangifte за 4-й квартал 2026 уже есть, "
+                   "подай сразу: везде 0 → Verzenden. Срок до 31.01.2027.\nПодал? Скажи мне «btw подал».")
+            rem = st.get("reminders") or []
+            for i, d in enumerate(["2026-12-25", "2026-12-28", "2026-12-31"]):
+                rem.append({"id": f"rbtwd{i}", "d": d, "at": "11:00", "text": _t2, "sent": False})
+            st["reminders"] = rem
+            changed = True
+            open(_flag3, "w").write("1")
         if changed:
             await database.save_quest_state(TELEGRAM_USER_ID, st)
     except Exception as e:
