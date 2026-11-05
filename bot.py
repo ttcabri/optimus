@@ -51,6 +51,19 @@ async def main() -> None:
                                             "hint": "Duolingo (с английского) или урок курса. Пара новых слов в день уже засчитывается."})
                 changed = True
             open(_flag, "w").write("1")
+        # разово (5.11): напоминания про нулевую btw-декларацию после закрытия ZZP (письмо Belastingdienst от 05-11-2026)
+        _flag2 = _os.path.join(_os.path.dirname(_os.path.abspath(_DBP)), "mig_btw")
+        if not _os.path.exists(_flag2):
+            _txt = ("🔴‼️ ПОДАТЬ НУЛЕВУЮ BTW-ДЕКЛАРАЦИЮ ‼️🔴\n"
+                    "Фирма закрыта, налоговая ждёт последнюю декларацию. Без неё штраф.\n"
+                    "belastingdienst.nl → Mijn Belastingdienst Zakelijk → вход DigiD → btw-aangifte 4-й квартал 2026 → везде 0 → Verzenden.\n"
+                    "Срок: до 31.01.2027. Подал? Скажи мне «btw подал», и я уберу остальные напоминания.")
+            rem = st.get("reminders") or []
+            for i, d in enumerate(["2027-01-02", "2027-01-09", "2027-01-16", "2027-01-23", "2027-01-28"]):
+                rem.append({"id": f"rbtw{i}", "d": d, "at": "10:00", "text": _txt, "sent": False})
+            st["reminders"] = rem
+            changed = True
+            open(_flag2, "w").write("1")
         if changed:
             await database.save_quest_state(TELEGRAM_USER_ID, st)
     except Exception as e:
