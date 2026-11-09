@@ -75,6 +75,18 @@ async def main() -> None:
             st["reminders"] = rem
             changed = True
             open(_flag3, "w").write("1")
+        _flag4 = _os.path.join(_os.path.dirname(_os.path.abspath(_DBP)), "mig_ww")
+        if not _os.path.exists(_flag4):  # 10.11: подать на WW до 14.11 (первый день без работы 7.11)
+            _t3 = ("🔴‼️ ПОДАТЬ НА WW СЕГОДНЯ ‼️🔴\n"
+                   "werk.nl → Inloggen (DigiD) → «WW aanvragen». Первый день без работы: 07-11-2026. "
+                   "Последний работодатель: Kloek Pallets B.V.\n"
+                   "Крайний срок 14.11, иначе можно потерять деньги. Подал? Скажи мне «WW подал».")
+            rem = st.get("reminders") or []
+            for i, (d, t) in enumerate([("2026-11-10", "11:00"), ("2026-11-10", "15:00"), ("2026-11-11", "10:00"), ("2026-11-12", "10:00"), ("2026-11-13", "10:00")]):
+                rem.append({"id": f"rww{i}", "d": d, "at": t, "text": _t3, "sent": False})
+            st["reminders"] = rem
+            changed = True
+            open(_flag4, "w").write("1")
         if changed:
             await database.save_quest_state(TELEGRAM_USER_ID, st)
     except Exception as e:
