@@ -31,11 +31,11 @@ POSTCODES = {"gouda": "2801", "waddinxveen": "2741", "bodegraven": "2411", "alph
              "leiden": "2311", "utrecht": "3511", "woerden": "3441", "nieuwerkerk aan den ijssel": "2911",
              "capelle aan den ijssel": "2901", "rijswijk": "2281", "leidschendam": "2265", "voorburg": "2271",
              "schiedam": "3111", "pijnacker": "2641", "nootdorp": "2631", "wateringen": "2291", "lelystad": "8232", "almere": "1315", "dronten": "8251",
-             "zwolle": "8011", "kampen": "8261", "harderwijk": "3841", "amsterdam": "1012", "delft": "2611", "dordrecht": "3311"}
+             "zwolle": "8011", "kampen": "8261", "harderwijk": "3841", "amsterdam": "1012", "delft": "2611", "dordrecht": "3311", "houten": "3991"}
 
 OLD_AREAS = [["gouda", "waddinxveen", "alphen aan den rijn", "zoetermeer", "bodegraven"],
              ["rijswijk", "den haag", "delft", "zoetermeer", "leidschendam", "leiden", "rotterdam"]]
-DEFAULT = {"on": False, "areas": ["gouda", "waddinxveen", "bodegraven", "alphen aan den rijn", "zoetermeer", "woerden", "nieuwerkerk aan den ijssel", "dordrecht"],
+DEFAULT = {"on": False, "areas": ["gouda", "waddinxveen", "bodegraven", "alphen aan den rijn", "zoetermeer", "woerden", "nieuwerkerk aan den ijssel", "dordrecht", "houten"],
            "max": 1000, "room_max": 800, "fresh_days": 21, "min_m2": 0, "kitchen": True, "about": "", "seen": {}, "items": {}, "stat": {}}
 
 ABOUT0 = ("Андрей Ковалёв, 30 лет, из Украины, в Нидерландах с мая 2022. Последние 2 года работал на производстве паллет в Кампене, "
@@ -72,6 +72,10 @@ async def get(uid: int) -> dict:
         if "dordrecht" not in out["areas"]:
             out["areas"] = out["areas"] + ["dordrecht"]
         out["mdord"] = True
+    if not out.get("mhout"):  # разово 12.11: добавить Houten
+        if "houten" not in out["areas"]:
+            out["areas"] = out["areas"] + ["houten"]
+        out["mhout"] = True
     if not out.get("mclean"):  # разово 27.10: чистая база, остаются только отмеченные (★ и «написал»), дальше только новое
         mark = out.get("mark") or {}
         keep = {k for k, v in mark.items() if v in ("star", "sent", "view")}
@@ -324,7 +328,7 @@ NEAR = {"gouda", "reeuwijk", "waddinxveen", "boskoop", "bodegraven", "alphen aan
         "ouderkerk aan den ijssel", "haastrecht", "oudewater", "schoonhoven", "lekkerkerk", "nieuwegein", "utrecht", "leiden", "leiderdorp",
         "den haag", "'s-gravenhage", "delft", "pijnacker", "nootdorp", "berkel en rodenrijs", "bleiswijk", "lansingerland", "dordrecht",
         "zwijndrecht", "papendrecht", "sliedrecht", "alblasserdam", "hendrik-ido-ambacht", "ridderkerk", "barendrecht", "schiedam",
-        "rijswijk", "voorburg", "leidschendam", "maassluis", "vlaardingen", "montfoort", "ijsselstein", "harmelen", "nieuwerbrug"}
+        "rijswijk", "voorburg", "leidschendam", "maassluis", "vlaardingen", "montfoort", "ijsselstein", "harmelen", "nieuwerbrug", "houten"}
 KN_TYPE = {1: "kamer", 2: "appartement", 4: "studio", 8: "anti-kraak", 16: "huis"}
 _kn_ok: dict = {}  # город → шаблоны адресов, которые реально отвечают
 
