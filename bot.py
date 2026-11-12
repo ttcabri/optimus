@@ -87,6 +87,25 @@ async def main() -> None:
             st["reminders"] = rem
             changed = True
             open(_flag4, "w").write("1")
+        _flag5 = _os.path.join(_os.path.dirname(_os.path.abspath(_DBP)), "mig_ww2")
+        if not _os.path.exists(_flag5):  # 12.11: WW подан → убрать напоминания «подать», поставить обязанности по WW
+            rem = [r for r in st.get("reminders") or [] if not str(r.get("id", "")).startswith("rww")]
+            add = [
+                ("2026-11-13", "12:00", "📬 WW: подключи Berichtenbox на mijn.overheid.nl (DigiD), чтобы не пропустить письма UWV. "
+                                        "И на werk.nl → «Mijn werkmap» заполни CV и профиль."),
+                ("2026-11-20", "12:00", "✈️ WW: отметь отпуск на werk.nl (Doorgeven → Vakantie) на 26.11–04.12. Обязательно ДО вылета."),
+                ("2026-11-24", "12:00", "🔴‼️ Последний шанс: отпуск в werk.nl на 26.11–04.12 отмечен? Без этого могут снять WW за эти дни."),
+            ]
+            d0 = __import__("datetime").date(2026, 11, 16)
+            for w in range(13):  # каждый понедельник до конца WW (~9 февраля)
+                d = d0 + __import__("datetime").timedelta(days=7 * w)
+                add.append((d.isoformat(), "11:00", "💼 WW: на этой неделе откликнись минимум на 1 вакансию и сохрани доказательство "
+                                                    "(скрин, письмо). Нужно минимум 4 отклика за каждые 4 недели. Внеси их в werk.nl."))
+            for i, (d, t, txt) in enumerate(add):
+                rem.append({"id": f"rwwo{i}", "d": d, "at": t, "text": txt, "sent": False})
+            st["reminders"] = rem
+            changed = True
+            open(_flag5, "w").write("1")
         if changed:
             await database.save_quest_state(TELEGRAM_USER_ID, st)
     except Exception as e:
