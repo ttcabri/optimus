@@ -94,8 +94,13 @@ TOOLS = [
      "description": "Чек на проверке (в контексте «ЧЕК НА ПРОВЕРКЕ»): op fix = поправить по словам человека (text: что поменять: убрать, добавить, количество, цену, итог, магазин, дату), ok = всё верно, записать в Дом, Деньги и Документы, cancel = не записывать.",
      "input_schema": {"type": "object", "properties": {"op": {"type": "string", "enum": ["fix", "ok", "cancel"]}, "text": {"type": "string"}}, "required": ["op"]}},
     {"name": "flats",
-     "description": "Поиск жилья (бот сам смотрит Pararius, Funda, Kamernet, Marktplaats каждые 5 минут и шлёт новые объявления): op on/off, set (areas = список городов, max = цена до €, min_m2), about (text = о себе для писем хозяевам), status.",
-     "input_schema": {"type": "object", "properties": {"op": {"type": "string", "enum": ["on", "off", "set", "about", "status"]}, "areas": {"type": "array", "items": {"type": "string"}}, "max": {"type": "integer"}, "min_m2": {"type": "integer"}, "text": {"type": "string"}}, "required": ["op"]}},
+     "description": "ЖИЛЬЁ: поиск аренды (бот сам смотрит Kamernet и письма Pararius/Funda каждые 5 минут, шлёт новые, и при каждом проходе перепроверяет несколько старых; утром в 08:40 проверяет все). "
+                    "У тебя ПОЛНЫЙ доступ к списку «Аренда». op: list (что сейчас в списке: key, название, город, цена, отметка, откуда, сколько дней, когда проверено; filter = star|sent|view|all), "
+                    "check (проверить прямо сейчас, висят ли объявления, снятые убрать; keys = какие, пусто = все), remove (убрать: keys), star / unstar (отметить ★: keys), "
+                    "on/off, set (areas = список городов, max = цена до €, min_m2), about (text = о себе для писем хозяевам), status.",
+     "input_schema": {"type": "object", "properties": {"op": {"type": "string", "enum": ["list", "check", "remove", "star", "unstar", "on", "off", "set", "about", "status"]},
+         "keys": {"type": "array", "items": {"type": "string"}}, "filter": {"type": "string"},
+         "areas": {"type": "array", "items": {"type": "string"}}, "max": {"type": "integer"}, "min_m2": {"type": "integer"}, "text": {"type": "string"}}, "required": ["op"]}},
     {"name": "read_changes",
      "description": "Журнал изменений за days дней (по умолчанию 7, до 60): кто (приложение = человек руками, бот = ты) что добавил, удалил, поменял в деньгах, делах, распорядке, доме, Мозге, целях. find = слово для поиска (например «штраф», «яйца»). Для вопросов «что ты менял», «куда делась трата», «что я удалял».",
      "input_schema": {"type": "object", "properties": {"days": {"type": "integer"}, "find": {"type": "string"}}}},

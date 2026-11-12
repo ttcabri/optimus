@@ -820,41 +820,62 @@ async def alive(cl: httpx.AsyncClient, x: dict) -> bool | None:
     return False if GONE_TXT.search(r.text[:200000]) else True
 
 
-async def sweep(uid: int) -> list[str]:
-    """Утро: проверяем, какие объявления из «Аренды» сняли с сайтов. Снятые удаляем (★ тоже),
-    «написал» оставляем с пометкой «снято». Возвращает названия снятых из ★ и «написал»."""
+STALE_DAYS = 14  # Pararius/Funda не пускают проверить; неотмеченные из писем старше этого убираем
+
+
+async def verify(uid: int, keys: list | None = None, n: int | None = None) -> dict:
+    """Проверяем, висят ли объявления. keys = какие (None = все), n = сколько самых давно проверенных.
+    Снятые удаляем (★ тоже, о ★/написал сообщаем), «написал»/«просмотр» оставляем с пометкой «снято».
+    Те, что сайт не дал проверить (Pararius/Funda отвечают 403), без отметки и старше STALE_DAYS убираем как устаревшие."""
     s = await get(uid)
-    items, mark = s.get("items") or {}, s.get("mark") or {}
-    todo = [k for k, x in items.items() if not x.get("gone")][:150]
+    items = s.get("items") or {}
+    todo = [k for k in (keys if keys is not None else items) if k in items and not items[k].get("gone")]
+    if n:
+        todo = sorted(todo, key=lambda k: items[k].get("chk") or 0)[:n]
     res: dict = {}
     sem = asyncio.Semaphore(3)
     async with httpx.AsyncClient(timeout=20, follow_redirects=True) as cl:
         async def one(k):
             async with sem:
                 res[k] = await alive(cl, items[k])
-        await asyncio.gather(*(one(k) for k in todo))
+        await asyncio.gather(*(one(k) for k in todo[:150]))
     s = await get(uid)  # свежая версия: за время проверки могли поставить отметки
     items, mark = s.get("items") or {}, s.get("mark") or {}
-    lost = []
+    now = int(time.time())
+    lost, gone, stale = [], [], []
     for k, ok in res.items():
-        if ok is not False or k not in items:
+        if k not in items:
             continue
         x = items[k]
+        x["chk"] = now
+        x["unk"] = 1 if ok is None else 0
+        old = ok is None and now - (x.get("t") or now) > STALE_DAYS * 86400 and not mark.get(k)
+        if ok is not False and not old:
+            continue
+        name = str(x.get("ru_title") or x.get("title") or "")[:60]
+        (stale if old else gone).append(name)
         if mark.get(k) in ("star", "sent", "view"):
-            lost.append({"star": "★ ", "sent": "✉️ ", "view": "📅 "}[mark[k]] + str(x.get("ru_title") or x.get("title") or "")[:60])
+            lost.append({"star": "★ ", "sent": "✉️ ", "view": "📅 "}[mark[k]] + name)
         if mark.get(k) in ("sent", "view"):
             x["gone"] = 1
         else:
             items.pop(k, None)
             mark.pop(k, None)
     s["items"], s["mark"] = items, mark
-    s["sweep"] = {"t": int(time.time()), "checked": len(res), "gone": sum(1 for v in res.values() if v is False),
-                  "unknown": sum(1 for v in res.values() if v is None)}
+    st = {"t": now, "checked": len(res), "gone": len(gone), "stale": len(stale), "unknown": sum(1 for v in res.values() if v is None)}
+    if n is None:
+        s["sweep"] = st
     await put(uid, s)
-    logger.info(f"flats sweep: {s['sweep']}")
-    return lost
+    logger.info(f"flats verify: {st}")
+    return {**st, "lost": lost, "gone_names": gone, "stale_names": stale}
 
 
+async def sweep(uid: int) -> list[str]:
+    """Утро: полная проверка «Аренды». Возвращает снятые из ★ и «написал»."""
+    return (await verify(uid))["lost"]
+
+
+RECHECK = 6  # сколько старых объявлений перепроверять за каждый проход поиска
 SEND_NOW = 10  # квартиры и студии сразу в чат, не больше стольких за проверку
 
 
@@ -914,6 +935,12 @@ async def check(uid: int, send) -> int:
             logger.error(f"flats send: {e}")
     if len(flats_) > SEND_NOW:
         await send(f"…и ещё {len(flats_) - SEND_NOW} студий и квартир. Все в «Аренде».", app_kb())
+    try:  # заодно перепроверяем несколько старых: за ~час проходим всю «Аренду»
+        v = await verify(uid, n=RECHECK)
+        if v["lost"]:
+            await send("🧹 <b>Сняли с сайта</b>, убрал из «Аренды»:\n" + "\n".join(html.escape(t) for t in v["lost"]), None)
+    except Exception as e:
+        logger.error(f"flats recheck: {e}")
     return len(new)
 
 
@@ -1072,3 +1099,42 @@ async def diag(uid: int) -> None:
             L(f"{name}: raw={len(xs)} kept={len(kept)} drop={why}")
             for x in kept[:8]:
                 L(f"  {x.get('city')} €{x.get('price')} {x.get('m2')}м² age={x.get('age')} room={x.get('room')} {str(x.get('title'))[:50]} {x.get('url')}")
+
+
+async def chat_op(uid: int, op: str, keys: list, flt: str = "all") -> str:
+    """Для помощника в чате: список «Аренды», проверка, удаление, ★."""
+    s = await get(uid)
+    items, mark = s.get("items") or {}, s.get("mark") or {}
+    now = int(time.time())
+    if op == "list":
+        rows = []
+        for k, x in sorted(items.items(), key=lambda kv: -(kv[1].get("t") or 0)):
+            m = mark.get(k, "")
+            if flt in ("star", "sent", "view") and m != flt:
+                continue
+            chk = x.get("chk")
+            rows.append(f"{k} | {(x.get('ru_title') or x.get('title') or '')[:50]} | {x.get('city') or ''} | €{x.get('price') or '?'}"
+                        f" | {'комната' if x.get('room') else 'квартира/студия'} | {x.get('src')} | {(now - (x.get('t') or now)) // 86400} дн"
+                        f" | отметка: {m or '-'} | {'СНЯТО' if x.get('gone') else ('проверено ' + str((now - chk) // 3600) + ' ч назад' + (' (сайт не пустил)' if x.get('unk') else '')) if chk else 'ещё не проверялось'}")
+        sw = s.get("sweep") or {}
+        return (f"В «Аренде» {len(items)} объявлений, показано {len(rows)}. Последняя полная проверка: {sw.get('checked', 0)} проверено, {sw.get('gone', 0)} снято.\n"
+                + "\n".join(rows[:80]) or "пусто")
+    if op == "check":
+        v = await verify(uid, keys or None)
+        return (f"Проверил {v['checked']}: снято с сайтов {v['gone']}, устаревших (сайт не даёт проверить, старше {STALE_DAYS} дн, без отметки) убрал {v['stale']}, "
+                f"не удалось проверить {v['unknown']}." + (" Убрано: " + "; ".join(v["gone_names"] + v["stale_names"])[:1500] if v["gone"] or v["stale"] else "")
+                + (" Из отмеченных сняли: " + "; ".join(v["lost"]) if v["lost"] else ""))
+    hit = [k for k in keys if k in items]
+    if not hit:
+        return "нет таких key в «Аренде», сначала op list"
+    for k in hit:
+        if op == "remove":
+            drop(s, k)
+        elif op == "star":
+            mark[k] = "star"
+        elif op == "unstar" and mark.get(k) == "star":
+            mark.pop(k, None)
+    if op != "remove":
+        s["mark"] = mark
+    await put(uid, s)
+    return f"готово: {op} {len(hit)}"

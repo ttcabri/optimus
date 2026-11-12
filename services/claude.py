@@ -247,11 +247,15 @@ async def get_ai_response(telegram_id: int, user_message: str, voice: bool = Fal
                 i = b.input or {}
                 fs = await fl.get(telegram_id)
                 op = i.get("op")
-                if op in ("on", "off"):
+                keys = [str(k) for k in (i.get("keys") or [])]
+                if op in ("list", "check", "remove", "star", "unstar"):
+                    res = await fl.chat_op(telegram_id, op, keys, str(i.get("filter") or "all"))
+                    fs = None
+                elif op in ("on", "off"):
                     fs["on"] = op == "on"
                 elif op == "set":
                     if i.get("areas"):
-                        fs["areas"] = [str(a).strip().lower() for a in i["areas"]][:8]
+                        fs["areas"] = [str(a).strip().lower() for a in i["areas"]][:12]
                         fs["seen"] = {}
                     if i.get("max"):
                         fs["max"] = int(i["max"])
@@ -259,8 +263,9 @@ async def get_ai_response(telegram_id: int, user_message: str, voice: bool = Fal
                         fs["min_m2"] = int(i["min_m2"])
                 elif op == "about":
                     fs["about"] = str(i.get("text") or "")[:600]
-                await fl.put(telegram_id, fs)
-                res = re.sub(r"<[^>]+>", "", fl.status_text(fs))
+                if fs is not None:
+                    await fl.put(telegram_id, fs)
+                    res = re.sub(r"<[^>]+>", "", fl.status_text(fs))
             elif b.name == "read_changes":
                 from datetime import timedelta
                 i = b.input or {}

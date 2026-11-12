@@ -65,7 +65,7 @@ async def cmd_flats(message: Message) -> None:
         if nums:
             s["max"] = nums[0]
         if cities:
-            s["areas"] = cities[:8]
+            s["areas"] = cities[:12]
             s["seen"] = {}  # новые города: начинаем запоминать заново, без пачки старого
         await flats.put(uid, s)
         bad = [c for c in s["areas"] if c not in flats.POSTCODES]
