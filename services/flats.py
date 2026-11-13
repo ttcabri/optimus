@@ -36,7 +36,7 @@ POSTCODES = {"gouda": "2801", "waddinxveen": "2741", "bodegraven": "2411", "alph
 OLD_AREAS = [["gouda", "waddinxveen", "alphen aan den rijn", "zoetermeer", "bodegraven"],
              ["rijswijk", "den haag", "delft", "zoetermeer", "leidschendam", "leiden", "rotterdam"]]
 DEFAULT = {"on": False, "areas": ["gouda", "waddinxveen", "bodegraven", "alphen aan den rijn", "zoetermeer", "woerden", "nieuwerkerk aan den ijssel", "dordrecht", "houten"],
-           "max": 1000, "room_max": 800, "fresh_days": 21, "min_m2": 0, "kitchen": True, "about": "", "seen": {}, "items": {}, "stat": {}}
+           "max": 1000, "room_max": 800, "move": ["2026-12-15", "2027-01-15"], "fresh_days": 21, "min_m2": 0, "kitchen": True, "about": "", "seen": {}, "items": {}, "stat": {}}
 
 ABOUT0 = ("Андрей Ковалёв, 30 лет, из Украины, в Нидерландах с мая 2022. Последние 2 года работал на производстве паллет в Кампене, "
           "бруто около €3000 в месяц, расчётки есть. Сейчас ищу работу в районе Гауды. Живу один, не курю, без животных, есть машина. "
@@ -562,11 +562,56 @@ def pair(x: dict) -> str:
     return {"2": "yes", "1": "no"}.get(str(x.get("pp") or ""), "")
 
 
+_MONTHS = {"jan": 1, "feb": 2, "mrt": 3, "maa": 3, "mar": 3, "apr": 4, "mei": 5, "may": 5, "jun": 6, "jul": 7, "aug": 8, "sep": 9, "okt": 10, "oct": 10, "nov": 11, "dec": 12}
+_MV_RE = re.compile(r"(?:beschikbaar|per|vanaf|ingangsdatum|available|availability|from|start|move[- ]?in|oplevering)[^0-9a-z]{0,12}(?:per |from |vanaf |on |op )?"
+                    r"(\d{1,2})[\s./-]*(jan\w*|feb\w*|m[ae]a?r\w*|mrt|apr\w*|mei|may|jun\w*|jul\w*|aug\w*|sep\w*|o[ck]t\w*|nov\w*|dec\w*|\d{1,2})(?:[\s./-]*(\d{4}))?", re.I)
+_NOW_RE = re.compile(r"per direct|direct beschikbaar|available (?:immediately|now)|immediately available|beschikbaar: direct|per ommegaande", re.I)
+
+
+def move_date(x: dict) -> str | None:
+    """Дата въезда из объявления (YYYY-MM-DD), «now» = сразу, None = не указано."""
+    f = (x.get("facts") or {}).get("Свободно с") or ""
+    m = re.fullmatch(r"(\d\d)\.(\d\d)\.(\d{4})", f)
+    if m:
+        return f"{m[3]}-{m[2]}-{m[1]}"
+    txt = " ".join(str(x.get(k) or "") for k in ("title", "text", "full"))
+    today = time.strftime("%Y-%m-%d")
+    for m in _MV_RE.finditer(txt):
+        d, mo, y = int(m[1]), m[2].lower(), m[3]
+        mon = int(mo) if mo.isdigit() else _MONTHS.get(mo[:3])
+        if not mon or not 1 <= mon <= 12 or not 1 <= d <= 31:
+            continue
+        yy = int(y) if y else int(today[:4])
+        iso = f"{yy:04d}-{mon:02d}-{d:02d}"
+        if not y and iso < today and (int(today[5:7]) - mon) % 12 > 2:
+            iso = f"{yy + 1:04d}-{mon:02d}-{d:02d}"
+        return iso
+    return "now" if _NOW_RE.search(txt) else None
+
+
+def move_tag(x: dict, win=None) -> tuple[str, str]:
+    """(текст метки, ok|early|late|"") для даты въезда относительно окна."""
+    win = win or DEFAULT["move"]
+    d = move_date(x)
+    if not d:
+        return "", ""
+    if d == "now":
+        return "🗓 сразу", "early"
+    mn = ["", "янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"][int(d[5:7])]
+    lab = f"🗓 с {int(d[8:10])} {mn}"
+    if win[0] <= d <= win[1]:
+        return lab + " ✓", "ok"
+    return lab, "early" if d < win[0] else "late"
+
+
+
 def card(x: dict) -> str:
     bits = [f"€{x['price']:g}" if x.get("price") else "цена ?", f"{x['m2']:g} м²" if x.get("m2") else "", html.escape(x.get("city") or "")]
     title = x.get("ru_title") or x["title"]
     bits.append({"yes": "✅ прописка можно", "?": "❔ прописка не указана"}.get(x.get("reg"), ""))
     bits.append({"yes": "👫 можно вдвоём", "no": "⚠️ только один"}.get(pair(x), ""))
+    mv, mk = move_tag(x)
+    bits.append(f"<b>{mv}</b>" if mk == "ok" else mv)
     a = x.get("age")
     bits.append("" if a is None else "🆕 сегодня" if a == 0 else "🕒 вчера" if a == 1 else f"🕒 {a} дн. назад")
     return (("🛏 <b>Комната</b> · запасной вариант\n" if x.get("room") else "") + f"🏠 <b>{html.escape(title[:90] or 'Объявление')}</b>\n" + " · ".join(b for b in bits if b)
@@ -1018,10 +1063,11 @@ def public(s: dict) -> dict:
                     "text": x.get("ru") or x.get("text") or "", "room": bool(x.get("room")), "reg": x.get("reg"), "pair": pair(x),
                     "age": x.get("age"), "t": x.get("t") or 0, "seed": bool(x.get("seed")), "m": mark.get(k, ""), "gone": bool(x.get("gone")),
                     "photos": x.get("photos") or ([x["big"]] if x.get("big") else []), "facts": x.get("facts") or {},
-                    "street": x.get("street") or "", "note": (s.get("note") or {}).get(k, ""), "det": bool(x.get("det"))})
+                    "street": x.get("street") or "", "note": (s.get("note") or {}).get(k, ""), "det": bool(x.get("det")),
+                    "mv": move_tag(x, s.get("move"))[0], "mvk": move_tag(x, s.get("move"))[1]})
     out.sort(key=lambda o: -o["t"])
     return {"on": bool(s.get("on")), "max": s.get("max"), "room_max": s.get("room_max", 800), "areas": s.get("areas"),
-            "viewed": s.get("viewed") or 0, "check": (s.get("stat") or {}).get("_t") or 0, "items": out}
+            "viewed": s.get("viewed") or 0, "move": s.get("move") or DEFAULT["move"], "check": (s.get("stat") or {}).get("_t") or 0, "items": out}
 
 
 def status_text(s: dict) -> str:

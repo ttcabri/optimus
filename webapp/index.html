@@ -311,7 +311,7 @@ button.hrow{width:100%;border:none;color:inherit;font:inherit;text-align:left}
 .flc .bd{min-width:0;display:flex;flex-direction:column;gap:3px;padding:10px 12px 12px}
 .flc b{font-size:15.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .flc .pr{font-weight:700;color:var(--muted);font-size:13px}
-.fltg{display:flex;gap:4px;flex-wrap:wrap;margin-top:2px}.fltg i{font-style:normal;font-size:11px;font-weight:800;padding:3px 7px;border-radius:8px;background:var(--panel2);color:var(--muted)}.fltg i.g{color:var(--okl)}.fltg i.r{color:var(--red)}
+.fltg{display:flex;gap:4px;flex-wrap:wrap;margin-top:2px}.fltg i{font-style:normal;font-size:11px;font-weight:800;padding:3px 7px;border-radius:8px;background:var(--panel2);color:var(--muted)}.fltg i.g{color:var(--okl)}.fltg i.mv{background:#1f2a20;color:var(--okl);border:1px solid var(--okl)}.fltg i.r{color:var(--red)}
 .flc .mk{position:absolute;right:8px;top:8px;font-size:11px;font-weight:800;color:var(--okl)}
 .flgal{display:flex;gap:6px;overflow-x:auto;scroll-snap-type:x mandatory;border-radius:16px;scrollbar-width:none;margin:0 -2px}.flgal::-webkit-scrollbar{display:none}
 .flgal button{flex:0 0 100%;aspect-ratio:4/3;max-width:100%;scroll-snap-align:center;border:none;padding:0;border-radius:16px;overflow:hidden;background:var(--panel)}.flgal img{width:100%;height:100%;object-fit:cover;display:block}
@@ -1274,7 +1274,7 @@ function flSet(v){FL=v;if(tab==="home")render();if(W&&W.step==="flat")renderShee
 const flNew=x=>!x.seed&&x.m!=="no"&&FLV!=null&&x.t>FLV;
 const flPrice=x=>x.price?"€"+Math.round(x.price):"цена ?";
 function flAge(x){const d=x.age!=null?x.age:x.t?Math.floor((Date.now()/1000-x.t)/86400):null;return d==null?"":d===0?"сегодня":d===1?"вчера":d+" дн."}
-function flTags(x,sh){return (x.gone?'<i class="r">снято с сайта</i>':"")+(x.m&&FLM[x.m]&&x.m!=="no"&&!sh?`<i class="g">${FLM[x.m]}</i>`:"")+(x.reg==="yes"?'<i class="g">✅ прописка</i>':x.reg==="?"?"<i>❔ прописка</i>":"")+(x.pair==="yes"?'<i class="g">👫 вдвоём</i>':x.pair==="no"?'<i class="r">⚠️ только один</i>':"")+(sh?"":(flAge(x)?`<i>${flAge(x)}</i>`:"")+`<i>${esc(x.src||"")}</i>`)}
+function flTags(x,sh){return (x.mv?`<i class="${x.mvk==="ok"?"mv":""}">${esc(x.mv)}</i>`:"")+(x.gone?'<i class="r">снято с сайта</i>':"")+(x.m&&FLM[x.m]&&x.m!=="no"&&!sh?`<i class="g">${FLM[x.m]}</i>`:"")+(x.reg==="yes"?'<i class="g">✅ прописка</i>':x.reg==="?"?"<i>❔ прописка</i>":"")+(x.pair==="yes"?'<i class="g">👫 вдвоём</i>':x.pair==="no"?'<i class="r">⚠️ только один</i>':"")+(sh?"":(flAge(x)?`<i>${flAge(x)}</i>`:"")+`<i>${esc(x.src||"")}</i>`)}
 const FLM={sent:"✉️ написал",star:"★",view:"📅 просмотр",no:"скрыто"};
 function flViewer(x,i){const ph=x.photos&&x.photos.length?x.photos:[x.big||x.img].filter(Boolean);if(!ph.length)return;
   const el=document.createElement("div");el.className="flview";el.innerHTML=`<div class="row1"><span id="flvn">${i+1} / ${ph.length}</span><button type="button" aria-label="Закрыть">✕</button></div><div class="strip">${ph.map(u=>`<img src="${esc(u)}" alt="" referrerpolicy="no-referrer">`).join("")}</div>`;
@@ -1287,7 +1287,7 @@ function viewRent(head){
   if(FL===null){loadFlats();return head("Аренда","")+`<p class="empty" style="padding:4px 20px">${flErr?"Не загрузилось: "+esc(flErr):"Загружаю объявления…"}</p>`}
   if(FLV===null){FLV=FL.viewed||0;if(typeof fetchFlats==="function")fetchFlats("viewed").catch(()=>{})}
   const all=FL.items,vis=all.filter(x=>x.m!=="no");
-  const F={all:["Все",vis],new:["Новые",vis.filter(flNew)],flat:["Квартиры",vis.filter(x=>!x.room)],room:["Комнаты",vis.filter(x=>x.room)],star:["★",all.filter(x=>x.m==="star")],sent:["Написал",all.filter(x=>x.m==="sent")],view:["📅 Просмотр",all.filter(x=>x.m==="view")]};
+  const F={all:["Все",vis],new:["Новые",vis.filter(flNew)],move:["🗓 Под мой въезд",vis.filter(x=>x.mvk==="ok")],flat:["Квартиры",vis.filter(x=>!x.room)],room:["Комнаты",vis.filter(x=>x.room)],star:["★",all.filter(x=>x.m==="star")],sent:["Написал",all.filter(x=>x.m==="sent")],view:["📅 Просмотр",all.filter(x=>x.m==="view")]};
   if(!F[flTab])flTab="all";
   const chk=FL.check?new Date(FL.check*1000).toTimeString().slice(0,5):"";
   const card=x=>`<button type="button" class="flc${flNew(x)?" nw":""}" data-fl="${esc(x.k)}"><span class="im">${x.img?`<img src="${esc(x.img)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:(x.room?"🛏":"🏠")}<span class="pb">${flPrice(x)}</span>${flNew(x)?'<span class="nb">НОВОЕ</span>':""}${x.m==="star"?'<span class="st">★</span>':x.m==="sent"?'<span class="st">✉️ написал</span>':x.m==="view"?'<span class="st">📅 просмотр</span>':""}${(x.photos||[]).length>1?`<span class="st" style="top:auto;bottom:10px">📷 ${x.photos.length}</span>`:""}</span><span class="bd"><b>${x.room?"🛏 ":""}${esc(x.title||"Объявление")}</b><span class="pr">${[x.m2?Math.round(x.m2)+" м²":"",esc(x.city||""),esc(x.src||"")].filter(Boolean).join(" · ")}</span><span class="fltg">${flTags(x,1)}${flAge(x)?`<i>${flAge(x)}</i>`:""}</span></span></button>`;
