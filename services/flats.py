@@ -72,6 +72,14 @@ async def get(uid: int) -> dict:
         if "dordrecht" not in out["areas"]:
             out["areas"] = out["areas"] + ["dordrecht"]
         out["mdord"] = True
+    if not out.get("mtw2"):  # 19.11: убрать всё из старого региона (Гауда, Роттердам…) и заново собрать всё, что висит сейчас
+        keep = {k: x for k, x in (out.get("items") or {}).items() if str(x.get("city") or "").strip().lower() in NEAR}
+        out["items"] = keep
+        out["mark"] = {k: v for k, v in (out.get("mark") or {}).items() if k in keep}
+        out["note"] = {k: v for k, v in (out.get("note") or {}).items() if k in keep}
+        out["seen"], out["fp"] = {}, []
+        out["mtw"] = out["mtw2"] = True
+        out["areas"] = list(DEFAULT["areas"])
     if not out.get("mtw"):  # 19.11: регион Девентер–Апелдорн + около Дронтена вместо Гауды
         out["areas"] = list(DEFAULT["areas"])
         out["seen"] = {}
@@ -329,12 +337,9 @@ KN_PATTERNS = ["huren/huurwoningen-{c}", "huren/appartement-{c}", "huren/studio-
                "en/for-rent/studios-{c}", "en/for-rent/properties-{c}", "huren/kamer-{c}"]
 NEAR = {"deventer", "apeldoorn", "twello", "zutphen", "voorst", "wilp", "gorssel", "epe", "brummen", "eerbeek", "vaassen", "ugchelen",
         "zwolle", "kampen", "lelystad", "harderwijk", "almere", "dronten", "swifterbant", "biddinghuizen", "hattem", "heerde", "wezep",
-        "ermelo", "nunspeet", "zeewolde", "raalte", "olst", "wijhe", "holten", "bathmen", "gouda", "reeuwijk", "waddinxveen", "boskoop", "bodegraven", "alphen aan den rijn", "zoetermeer", "woerden", "moordrecht",
-        "gouderak", "nieuwerkerk aan den ijssel", "zevenhuizen", "moerkapelle", "capelle aan den ijssel", "rotterdam", "krimpen aan den ijssel",
-        "ouderkerk aan den ijssel", "haastrecht", "oudewater", "schoonhoven", "lekkerkerk", "nieuwegein", "utrecht", "leiden", "leiderdorp",
-        "den haag", "'s-gravenhage", "delft", "pijnacker", "nootdorp", "berkel en rodenrijs", "bleiswijk", "lansingerland", "dordrecht",
-        "zwijndrecht", "papendrecht", "sliedrecht", "alblasserdam", "hendrik-ido-ambacht", "ridderkerk", "barendrecht", "schiedam",
-        "rijswijk", "voorburg", "leidschendam", "maassluis", "vlaardingen", "montfoort", "ijsselstein", "harmelen", "nieuwerbrug", "houten"}
+        "ermelo", "nunspeet", "zeewolde", "raalte", "olst", "wijhe", "holten", "bathmen", "lochem", "warnsveld", "dalfsen", "ijsselmuiden",
+        "emmeloord", "putten", "elburg", "oldebroek", "heino", "lemelerveld", "beekbergen", "loenen", "klarenbeek", "terwolde", "teuge",
+        "almere-stad", "almere-haven", "almere-buiten", "almere-poort", "lelystad-haven", "schalkhaar", "diepenveen", "colmschate"}
 KN_TYPE = {1: "kamer", 2: "appartement", 4: "studio", 8: "anti-kraak", 16: "huis"}
 _kn_ok: dict = {}  # город → шаблоны адресов, которые реально отвечают
 
@@ -965,8 +970,9 @@ async def check(uid: int, send) -> int:
         if f:
             fps.add(f)
         x["t"] = now
-        if not fresh_src or x.get("push"):
-            new.append(x)
+        if fresh_src and not x.get("push"):
+            x["quiet"] = 1  # первая проверка источника: в «Аренду» без сообщений в чат
+        new.append(x)
     new = await screen(new)
     # сохраняем поверх свежей версии: пока шла проверка, могли нажать «Не надо», ★ и т.п.
     s2 = await get(uid)
@@ -981,7 +987,9 @@ async def check(uid: int, send) -> int:
     s2["items"] = items
     keep_items(s2)
     await put(uid, s2)
-    flats_ = [x for x in new if not x.get("room") or (x.get("reg") == "yes" and move_tag(x, s2.get("move"))[1] != "late")]
+    logger.warning(f"FLCHECK new={len(new)} quiet={sum(1 for x in new if x.get('quiet'))} total={len(items)}")
+    flats_ = [x for x in new if not x.get("quiet")]
+    flats_ = [x for x in flats_ if not x.get("room") or (x.get("reg") == "yes" and move_tag(x, s2.get("move"))[1] != "late")]
     for x in flats_[:SEND_NOW]:
         try:
             await send(card(x), kb(x))
