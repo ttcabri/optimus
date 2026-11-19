@@ -38,7 +38,7 @@ OLD_AREAS = [["gouda", "waddinxveen", "alphen aan den rijn", "zoetermeer", "bode
 DEFAULT = {"on": False, "areas": ["deventer", "apeldoorn", "twello", "zutphen", "zwolle", "kampen", "lelystad", "harderwijk", "almere", "dronten"],
            "max": 1000, "room_max": 800, "move": ["2026-12-15", "2027-01-15"], "fresh_days": 21, "min_m2": 0, "kitchen": True, "about": "", "seen": {}, "items": {}, "stat": {}}
 
-ABOUT0 = ("Андрей Ковалёв, 30 лет, из Украины, в Нидерландах с мая 2022. Последние 2 года работал на производстве паллет в Кампене, "
+ABOUT0 = ("Андрей Ковалёв, 29 лет, из Украины, в Нидерландах с мая 2022. Последние 2 года работал на производстве паллет в Кампене, "
           "бруто около €3000 в месяц, расчётки есть. Сейчас ищу работу в районе Гауды. Живу один, не курю, без животных, есть машина. "
           "Говорю по-английски. Могу заплатить 3 месяца аренды вперёд. Въехать могу быстро.")
 
@@ -72,6 +72,9 @@ async def get(uid: int) -> dict:
         if "dordrecht" not in out["areas"]:
             out["areas"] = out["areas"] + ["dordrecht"]
         out["mdord"] = True
+    if not out.get("mage29"):  # 19.11: ему 29, не 30
+        out["about"] = str(out.get("about") or "").replace("30 лет", "29 лет").replace("30 years", "29 years")
+        out["mage29"] = True
     if out.get("mtw2") and not out.get("mtw3"):  # 19.11: перепроверить то, что ИИ ошибочно отсеял (курение, «не студентам»)
         out["seen"], out["fp"] = {}, []
         out["mtw3"] = True
@@ -161,7 +164,7 @@ def _num(v) -> float | None:
         return None
 
 
-ME_AGE = 30  # возраст владельца для фильтра «до N лет»
+ME_AGE = 29  # возраст владельца для фильтра «до N лет»
 STUDENT = re.compile(r"(alleen|uitsluitend|enkel|only|exclusively)\s+(voor\s+|for\s+)?(\w+\s+)?student|students?\s+only|studentenhuis|studentenwoning|studentenkamer|student\s*(housing|house|room|campus)|campus|"
                      r"(must|need to|have to)\s+be\s+(a\s+)?(full[- ]time\s+)?student|ingeschreven\s+(bij|aan)\s+(een\s+)?(hogeschool|universiteit|onderwijs)|studiefinanciering|\bDUO\b|bewijs van inschrijving", re.I)
 WOMEN = re.compile(r"(alleen|only|uitsluitend)\s+(voor\s+|for\s+)?(vrouw|dame|meisje|female|wom[ae]n|girl)|female\s+(only|tenant)|vrouwelijke\s+(huurder|student)|(dames|meiden)huis", re.I)
@@ -654,7 +657,7 @@ async def translate(xs: list[dict]) -> None:
             "в описании оставь главное (что за жильё, кухня, мебель, с какого числа, условия) в 1-2 предложениях. "
             "Поле p: \"1\" если сказано, что жильё только для одного человека (1 persoon, geen stellen), "
             "\"2\" если прямо можно вдвоём или паре (2 personen, stel), иначе \"\". Не угадывай. "
-            "Поле x: жилец мужчина 30 лет, работает, не студент. Если в тексте прямо сказано, что он не подходит "
+            "Поле x: жилец мужчина 29 лет, работает, не студент. Если в тексте прямо сказано, что он не подходит "
             "(только студенты, возраст до 29 или старше 35, только женщины, только для пар/семей, только для экспатов компании X), "
             "Запрет курения, животных или вечеринок НЕ причина (он не курит, без животных). «Не для студентов» тоже НЕ причина, это ему подходит. "
             "напиши причину по-русски в 2-4 слова, иначе \"\". Не угадывай. "
