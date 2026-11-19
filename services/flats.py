@@ -72,13 +72,16 @@ async def get(uid: int) -> dict:
         if "dordrecht" not in out["areas"]:
             out["areas"] = out["areas"] + ["dordrecht"]
         out["mdord"] = True
+    if out.get("mtw2") and not out.get("mtw3"):  # 19.11: перепроверить то, что ИИ ошибочно отсеял (курение, «не студентам»)
+        out["seen"], out["fp"] = {}, []
+        out["mtw3"] = True
     if not out.get("mtw2"):  # 19.11: убрать всё из старого региона (Гауда, Роттердам…) и заново собрать всё, что висит сейчас
         keep = {k: x for k, x in (out.get("items") or {}).items() if str(x.get("city") or "").strip().lower() in NEAR}
         out["items"] = keep
         out["mark"] = {k: v for k, v in (out.get("mark") or {}).items() if k in keep}
         out["note"] = {k: v for k, v in (out.get("note") or {}).items() if k in keep}
         out["seen"], out["fp"] = {}, []
-        out["mtw"] = out["mtw2"] = True
+        out["mtw"] = out["mtw2"] = out["mtw3"] = True
         out["areas"] = list(DEFAULT["areas"])
     if not out.get("mtw"):  # 19.11: регион Девентер–Апелдорн + около Дронтена вместо Гауды
         out["areas"] = list(DEFAULT["areas"])
@@ -186,7 +189,13 @@ def unfit(x: dict) -> str:
         g = next((g for g in m.groups() if g), None)
         if g is None or (g.isdigit() and int(g) > ME_AGE + 5 and int(g) < 100):
             return "для пожилых" if g is None or int(g) >= 50 else f"от {g} лет"
-    return str(x.get("ux") or "")
+    ux = str(x.get("ux") or "")
+    # ИИ иногда пишет лишнее («запрет на курение», «не студентам»): верим только настоящим причинам отказа
+    if re.search(r"\bне\s+(для\s+)?студент|без\s+студент|курен|алкогол|животн|вечерин|шум", ux, re.I):
+        return ""
+    if re.search(r"студент|женщин|девуш|пар[аыу]?\b|сем[ьеи]|лет|возраст|экспат|сотрудник", ux, re.I):
+        return ux
+    return ""
 
 
 ROOM = re.compile(r"\bkamer\b|\broom\b|onzelfstandig|gedeelde (keuken|badkamer)|shared", re.I)
@@ -647,6 +656,7 @@ async def translate(xs: list[dict]) -> None:
             "\"2\" если прямо можно вдвоём или паре (2 personen, stel), иначе \"\". Не угадывай. "
             "Поле x: жилец мужчина 30 лет, работает, не студент. Если в тексте прямо сказано, что он не подходит "
             "(только студенты, возраст до 29 или старше 35, только женщины, только для пар/семей, только для экспатов компании X), "
+            "Запрет курения, животных или вечеринок НЕ причина (он не курит, без животных). «Не для студентов» тоже НЕ причина, это ему подходит. "
             "напиши причину по-русски в 2-4 слова, иначе \"\". Не угадывай. "
             "Ответ строго JSON-массив [{\"i\": 0, \"t\": \"заголовок\", \"d\": \"описание\", \"p\": \"\", \"x\": \"\"}]:\n" + json.dumps(data, ensure_ascii=False)}])
         t = "".join(b.text for b in r.content if b.type == "text")
