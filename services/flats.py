@@ -35,7 +35,7 @@ POSTCODES = {"gouda": "2801", "waddinxveen": "2741", "bodegraven": "2411", "alph
 
 OLD_AREAS = [["gouda", "waddinxveen", "alphen aan den rijn", "zoetermeer", "bodegraven"],
              ["rijswijk", "den haag", "delft", "zoetermeer", "leidschendam", "leiden", "rotterdam"]]
-DEFAULT = {"on": False, "areas": ["gouda", "waddinxveen", "bodegraven", "alphen aan den rijn", "zoetermeer", "woerden", "nieuwerkerk aan den ijssel", "dordrecht", "houten"],
+DEFAULT = {"on": False, "areas": ["deventer", "apeldoorn", "twello", "zutphen", "zwolle", "kampen", "lelystad", "harderwijk", "almere", "dronten"],
            "max": 1000, "room_max": 800, "move": ["2026-12-15", "2027-01-15"], "fresh_days": 21, "min_m2": 0, "kitchen": True, "about": "", "seen": {}, "items": {}, "stat": {}}
 
 ABOUT0 = ("Андрей Ковалёв, 30 лет, из Украины, в Нидерландах с мая 2022. Последние 2 года работал на производстве паллет в Кампене, "
@@ -72,6 +72,10 @@ async def get(uid: int) -> dict:
         if "dordrecht" not in out["areas"]:
             out["areas"] = out["areas"] + ["dordrecht"]
         out["mdord"] = True
+    if not out.get("mtw"):  # 19.11: регион Девентер–Апелдорн + около Дронтена вместо Гауды
+        out["areas"] = list(DEFAULT["areas"])
+        out["seen"] = {}
+        out["mtw"] = True
     if not out.get("mhout"):  # разово 12.11: добавить Houten
         if "houten" not in out["areas"]:
             out["areas"] = out["areas"] + ["houten"]
@@ -323,7 +327,9 @@ def _walk(o, found: list):
 
 KN_PATTERNS = ["huren/huurwoningen-{c}", "huren/appartement-{c}", "huren/studio-{c}", "en/for-rent/apartments-{c}",
                "en/for-rent/studios-{c}", "en/for-rent/properties-{c}", "huren/kamer-{c}"]
-NEAR = {"gouda", "reeuwijk", "waddinxveen", "boskoop", "bodegraven", "alphen aan den rijn", "zoetermeer", "woerden", "moordrecht",
+NEAR = {"deventer", "apeldoorn", "twello", "zutphen", "voorst", "wilp", "gorssel", "epe", "brummen", "eerbeek", "vaassen", "ugchelen",
+        "zwolle", "kampen", "lelystad", "harderwijk", "almere", "dronten", "swifterbant", "biddinghuizen", "hattem", "heerde", "wezep",
+        "ermelo", "nunspeet", "zeewolde", "raalte", "olst", "wijhe", "holten", "bathmen", "gouda", "reeuwijk", "waddinxveen", "boskoop", "bodegraven", "alphen aan den rijn", "zoetermeer", "woerden", "moordrecht",
         "gouderak", "nieuwerkerk aan den ijssel", "zevenhuizen", "moerkapelle", "capelle aan den ijssel", "rotterdam", "krimpen aan den ijssel",
         "ouderkerk aan den ijssel", "haastrecht", "oudewater", "schoonhoven", "lekkerkerk", "nieuwegein", "utrecht", "leiden", "leiderdorp",
         "den haag", "'s-gravenhage", "delft", "pijnacker", "nootdorp", "berkel en rodenrijs", "bleiswijk", "lansingerland", "dordrecht",
@@ -496,6 +502,9 @@ async def src_mail(cl: httpx.AsyncClient, s: dict) -> list[dict]:
             for x in json.loads(m.group(0)) if m else []:
                 title = str(x.get("title") or "")[:120]
                 price = _num(x.get("price"))
+                mc = str(x.get("city") or "").strip().lower()
+                if mc and mc not in NEAR and mc not in s["areas"] and not any(a in mc for a in s["areas"]):
+                    continue  # письмо Pararius/Funda по старому поиску (другой регион)
                 out.append({"src": site, "id": re.sub(r"\W+", "", f"{title}{price}".lower())[:50], "title": title, "price": price,
                             "city": str(x.get("city") or ""), "m2": _num(x.get("m2")), "url": str(x.get("url") or ""),
                             "text": str(x.get("text") or "")[:300], "date": "vandaag", "push": True,
@@ -972,7 +981,7 @@ async def check(uid: int, send) -> int:
     s2["items"] = items
     keep_items(s2)
     await put(uid, s2)
-    flats_ = [x for x in new if not x.get("room")]
+    flats_ = [x for x in new if not x.get("room") or (x.get("reg") == "yes" and move_tag(x, s2.get("move"))[1] != "late")]
     for x in flats_[:SEND_NOW]:
         try:
             await send(card(x), kb(x))
