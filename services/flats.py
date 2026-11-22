@@ -73,6 +73,9 @@ async def get(uid: int) -> dict:
         if "dordrecht" not in out["areas"]:
             out["areas"] = out["areas"] + ["dordrecht"]
         out["mdord"] = True
+    if not out.get("mnodw"):  # 22.11: DirectWonen убран
+        out["items"] = {k: x for k, x in (out.get("items") or {}).items() if x.get("src") != "DirectWonen" or (out.get("mark") or {}).get(k)}
+        out["mnodw"] = True
     if out.get("mreg2") and not out.get("mreg3"):  # 22.11: пересобрать всё актуальное по новому региону и потолку (тихо)
         out["seen"], out["fp"] = {}, []
         out["mreg3"] = True
@@ -630,7 +633,7 @@ async def src_chalets(cl: httpx.AsyncClient, s: dict) -> list[dict]:
                         "img": ((it.get("pictures") or [{}])[0] or {}).get("mediumUrl"), "date": it.get("date") or ""})
     return out
 
-SOURCES = {"Почта (Pararius+Funda)": src_mail, "Kamernet": src_kamernet, "DirectWonen": src_directwonen, "Шале (Marktplaats)": src_chalets}  # Marktplaats убран 27.10: почти нет квартир, одни висяки
+SOURCES = {"Почта (Pararius+Funda)": src_mail, "Kamernet": src_kamernet, "Шале (Marktplaats)": src_chalets}  # DirectWonen убран 22.11: писать платно, засоряет  # Marktplaats убран 27.10: почти нет квартир, одни висяки
 
 
 async def fetch_all(s: dict) -> tuple[list[dict], dict]:
