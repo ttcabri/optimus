@@ -35,7 +35,7 @@ POSTCODES = {"gouda": "2801", "waddinxveen": "2741", "bodegraven": "2411", "alph
 
 OLD_AREAS = [["gouda", "waddinxveen", "alphen aan den rijn", "zoetermeer", "bodegraven"],
              ["rijswijk", "den haag", "delft", "zoetermeer", "leidschendam", "leiden", "rotterdam"]]
-DEFAULT = {"on": False, "areas": ["deventer", "apeldoorn", "twello", "zutphen", "zwolle", "kampen", "lelystad", "harderwijk", "almere", "dronten"],
+DEFAULT = {"on": False, "areas": ["apeldoorn", "deventer", "twello", "zutphen", "brummen", "eerbeek", "epe", "vaassen", "lochem", "gorssel"],
            "max": 1000, "room_max": 800, "move": ["2026-12-15", "2027-01-15"], "fresh_days": 21, "min_m2": 0, "kitchen": True, "about": "", "seen": {}, "items": {}, "stat": {}}
 
 ABOUT0 = ("Андрей Ковалёв, 29 лет, из Украины, в Нидерландах с мая 2022. Последние 2 года работал на производстве паллет в Кампене. "
@@ -73,6 +73,12 @@ async def get(uid: int) -> dict:
         if "dordrecht" not in out["areas"]:
             out["areas"] = out["areas"] + ["dordrecht"]
         out["mdord"] = True
+    if not out.get("mreg2"):  # 22.11: только Апелдорн–Девентер–Зютфен, без района Дронтена
+        out["areas"] = list(DEFAULT["areas"])
+        keep = {k: x for k, x in (out.get("items") or {}).items() if str(x.get("city") or "").strip().lower() in NEAR}
+        out["items"] = keep
+        out["mark"] = {k: v for k, v in (out.get("mark") or {}).items() if k in keep}
+        out["mreg2"] = True
     if not out.get("m1350"):  # 22.11: потолок всё включено ~€1500 → квартиры до €1350 без коммуналки, шале до €1500
         out["max"] = 1350
         out["m1350"] = True
@@ -355,10 +361,8 @@ def _walk(o, found: list):
 KN_PATTERNS = ["huren/huurwoningen-{c}", "huren/appartement-{c}", "huren/studio-{c}", "en/for-rent/apartments-{c}",
                "en/for-rent/studios-{c}", "en/for-rent/properties-{c}", "huren/kamer-{c}"]
 NEAR = {"deventer", "apeldoorn", "twello", "zutphen", "voorst", "wilp", "gorssel", "epe", "brummen", "eerbeek", "vaassen", "ugchelen",
-        "zwolle", "kampen", "lelystad", "harderwijk", "almere", "dronten", "swifterbant", "biddinghuizen", "hattem", "heerde", "wezep",
-        "ermelo", "nunspeet", "zeewolde", "raalte", "olst", "wijhe", "holten", "bathmen", "lochem", "warnsveld", "dalfsen", "ijsselmuiden",
-        "emmeloord", "putten", "elburg", "oldebroek", "heino", "lemelerveld", "beekbergen", "loenen", "klarenbeek", "terwolde", "teuge",
-        "almere-stad", "almere-haven", "almere-buiten", "almere-poort", "lelystad-haven", "schalkhaar", "diepenveen", "colmschate"}
+        "olst", "wijhe", "holten", "bathmen", "lochem", "warnsveld", "beekbergen", "loenen", "klarenbeek", "terwolde", "teuge", "hoenderloo",
+        "schalkhaar", "diepenveen", "colmschate", "emst", "hoog soeren", "lieren", "harfsen", "laren", "eefde", "voorst gem voorst", "de vecht", "nijbroek"}
 KN_TYPE = {1: "kamer", 2: "appartement", 4: "studio", 8: "anti-kraak", 16: "huis"}
 _kn_ok: dict = {}  # город → шаблоны адресов, которые реально отвечают
 
