@@ -73,6 +73,9 @@ async def get(uid: int) -> dict:
         if "dordrecht" not in out["areas"]:
             out["areas"] = out["areas"] + ["dordrecht"]
         out["mdord"] = True
+    if not out.get("m1350"):  # 22.11: потолок всё включено ~€1500 → квартиры до €1350 без коммуналки, шале до €1500
+        out["max"] = 1350
+        out["m1350"] = True
     if not out.get("mabout2"):  # 22.11: регион Апелдорн/Девентер, без выписок
         out["about"] = ABOUT0
         out["mabout2"] = True
@@ -257,7 +260,7 @@ def _ok(x: dict, s: dict) -> bool:
         return False
     if x.get("reg") == "no":  # без прописки не берём: BRP по месту жительства обязателен
         return False
-    lim = s.get("room_max", 800) if x.get("room") else s["max"] + (300 if x.get("chalet") else 0)  # шале обычно дороже, но с коммуналкой
+    lim = s.get("room_max", 800) if x.get("room") else s["max"] + (150 if x.get("chalet") else 0)  # шале обычно дороже, но с коммуналкой
     if p is not None and (p > lim or p < 250):
         return False
     if s.get("min_m2") and x.get("m2") and x["m2"] < s["min_m2"]:
@@ -611,7 +614,7 @@ async def src_chalets(cl: httpx.AsyncClient, s: dict) -> list[dict]:
                 continue
             pi = it.get("priceInfo") or {}
             price = (pi.get("priceCents") or 0) / 100 or None
-            if price and price > s["max"] + 400:
+            if price and price > s["max"] + 150:
                 continue
             link = it.get("vipUrl") or ""
             out.append({"src": "Шале (Marktplaats)", "id": iid, "title": "Шале: " + title[:100], "price": price, "city": city or "Apeldoorn",
