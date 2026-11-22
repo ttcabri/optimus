@@ -536,7 +536,43 @@ async def src_mail(cl: httpx.AsyncClient, s: dict) -> list[dict]:
 
 
 # Pararius и Funda напрямую режут серверы (403 / обрыв), поэтому идут через почту
-SOURCES = {"Почта (Pararius+Funda)": src_mail, "Kamernet": src_kamernet}  # Marktplaats убран 27.10: почти нет квартир, одни висяки
+
+async def src_directwonen(cl: httpx.AsyncClient, s: dict) -> list[dict]:
+    """DirectWonen: список по городам. Смотреть бесплатно, писать хозяину без платного аккаунта можно всего 2 раза."""
+    out, seen, codes = [], set(), []
+    for city in s["areas"]:
+        r = await cl.get(f"https://directwonen.nl/huurwoningen-huren/{slug(city)}", headers=HEAD)
+        codes.append(r.status_code)
+        if r.status_code != 200:
+            continue
+        for tile in r.text.split('<div class="tile">')[1:]:
+            m = re.search(r'<a href="(https://directwonen\.nl/huurwoningen-huren/[^"]+?-(\d{4,}))"', tile)
+            if not m or m.group(2) in seen:
+                continue
+            seen.add(m.group(2))
+            typ = re.search(r'advert-location-header[^>]*>\s*([^<]+?)\s*<', tile)
+            typ = typ.group(1).strip() if typ else ""
+            price = re.search(r'advert-location-price">\s*&euro;\s*([\d.,]+)', tile)
+            loc = re.search(r'class="location-text"[^>]*>\s*([^<]+?)\s*<', tile)
+            loc = html.unescape(loc.group(1).strip()) if loc else city.title()
+            c = loc.split(",")[-1].strip()
+            if c.lower() not in NEAR and c.lower() not in s["areas"]:
+                continue
+            excl = "Excl" in tile[:3000]
+            m2 = re.search(r'(\d{2,3})\s*m(?:&sup2;|²|2)', tile)
+            img = re.search(r'<img[^>]+(?:data-src|src)="(https://[^"]+\.(?:jpe?g|png|webp)[^"]*)"', tile)
+            room = typ.lower().startswith("kamer")
+            out.append({"src": "DirectWonen", "id": m.group(2), "url": m.group(1),
+                        "title": ("Kamer " if room else (typ + " ") if typ and typ.lower() not in ("appartement", "woning") else "") + loc,
+                        "price": _num(price.group(1).replace(".", "").replace(",", ".")) if price else None, "city": c,
+                        "m2": _num(m2.group(1)) if m2 else None, "img": img.group(1) if img else None,
+                        "text": ("Цена без коммуналки (excl.). " if excl else "") + "Писать хозяину на DirectWonen: бесплатно только 2 раза, дальше платно.",
+                        "date": ""})
+    if not out and codes and all(c != 200 for c in codes):
+        raise RuntimeError(f"DirectWonen не отвечает: {codes[:3]}")
+    return out
+
+SOURCES = {"Почта (Pararius+Funda)": src_mail, "Kamernet": src_kamernet, "DirectWonen": src_directwonen}  # Marktplaats убран 27.10: почти нет квартир, одни висяки
 
 
 async def fetch_all(s: dict) -> tuple[list[dict], dict]:
