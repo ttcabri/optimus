@@ -1238,12 +1238,12 @@ async def probe() -> None:
                 logger.warning(f"FLPROBE kn {q} {r.status_code} n={len(found)} cities={cities} radkeys={rad}")
             except Exception as e:
                 logger.warning(f"FLPROBE kn {q} err {e}")
-        for u in ("https://directwonen.nl/huurwoningen-huren/apeldoorn", "https://directwonen.nl/huurwoningen-huren/deventer"):
+        for u in ("https://directwonen.nl/huurwoningen-huren/apeldoorn",):
             try:
                 r = await cl.get(u, headers=HEAD)
-                links = sorted(set(re.findall(r'href="(/huurwoningen-huren/[^"]+?-\d{4,})"', r.text)))
-                i = r.text.find(links[0]) if links else -1
-                logger.warning(f"FLPROBE dw {u} {r.status_code} len={len(r.text)} links={len(links)} {links[:4]} "
-                               f"next={'__NEXT_DATA__' in r.text} ctx={r.text[max(0, i - 300):i + 900]!r}")
+                h = r.text
+                links = sorted(set(re.findall(r'href="([^"]*huurwoningen-huren/apeldoorn/[^"]+)"', h, re.I)))
+                i = h.lower().find("huurwoningen-huren/apeldoorn/")
+                logger.warning(f"FLPROBE dw2 links={len(links)} {links[:6]} json={h.count('application/ld+json')} ctx={h[max(0, i - 1500):i + 2500]!r}")
             except Exception as e:
                 logger.warning(f"FLPROBE dw err {e}")
