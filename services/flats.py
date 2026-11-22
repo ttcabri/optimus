@@ -38,9 +38,10 @@ OLD_AREAS = [["gouda", "waddinxveen", "alphen aan den rijn", "zoetermeer", "bode
 DEFAULT = {"on": False, "areas": ["deventer", "apeldoorn", "twello", "zutphen", "zwolle", "kampen", "lelystad", "harderwijk", "almere", "dronten"],
            "max": 1000, "room_max": 800, "move": ["2026-12-15", "2027-01-15"], "fresh_days": 21, "min_m2": 0, "kitchen": True, "about": "", "seen": {}, "items": {}, "stat": {}}
 
-ABOUT0 = ("Андрей Ковалёв, 29 лет, из Украины, в Нидерландах с мая 2022. Последние 2 года работал на производстве паллет в Кампене, "
-          "бруто около €3000 в месяц, расчётки есть. Сейчас ищу работу в районе Гауды. Живу один, не курю, без животных, есть машина. "
-          "Говорю по-английски. Могу заплатить 3 месяца аренды вперёд. Въехать могу быстро.")
+ABOUT0 = ("Андрей Ковалёв, 29 лет, из Украины, в Нидерландах с мая 2022. Последние 2 года работал на производстве паллет в Кампене. "
+          "Сейчас ищу работу в районе Апелдорна и Девентера. Живу один, тихий, не курю, без животных, есть машина. "
+          "Говорю по-английски. Есть сбережения, могу заплатить 3 месяца аренды вперёд. Ищу жильё надолго, въехать могу с января. "
+          "Выписки из банка не предлагать.")
 
 BAD = re.compile(r"gezocht|zoek(?:t|en)?\b|ruil|te koop|koopwoning|garage|parkeer|berging|bedrijfsruimte|kantoor|vakantie", re.I)
 
@@ -72,6 +73,9 @@ async def get(uid: int) -> dict:
         if "dordrecht" not in out["areas"]:
             out["areas"] = out["areas"] + ["dordrecht"]
         out["mdord"] = True
+    if not out.get("mabout2"):  # 22.11: регион Апелдорн/Девентер, без выписок
+        out["about"] = ABOUT0
+        out["mabout2"] = True
     if not out.get("mage29"):  # 19.11: ему 29, не 30
         out["about"] = str(out.get("about") or "").replace("30 лет", "29 лет").replace("30 years", "29 years")
         out["mage29"] = True
