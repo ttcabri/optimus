@@ -257,7 +257,7 @@ def _ok(x: dict, s: dict) -> bool:
         return False
     if x.get("reg") == "no":  # без прописки не берём: BRP по месту жительства обязателен
         return False
-    lim = s.get("room_max", 800) if x.get("room") else s["max"]
+    lim = s.get("room_max", 800) if x.get("room") else s["max"] + (300 if x.get("chalet") else 0)  # шале обычно дороже, но с коммуналкой
     if p is not None and (p > lim or p < 250):
         return False
     if s.get("min_m2") and x.get("m2") and x["m2"] < s["min_m2"]:
@@ -572,7 +572,55 @@ async def src_directwonen(cl: httpx.AsyncClient, s: dict) -> list[dict]:
         raise RuntimeError(f"DirectWonen не отвечает: {codes[:3]}")
     return out
 
-SOURCES = {"Почта (Pararius+Funda)": src_mail, "Kamernet": src_kamernet, "DirectWonen": src_directwonen}  # Marktplaats убран 27.10: почти нет квартир, одни висяки
+
+APD = {"apeldoorn", "beekbergen", "ugchelen", "loenen", "hoenderloo", "hoog soeren", "uddel", "lieren", "klarenbeek", "radio kootwijk",
+       "wenum-wiesel", "wenum wiesel", "beemte-broekland", "beemte broekland", "kootwijk", "assel", "hoog-soeren", "orden", "het woud"}  # община Апелдорн: тут жить на парке терпят, прописка обязательна
+CHALET = re.compile(r"chalet|bungalow|stacaravan|vakantiewoning|recreatiewoning|vakantiehuis|vakantiepark|recreatiepark", re.I)
+
+
+async def src_chalets(cl: httpx.AsyncClient, s: dict) -> list[dict]:
+    """Шале и бунгало надолго в общине Апелдорн (Marktplaats). «inschrijven niet mogelijk» отбрасываем."""
+    out, seen = [], set()
+    urls = [f"https://www.marktplaats.nl/lrp/api/search?query={quote(q)}&postcode=7311&distanceMeters=20000"
+            f"&limit=50&offset=0&sortBy=SORT_INDEX&sortOrder=DECREASING&viewOptions=list-view"
+            for q in ("chalet te huur", "bungalow te huur", "chalet huren", "tijdelijk wonen chalet", "stacaravan te huur")]
+    res = await asyncio.gather(*(cl.get(u, headers={**HEAD, "Accept": "application/json"}) for u in urls), return_exceptions=True)
+    ok = [r for r in res if not isinstance(r, Exception) and r.status_code == 200]
+    if not ok:
+        raise RuntimeError("Marktplaats не отвечает")
+    for r in ok:
+        for it in r.json().get("listings") or []:
+            iid = str(it.get("itemId") or "")
+            if not iid or iid in seen:
+                continue
+            seen.add(iid)
+            loc = it.get("location") or {}
+            city = str(loc.get("cityName") or "").strip()
+            title, desc = str(it.get("title") or ""), str(it.get("description") or "")
+            txt = f"{title} {desc}"
+            if loc.get("abroad") or not CHALET.search(txt):
+                continue
+            if re.search(r"te koop|verkoop|vraagprijs|per nacht|per week|weekend|midweek", txt, re.I):
+                continue  # продажа и посуточно
+            if NO_REG.search(txt):
+                continue  # «inschrijven niet mogelijk»
+            reg_yes = bool(YES_REG.search(txt))
+            if city.lower() not in APD and not reg_yes:
+                continue  # вне общины Апелдорн берём только если прямо пишут, что прописка можно
+            if age_days(it.get("date")) is None:
+                continue
+            pi = it.get("priceInfo") or {}
+            price = (pi.get("priceCents") or 0) / 100 or None
+            if price and price > s["max"] + 400:
+                continue
+            link = it.get("vipUrl") or ""
+            out.append({"src": "Шале (Marktplaats)", "id": iid, "title": "Шале: " + title[:100], "price": price, "city": city or "Apeldoorn",
+                        "m2": None, "url": link if link.startswith("http") else "https://www.marktplaats.nl" + link, "chalet": 1,
+                        "text": ("✅ пишут, что прописка можно. " if reg_yes else "❔ прописку спросить. ") + desc[:350],
+                        "img": ((it.get("pictures") or [{}])[0] or {}).get("mediumUrl"), "date": it.get("date") or ""})
+    return out
+
+SOURCES = {"Почта (Pararius+Funda)": src_mail, "Kamernet": src_kamernet, "DirectWonen": src_directwonen, "Шале (Marktplaats)": src_chalets}  # Marktplaats убран 27.10: почти нет квартир, одни висяки
 
 
 async def fetch_all(s: dict) -> tuple[list[dict], dict]:
