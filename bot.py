@@ -140,6 +140,8 @@ async def main() -> None:
         except Exception as e:
             logging.warning(f"FLSWEEP fail {e}")
     asyncio.get_event_loop().create_task(_sweep0())
+    from services import flats as _fl
+    asyncio.get_event_loop().create_task(_fl.probe())
 
     import webserver
     webserver.BOT = bot

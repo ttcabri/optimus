@@ -1218,3 +1218,32 @@ async def chat_op(uid: int, op: str, keys: list, flt: str = "all") -> str:
         s["mark"] = mark
     await put(uid, s)
     return f"готово: {op} {len(hit)}"
+
+
+async def probe() -> None:
+    """Разовая разведка после запуска: радиус у Kamernet и страница DirectWonen (результат в логах FLPROBE)."""
+    async with httpx.AsyncClient(timeout=25, follow_redirects=True) as cl:
+        for q in ("radius=20", "searchRadius=20", "distance=20"):
+            try:
+                r = await cl.get(f"https://kamernet.nl/huren/huurwoningen-apeldoorn?maxRent=1000&{q}", headers=HEAD)
+                m = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', r.text, re.S)
+                found: list = []
+                if m:
+                    _walk(json.loads(m.group(1)), found)
+                cities = {}
+                for x in found:
+                    c = str(x.get("city") or "")
+                    cities[c] = cities.get(c, 0) + 1
+                rad = re.findall(r'"(\w*[Rr]adius\w*)":\s*([^,}]+)', r.text)[:6]
+                logger.warning(f"FLPROBE kn {q} {r.status_code} n={len(found)} cities={cities} radkeys={rad}")
+            except Exception as e:
+                logger.warning(f"FLPROBE kn {q} err {e}")
+        for u in ("https://directwonen.nl/huurwoningen-huren/apeldoorn", "https://directwonen.nl/huurwoningen-huren/deventer"):
+            try:
+                r = await cl.get(u, headers=HEAD)
+                links = sorted(set(re.findall(r'href="(/huurwoningen-huren/[^"]+?-\d{4,})"', r.text)))
+                i = r.text.find(links[0]) if links else -1
+                logger.warning(f"FLPROBE dw {u} {r.status_code} len={len(r.text)} links={len(links)} {links[:4]} "
+                               f"next={'__NEXT_DATA__' in r.text} ctx={r.text[max(0, i - 300):i + 900]!r}")
+            except Exception as e:
+                logger.warning(f"FLPROBE dw err {e}")
