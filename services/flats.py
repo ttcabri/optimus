@@ -73,6 +73,9 @@ async def get(uid: int) -> dict:
         if "dordrecht" not in out["areas"]:
             out["areas"] = out["areas"] + ["dordrecht"]
         out["mdord"] = True
+    if out.get("mreg2") and not out.get("mreg3"):  # 22.11: пересобрать всё актуальное по новому региону и потолку (тихо)
+        out["seen"], out["fp"] = {}, []
+        out["mreg3"] = True
     if not out.get("mreg2"):  # 22.11: только Апелдорн–Девентер–Зютфен, без района Дронтена
         out["areas"] = list(DEFAULT["areas"])
         keep = {k: x for k, x in (out.get("items") or {}).items() if str(x.get("city") or "").strip().lower() in NEAR}
