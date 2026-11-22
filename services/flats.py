@@ -1242,8 +1242,9 @@ async def probe() -> None:
             try:
                 r = await cl.get(u, headers=HEAD)
                 h = r.text
-                links = sorted(set(re.findall(r'href="([^"]*huurwoningen-huren/apeldoorn/[^"]+)"', h, re.I)))
-                i = h.lower().find("huurwoningen-huren/apeldoorn/")
-                logger.warning(f"FLPROBE dw2 links={len(links)} {links[:6]} json={h.count('application/ld+json')} ctx={h[max(0, i - 1500):i + 2500]!r}")
+                links = sorted(set(re.findall(r'href="([^"]*huurwoningen-huren/apeldoorn/[^"]+\d{4,}[^"]*)"', h, re.I)))
+                js = re.findall(r'<script type="application/ld\+json">(.*?)</script>', h, re.S)
+                i = h.find(links[0]) if links else -1
+                logger.warning(f"FLPROBE dw3 links={len(links)} {links[:5]} ld={[j[:700] for j in js]!r} ctx={h[max(0, i - 2500):i + 1500]!r}")
             except Exception as e:
                 logger.warning(f"FLPROBE dw err {e}")
