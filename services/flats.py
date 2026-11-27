@@ -1274,6 +1274,8 @@ async def diag(uid: int) -> None:
                          else "price" if x.get("price") is not None else "bad")
                     why[w] = why.get(w, 0) + 1
             L(f"{name}: raw={len(xs)} kept={len(kept)} drop={why}")
+            for x in xs[:40]:
+                L(f"  raw {x.get('city')} €{x.get('price')} age={x.get('age')} reg={x.get('reg')} room={x.get('room')} ok={_ok(x, s)} {str(x.get('title'))[:50]}")
             for x in kept[:8]:
                 L(f"  {x.get('city')} €{x.get('price')} {x.get('m2')}м² age={x.get('age')} room={x.get('room')} {str(x.get('title'))[:50]} {x.get('url')}")
 
