@@ -255,7 +255,7 @@ async def get_ai_response(telegram_id: int, user_message: str, voice: bool = Fal
                     fs["on"] = op == "on"
                 elif op == "set":
                     if i.get("areas"):
-                        fs["areas"] = [str(a).strip().lower() for a in i["areas"]][:12]
+                        fs["areas"] = [str(a).strip().lower() for a in i["areas"]][:30]
                         fs["seen"] = {}
                     if i.get("max"):
                         fs["max"] = int(i["max"])
