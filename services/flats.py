@@ -73,6 +73,10 @@ async def get(uid: int) -> dict:
         if "dordrecht" not in out["areas"]:
             out["areas"] = out["areas"] + ["dordrecht"]
         out["mdord"] = True
+    if not out.get("mdieren"):  # 27.11: добавить Dieren
+        if "dieren" not in out["areas"]:
+            out["areas"] = out["areas"] + ["dieren"]
+        out["mdieren"] = True
     if out.get("mwide") and not out.get("mwide2"):  # 27.11: заново прогнать всё по новым правилам (комнаты до €1000, без строгой прописки)
         out["seen"], out["fp"] = {}, []
         out["mwide2"] = True
@@ -376,7 +380,7 @@ KN_PATTERNS = ["huren/huurwoningen-{c}", "huren/appartement-{c}", "huren/studio-
 NEAR = {"deventer", "apeldoorn", "twello", "zutphen", "voorst", "wilp", "gorssel", "epe", "brummen", "eerbeek", "vaassen", "ugchelen",
         "olst", "wijhe", "holten", "bathmen", "lochem", "warnsveld", "beekbergen", "loenen", "klarenbeek", "terwolde", "teuge", "hoenderloo",
         "schalkhaar", "diepenveen", "colmschate", "emst", "hoog soeren", "lieren", "harfsen", "laren", "eefde", "voorst gem voorst", "de vecht", "nijbroek",
-        "raalte", "heerde", "hattem", "wapenveld", "zwolle", "heino", "dalfsen", "wijhe", "luttenberg"}
+        "raalte", "heerde", "hattem", "wapenveld", "zwolle", "heino", "dalfsen", "wijhe", "luttenberg", "dieren", "rheden", "spankeren", "laag-soeren"}
 KN_TYPE = {1: "kamer", 2: "appartement", 4: "studio", 8: "anti-kraak", 16: "huis"}
 _kn_cnt: dict = {}  # город → сколько объявлений Kamernet нашёл (для логов)
 _kn_ok: dict = {}  # город → шаблоны адресов, которые реально отвечают
