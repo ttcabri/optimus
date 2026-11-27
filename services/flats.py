@@ -73,6 +73,9 @@ async def get(uid: int) -> dict:
         if "dordrecht" not in out["areas"]:
             out["areas"] = out["areas"] + ["dordrecht"]
         out["mdord"] = True
+    if out.get("mwide") and not out.get("mwide2"):  # 27.11: заново прогнать всё по новым правилам (комнаты до €1000, без строгой прописки)
+        out["seen"], out["fp"] = {}, []
+        out["mwide2"] = True
     if not out.get("mwide"):  # 27.11: деревни вокруг Твелло + Зволле, комнаты до €1000
         out["areas"] = out["areas"] + [a for a in ["voorst", "wilp", "klarenbeek", "loenen", "teuge", "olst", "wijhe", "bathmen", "holten", "raalte", "heerde", "hattem", "ugchelen", "beekbergen", "diepenveen", "zwolle"] if a not in out["areas"]]
         out["room_max"] = 1000
@@ -375,6 +378,7 @@ NEAR = {"deventer", "apeldoorn", "twello", "zutphen", "voorst", "wilp", "gorssel
         "schalkhaar", "diepenveen", "colmschate", "emst", "hoog soeren", "lieren", "harfsen", "laren", "eefde", "voorst gem voorst", "de vecht", "nijbroek",
         "raalte", "heerde", "hattem", "wapenveld", "zwolle", "heino", "dalfsen", "wijhe", "luttenberg"}
 KN_TYPE = {1: "kamer", 2: "appartement", 4: "studio", 8: "anti-kraak", 16: "huis"}
+_kn_cnt: dict = {}  # город → сколько объявлений Kamernet нашёл (для логов)
 _kn_ok: dict = {}  # город → шаблоны адресов, которые реально отвечают
 
 
@@ -419,10 +423,12 @@ async def src_kamernet(cl: httpx.AsyncClient, s: dict) -> list[dict]:
                             "big": x.get("fullPreviewImageUrl") or x.get("resizedFullPreviewImageUrl"),
                             "student": bool(x.get("isStudentHouseAdvert") or x.get("studentHouseId")),
                             "date": str(x.get("publishDate") or x.get("createdAt") or x.get("activatedAt") or "")})
+        _kn_cnt[city] = sum(1 for x in out if str(x.get("city") or "").lower() == city or slug(str(x.get("city") or "")) == slug(city))
         if good:
             _kn_ok[city] = [p for p in good if "kamer-" not in p] or good
         elif city not in _kn_ok:
             _kn_ok[city] = KN_PATTERNS[:1]  # пусто во всех вариантах: дальше только общая страница (меньше запросов)
+    logger.warning("FLKN " + " ".join(f"{c}={n}" for c, n in _kn_cnt.items()))
     if not out and not any(_kn_ok.values()):
         raise RuntimeError("не нашёл страницу поиска: " + ", ".join(sorted(set(tried)))[:110])
     return out
