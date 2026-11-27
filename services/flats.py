@@ -73,6 +73,10 @@ async def get(uid: int) -> dict:
         if "dordrecht" not in out["areas"]:
             out["areas"] = out["areas"] + ["dordrecht"]
         out["mdord"] = True
+    if not out.get("mwide"):  # 27.11: деревни вокруг Твелло + Зволле, комнаты до €1000
+        out["areas"] = out["areas"] + [a for a in ["voorst", "wilp", "klarenbeek", "loenen", "teuge", "olst", "wijhe", "bathmen", "holten", "raalte", "heerde", "hattem", "ugchelen", "beekbergen", "diepenveen", "zwolle"] if a not in out["areas"]]
+        out["room_max"] = 1000
+        out["mwide"] = True
     if not out.get("mnodw"):  # 22.11: DirectWonen убран
         out["items"] = {k: x for k, x in (out.get("items") or {}).items() if x.get("src") != "DirectWonen" or (out.get("mark") or {}).get(k)}
         out["mnodw"] = True
@@ -368,7 +372,8 @@ KN_PATTERNS = ["huren/huurwoningen-{c}", "huren/appartement-{c}", "huren/studio-
                "en/for-rent/studios-{c}", "en/for-rent/properties-{c}", "huren/kamer-{c}"]
 NEAR = {"deventer", "apeldoorn", "twello", "zutphen", "voorst", "wilp", "gorssel", "epe", "brummen", "eerbeek", "vaassen", "ugchelen",
         "olst", "wijhe", "holten", "bathmen", "lochem", "warnsveld", "beekbergen", "loenen", "klarenbeek", "terwolde", "teuge", "hoenderloo",
-        "schalkhaar", "diepenveen", "colmschate", "emst", "hoog soeren", "lieren", "harfsen", "laren", "eefde", "voorst gem voorst", "de vecht", "nijbroek"}
+        "schalkhaar", "diepenveen", "colmschate", "emst", "hoog soeren", "lieren", "harfsen", "laren", "eefde", "voorst gem voorst", "de vecht", "nijbroek",
+        "raalte", "heerde", "hattem", "wapenveld", "zwolle", "heino", "dalfsen", "wijhe", "luttenberg"}
 KN_TYPE = {1: "kamer", 2: "appartement", 4: "studio", 8: "anti-kraak", 16: "huis"}
 _kn_ok: dict = {}  # город → шаблоны адресов, которые реально отвечают
 
@@ -416,6 +421,8 @@ async def src_kamernet(cl: httpx.AsyncClient, s: dict) -> list[dict]:
                             "date": str(x.get("publishDate") or x.get("createdAt") or x.get("activatedAt") or "")})
         if good:
             _kn_ok[city] = [p for p in good if "kamer-" not in p] or good
+        elif city not in _kn_ok:
+            _kn_ok[city] = KN_PATTERNS[:1]  # пусто во всех вариантах: дальше только общая страница (меньше запросов)
     if not out and not any(_kn_ok.values()):
         raise RuntimeError("не нашёл страницу поиска: " + ", ".join(sorted(set(tried)))[:110])
     return out
@@ -627,6 +634,8 @@ async def src_chalets(cl: httpx.AsyncClient, s: dict) -> list[dict]:
             if price and price > s["max"] + 150:
                 continue
             link = it.get("vipUrl") or ""
+            if re.search(r"/v/(vakantie|caravans-en-kamperen)/", link) or re.search(r"\d+\s*-?\s*persoons", txt, re.I):
+                continue  # отпускные домики и караваны (часто за границей), не жильё
             out.append({"src": "Шале (Marktplaats)", "id": iid, "title": "Шале: " + title[:100], "price": price, "city": city or "Apeldoorn",
                         "m2": None, "url": link if link.startswith("http") else "https://www.marktplaats.nl" + link, "chalet": 1,
                         "text": ("✅ пишут, что прописка можно. " if reg_yes else "❔ прописку спросить. ") + desc[:350],
@@ -1103,7 +1112,7 @@ async def check(uid: int, send) -> int:
     await put(uid, s2)
     logger.warning(f"FLCHECK new={len(new)} quiet={sum(1 for x in new if x.get('quiet'))} total={len(items)}")
     flats_ = [x for x in new if not x.get("quiet")]
-    flats_ = [x for x in flats_ if not x.get("room") or (x.get("reg") == "yes" and move_tag(x, s2.get("move"))[1] != "late")]
+    flats_ = [x for x in flats_ if not x.get("room") or (x.get("reg") != "no" and move_tag(x, s2.get("move"))[1] != "late")]  # 27.11: комнаты все, кроме «без прописки»
     for x in flats_[:SEND_NOW]:
         try:
             await send(card(x), kb(x))

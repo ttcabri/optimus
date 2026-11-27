@@ -139,10 +139,6 @@ async def main() -> None:
             logging.warning(f"FLSWEEP lost={lost} {(await _fl.get(TELEGRAM_USER_ID)).get('sweep')}")
         except Exception as e:
             logging.warning(f"FLSWEEP fail {e}")
-        try:
-            await _fl.diag(TELEGRAM_USER_ID)
-        except Exception as e:
-            logging.warning(f"FLDIAG fail {e}")
     asyncio.get_event_loop().create_task(_sweep0())
 
     import webserver
